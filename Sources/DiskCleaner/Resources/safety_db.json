@@ -1,0 +1,338 @@
+{
+  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
+  "version": 1,
+  "updated": "2026-08-31",
+  "entries": [
+    {
+      "name": "Codex 崩溃转储",
+      "what": "Codex 崩溃时生成的 .dmp 报告，只用于上报诊断",
+      "whatif": "删掉不影响任何功能",
+      "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
+      "path": "~/Library/Application Support/Codex/Crashpad/pending",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "Qoder 崩溃转储",
+      "what": "Qoder 崩溃时生成的报告文件堆积",
+      "whatif": "删掉不影响任何功能",
+      "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
+      "path": "~/Library/Application Support/Qoder/Crashpad/pending",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "Chrome 崩溃转储",
+      "what": "Chrome 崩溃时生成的报告文件堆积",
+      "whatif": "删掉不影响任何功能",
+      "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
+      "path": "~/Library/Application Support/Google/Chrome/Crashpad/pending",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "系统崩溃诊断报告",
+      "what": "DiagnosticReports，系统与应用的崩溃诊断日志",
+      "whatif": "删掉不影响系统运行",
+      "rec": "无需恢复；有新崩溃时系统会自动写入新报告",
+      "path": "~/Library/Logs/DiagnosticReports",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "nvm 下载缓存",
+      "what": "nvm 下载过的 Node 安装包缓存",
+      "whatif": "删掉后已安装的 Node 版本不受影响",
+      "rec": "无需恢复；需要时 nvm install 会重新下载",
+      "path": "~/.nvm/.cache",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://github.com/nvm-sh/nvm"
+    },
+    {
+      "name": "npm 缓存",
+      "what": "npm 的内容寻址下载缓存（_cacache）",
+      "whatif": "删掉后下次安装会慢一次",
+      "rec": "无需恢复；npm install 会自动重建缓存",
+      "path": "~/.npm/_cacache",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://docs.npmjs.com/"
+    },
+    {
+      "name": "npm 缓存目录",
+      "what": "npm 的整个缓存根目录 ~/.npm",
+      "whatif": "删掉后已装的全局包不受影响，缓存会重建",
+      "rec": "无需恢复；npm install 自动重建",
+      "path": "~/.npm",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://docs.npmjs.com/"
+    },
+    {
+      "name": "tnpm 缓存",
+      "what": "集团 npm 镜像（tnpm）的缓存目录",
+      "whatif": "删掉后下次安装会重新下载",
+      "rec": "无需恢复；下次安装自动重建",
+      "path": "~/.tnpm",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "npminstall 安装包",
+      "what": "npminstall 下载的 .tgz 安装包缓存",
+      "whatif": "删掉后下次安装会重新下载",
+      "rec": "无需恢复；下次安装自动重建",
+      "path": "~/.npminstall_tarball",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "pnpm store",
+      "what": "pnpm 的全局包仓库，各项目通过硬链接复用",
+      "whatif": "删掉后各项目 node_modules 里已链接的文件本体仍在，只是仓库清空",
+      "rec": "无需恢复；pnpm install 会重新下载缺失的包",
+      "path": "~/Library/pnpm/store",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://pnpm.io/"
+    },
+    {
+      "name": "yarn 缓存",
+      "what": "yarn 的下载缓存",
+      "whatif": "删掉后下次安装会重新下载",
+      "rec": "无需恢复；yarn install 自动重建",
+      "path": "~/Library/Caches/Yarn",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://yarnpkg.com/"
+    },
+    {
+      "name": "bun 缓存",
+      "what": "bun 的安装缓存",
+      "whatif": "删掉后下次安装会重新下载",
+      "rec": "无需恢复；bun install 自动重建",
+      "path": "~/.bun/install/cache",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://bun.sh/"
+    },
+    {
+      "name": "Gradle 缓存",
+      "what": "Gradle 的构建缓存与依赖仓库",
+      "whatif": "删掉后下次构建要全量重新下载依赖（首次构建明显变慢）",
+      "rec": "无需恢复；下次构建自动重新下载，离线环境请先确认依赖仓库可用",
+      "path": "~/.gradle/caches",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://gradle.org/"
+    },
+    {
+      "name": "Maven 仓库",
+      "what": "Maven 本地依赖仓库 ~/.m2/repository",
+      "whatif": "删掉后首次构建会全量重新下载（可能较慢）",
+      "rec": "无需恢复；构建时 Maven 按需重新下载，离线机器需先配置好镜像仓库",
+      "path": "~/.m2/repository",
+      "level": "warn",
+      "grp": "general",
+      "docs": "https://maven.apache.org/"
+    },
+    {
+      "name": "pip 缓存",
+      "what": "pip 下载的源码包/轮子缓存",
+      "whatif": "删掉后下次安装会重新下载",
+      "rec": "无需恢复；pip install 自动重建",
+      "path": "~/Library/Caches/pip",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://pip.pypa.io/"
+    },
+    {
+      "name": "Homebrew 缓存",
+      "what": "brew 下载的安装包缓存",
+      "whatif": "删掉不影响已安装的软件",
+      "rec": "无需恢复；重装时 brew 会重新下载",
+      "path": "~/Library/Caches/Homebrew",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://brew.sh/"
+    },
+    {
+      "name": "conda 包缓存",
+      "what": "conda 的包缓存目录 pkgs",
+      "whatif": "删掉后已创建的环境不受影响",
+      "rec": "无需恢复；conda 会按需重新下载",
+      "path": "~/.conda/pkgs",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://docs.conda.io/"
+    },
+    {
+      "name": "Xcode DerivedData",
+      "what": "Xcode 每个项目的构建中间产物与索引",
+      "whatif": "删掉后首次构建/索引会慢一次",
+      "rec": "无需恢复；下次打开项目 Xcode 自动重建",
+      "path": "~/Library/Developer/Xcode/DerivedData",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
+      "name": "Xcode 归档文件",
+      "what": "Xcode 打包上传时生成的历史归档（.xcarchive）",
+      "whatif": "删掉后对应版本的归档没了，无法再导出该次打包的 ipa",
+      "rec": "无法直接恢复；如有上架/留存需求请先备份，或用同一代码提交重新打包",
+      "path": "~/Library/Developer/Xcode/Archives",
+      "level": "warn",
+      "grp": "general",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
+      "name": "iOS DeviceSupport",
+      "what": "真机调试时拷贝的旧系统版本调试符号",
+      "whatif": "删掉后连旧系统真机调试要重新生成",
+      "rec": "无需恢复；连接对应系统的真机时 Xcode 会自动重新生成",
+      "path": "~/Library/Developer/Xcode/iOS DeviceSupport",
+      "level": "warn",
+      "grp": "general",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
+      "name": "模拟器缓存",
+      "what": "CoreSimulator 的临时缓存",
+      "whatif": "删掉后模拟器下次启动会重建",
+      "rec": "无需恢复；模拟器自动重建",
+      "path": "~/Library/Developer/CoreSimulator/Caches",
+      "level": "safe",
+      "grp": "general",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
+      "name": "iOS 设备备份",
+      "what": "iPhone/iPad 通过这台电脑做的整机备份",
+      "whatif": "删掉后这些历史备份没了，设备本身不受影响",
+      "rec": "已删的备份无法恢复；重新用数据线连接设备可再做一次全新备份",
+      "path": "~/Library/Application Support/MobileSync/Backup",
+      "level": "warn",
+      "grp": "general"
+    },
+    {
+      "name": "Docker 数据",
+      "what": "Docker Desktop 的镜像、容器与卷数据",
+      "whatif": "删掉等于清空全部本地镜像和容器",
+      "rec": "无法逐项恢复；重新打开 Docker Desktop 后可重新拉取镜像、重建容器。更稳妥的做法是在 Docker Desktop 里清理",
+      "path": "~/Library/Containers/com.docker.docker",
+      "level": "warn",
+      "grp": "general",
+      "docs": "https://www.docker.com/"
+    },
+    {
+      "name": "应用缓存总目录",
+      "what": "~/Library/Caches，各应用的缓存总目录",
+      "whatif": "删掉后各应用首次启动会变慢，随后自行重建",
+      "rec": "无需恢复；应用启动后自动重建",
+      "path": "~/Library/Caches",
+      "level": "warn",
+      "grp": "general"
+    },
+    {
+      "name": "应用日志",
+      "what": "~/Library/Logs，应用写下的日志文件",
+      "whatif": "删掉后旧日志找不回来，不影响使用",
+      "rec": "旧日志无法恢复；应用会继续写入新日志",
+      "path": "~/Library/Logs",
+      "level": "safe",
+      "grp": "general"
+    },
+    {
+      "name": "废纸篓",
+      "what": "访达废纸篓里等你确认的东西",
+      "whatif": "清空后才真正释放空间，清空后不可恢复",
+      "rec": "清空前随时可在访达里把文件拖回原位置",
+      "path": "~/.Trash",
+      "level": "warn",
+      "grp": "general"
+    },
+    {
+      "name": "微信缓存",
+      "what": "微信在电脑上的临时缓存（图片缩略图、小程序、网页缓存等）",
+      "whatif": "删掉不影响聊天记录和登录状态",
+      "rec": "无需恢复；微信会按需自动重建",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Library/Caches",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信聊天图片视频",
+      "what": "聊天里收到的图片、视频、文件原件（按账号存放）",
+      "whatif": "聊天记录文字还在；图片和视频重新点开需要重新下载，超期的可能无法再查看",
+      "rec": "无法本地恢复；在手机微信的对应聊天里点开即可重新下载（未过期部分）",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/*/*/Message/MessageTemp",
+      "level": "warn",
+      "grp": "cn_app"
+    },
+    {
+      "name": "QQ 缓存",
+      "what": "QQ 在电脑上的临时缓存",
+      "whatif": "删掉不影响聊天记录和登录状态",
+      "rec": "无需恢复；QQ 会按需自动重建",
+      "path": "~/Library/Containers/com.tencent.qq/Data/Library/Caches",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "QQ 聊天图片视频",
+      "what": "新版 QQ 的聊天图片、视频、文件数据（按账号存放）",
+      "whatif": "聊天记录文字还在；图片和视频重新点开需要重新下载",
+      "rec": "无法本地恢复；在手机 QQ 的对应聊天里点开即可重新下载",
+      "path": "~/Library/Containers/com.tencent.qq/Data/Library/Application Support/QQ/nt_qq_*/nt_data",
+      "level": "warn",
+      "grp": "cn_app"
+    },
+    {
+      "name": "钉钉缓存",
+      "what": "钉钉在电脑上的临时缓存",
+      "whatif": "删掉不影响聊天记录和登录状态",
+      "rec": "无需恢复；钉钉会按需自动重建",
+      "path": "~/Library/Caches/com.alibaba.DingTalkMac",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "钉钉日志",
+      "what": "钉钉写入的运行日志（本机实测常见几百 MB）",
+      "whatif": "删掉后旧日志找不回来，不影响使用",
+      "rec": "旧日志无法恢复；钉钉会继续写新日志",
+      "path": "~/Library/Application Support/*[Dd]ing[Tt]alk*/log",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "钉钉聊天数据",
+      "what": "钉钉按账号存放的聊天图片、视频与文件数据",
+      "whatif": "聊天记录文字还在；图片和视频重新点开需要重新下载，本地文件原件会没",
+      "rec": "无法本地恢复；在手机钉钉的对应聊天里重新下载（未过期部分）",
+      "path": "~/Library/Application Support/*[Dd]ing[Tt]alk*/*_v[0-9]*",
+      "level": "warn",
+      "grp": "cn_app"
+    },
+    {
+      "name": "企业微信缓存",
+      "what": "企业微信在电脑上的临时缓存",
+      "whatif": "删掉不影响聊天记录和登录状态",
+      "rec": "无需恢复；企业微信会按需自动重建",
+      "path": "~/Library/Containers/com.tencent.WeWork/Data/Library/Caches",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "企业微信聊天数据",
+      "what": "企业微信按账号存放的聊天图片、视频与文件数据",
+      "whatif": "聊天记录文字还在；图片和视频重新点开需要重新下载",
+      "rec": "无法本地恢复；在手机企业微信的对应聊天里重新下载",
+      "path": "~/Library/Containers/com.tencent.WeWork/Data/Library/Application Support/WXWork/*/Cache",
+      "level": "warn",
+      "grp": "cn_app"
+    }
+  ]
+}

@@ -1,0 +1,362 @@
+import SwiftUI
+import DiskCleanerCore
+
+// ── 重复文件：每组保留最早的一个，其余可删 ──
+
+@MainActor
+final class DupModel: ObservableObject {
+    @Published var groups: [DupGroup] = []
+    @Published var scanning = false
+    @Published var progress = ""
+    @Published var minMB = 20
+    @Published var selection: Set<String> = []   // 选中待删的文件 path
+    private var task: Task<Void, Never>? = nil
+
+    var waste: Int64 { groups.reduce(0) { $0 + $1.waste } }
+    var selectedCount: Int { selection.count }
+
+    func scan() {
+        task?.cancel()
+        scanning = true
+        groups = []
+        selection = []
+        let minB = Int64(minMB) * 1024 * 1024
+        task = Task {
+            self.progress = L("遍历文件…")
+            let files = await walkFiles(dirs: defaultScanDirs(), minSize: minB,
+                                        skipNames: ["node_modules", ".git", "Caches"])
+            if Task.isCancelled { return }
+            self.progress = LF("比对内容（%@ 个候选）…", String(files.count))
+            // 哈希是同步重活，扔后台线程做
+            let gs = await Task.detached { findDupGroups(files) }.value
+            if !Task.isCancelled {
+                self.groups = gs
+                self.scanning = false
+                self.progress = ""
+            }
+        }
+    }
+
+    func stop() { task?.cancel(); scanning = false }
+
+    func selectAllButFirst() {
+        for g in groups {
+            for u in g.files.dropFirst() { selection.insert(u.path) }
+        }
+    }
+}
+
+struct DupView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.theme) private var theme
+    @StateObject private var model = DupModel()
+    @State private var confirm = false
+    @State private var err: String? = nil
+
+    var selectedBytes: Int64 {
+        var sizeByPath: [String: Int64] = [:]
+        for g in model.groups {
+            for u in g.files { sizeByPath[u.path] = g.size }
+        }
+        return model.selection.reduce(0) { $0 + (sizeByPath[$1] ?? 0) }
+    }
+
+    /// 全页最狠一组的浪费量，给组间比例条当分母
+    private var maxWaste: Int64 { max(1, model.groups.map(\.waste).max() ?? 1) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                PageHeader(symbol: "square.on.square", title: L("双胞胎，只留一个"),
+                           subtitle: L("每组最早的那份永远保留，动其余的")) {
+                    ThemeStepper(label: "≥", value: $model.minMB, range: 5...500, step: 5) {
+                        model.scan()
+                    }
+                    ThemeBadge(text: "MB", tone: .neutral)
+                    ThemeButton(kind: .secondary, symbol: "checkmark.rectangle.stack",
+                                title: L("全选多余"),
+                                isDisabled: model.groups.isEmpty) { model.selectAllButFirst() }
+                }
+                ControlStrip {
+                    if model.scanning {
+                        LoadingRow(text: model.progress.isEmpty ? L("正在比对…") : model.progress)
+                    } else {
+                        Text(LF("发现 %1$@，可收回约 %2$@",
+                                cnt(model.groups.count, "组重复"), human(model.waste)))
+                    }
+                }
+            }
+            .pagePadding()
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            if !model.scanning && model.groups.isEmpty {
+                EmptyState(symbol: "checklist", title: L("没有重复文件"),
+                           hint: L("阈值调低会更严格，但也更慢"))
+                    .frame(maxHeight: .infinity)
+            } else {
+                List(model.groups) { g in
+                    DupGroupRow(group: g, selection: $model.selection, maxWaste: maxWaste)
+                        .themedRow()
+                }
+                .themedList()
+            }
+
+            CleanBar(count: model.selectedCount, bytes: selectedBytes,
+                     errorText: err) { confirm = true }
+        }
+        .frame(maxWidth: .infinity)
+        .navigationTitle(L("重复文件"))
+        .onAppear { if model.groups.isEmpty { model.scan() } }
+        .onDisappear { model.stop() }
+        .confirmTrash(isPresented: $confirm,
+                      text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
+                               cnt(model.selectedCount, "个多余副本"))) {
+            doClean()
+        }
+    }
+
+    private func doClean() {
+        err = nil
+        var ok = 0
+        var errs: [String] = []
+        for path in model.selection {
+            let u = URL(fileURLWithPath: path)
+            let sz = fileSize(u)
+            do {
+                let t = try trashItem(u)
+                store.record(TrashRecord(original: u, inTrash: t, size: sz, displayName: u.lastPathComponent))
+                ok += 1
+            } catch { errs.append(failLine(u.lastPathComponent, error)) }
+        }
+        model.selection = []
+        model.scan()  // 重扫，组结构变了
+        if !errs.isEmpty { err = errList(errs) }
+        store.notice = trashedNotice(ok, "个副本", failed: errs.count)
+    }
+}
+
+// MARK: - 重复组
+
+private struct DupGroupRow: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var group: DupGroup
+    @Binding var selection: Set<String>
+    var maxWaste: Int64
+
+    @State private var expanded = false
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                withAnimation(reduceMotion ? nil : theme.animation) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 11) {
+                    Image(systemName: expanded ? "chevron-down" : "chevron-right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .frame(width: 10)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(LF("%1$@ 等 %2$@",
+                                group.files.first?.lastPathComponent ?? L("重复组"),
+                                cnt(group.files.count, "份")))
+                            .font(theme.bodyFont(.callout))
+                            .foregroundStyle(theme.palette.ink)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(LF("每份 %@", human(group.size)))
+                            .font(theme.bodyFont(.caption2))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                    }
+                    Spacer(minLength: 10)
+                    ThemeBadge(text: LF("可收回 %@", human(group.waste)), tone: .tint)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ProportionBar(fraction: fraction, color: theme.palette.chart[3], height: 3)
+                .padding(.leading, 21)
+
+            if expanded {
+                VStack(spacing: 2) {
+                    ForEach(Array(group.files.enumerated()), id: \.element.path) { idx, url in
+                        fileRow(url, isKept: idx == 0)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 11)
+        .background(
+            theme.cardShape().fill(hovering ? theme.palette.surfaceAlt.opacity(0.5)
+                                           : theme.palette.surface)
+        )
+        .overlay(theme.cardShape().stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
+        .onHover { hovering = $0 }
+    }
+
+    /// 组内浪费占全页最狠一组的比例——一眼看出哪组最值得动
+    private var fraction: Double {
+        Double(group.waste) / Double(max(1, maxWaste))
+    }
+
+    private func fileRow(_ url: URL, isKept: Bool) -> some View {
+        HStack(spacing: 10) {
+            if isKept {
+                ThemeBadge(text: L("保留"), tone: .safe, symbol: "lock.fill")
+                    .frame(minWidth: 62, alignment: .leading)
+            } else {
+                Toggle("", isOn: Binding(
+                    get: { selection.contains(url.path) },
+                    set: { on in
+                        if on { selection.insert(url.path) } else { selection.remove(url.path) }
+                    }
+                ))
+                .toggleStyle(ThemeCheckStyle(side: 16))
+                .labelsHidden()
+                .frame(minWidth: 62, alignment: .leading)
+            }
+            Text(url.path)
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(isKept ? theme.palette.inkTertiary : theme.palette.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 21)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// ── 卸载残留：App 没了、数据还在 ──
+
+@MainActor
+final class OrphansModel: ObservableObject {
+    @Published var items: [OrphanItem] = []
+    @Published var scanning = false
+    @Published var appCount = 0
+    private var task: Task<Void, Never>? = nil
+
+    var selected: [OrphanItem] { items.filter { $0.selected } }
+    var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
+    var totalBytes: Int64 { items.reduce(0) { $0 + ($1.size ?? 0) } }
+
+    func scan() {
+        task?.cancel()
+        scanning = true
+        items = []
+        task = Task {
+            let (list, apps) = await scanOrphans()
+            if !Task.isCancelled {
+                self.items = list
+                self.appCount = apps
+                self.scanning = false
+            }
+        }
+    }
+
+    func stop() { task?.cancel(); scanning = false }
+}
+
+/// 残留条目：Core 只给「哪个应用、留在哪、稳不稳」，句子在这拼
+private func orphanWhat(_ it: OrphanItem) -> String {
+    LF("已卸载应用「%1$@」留在 %2$@ 里的数据", L(it.guess), it.loc)
+}
+
+private func orphanRisk(_ it: OrphanItem) -> String {
+    it.level == "warn"
+        ? L("重装这个应用时不会带回到这些配置；其他应用不受影响")
+        : L("基本没影响：应用下次需要时会自己重建")
+}
+
+struct OrphansView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.theme) private var theme
+    @StateObject private var model = OrphansModel()
+    @State private var confirm = false
+    @State private var err: String? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                PageHeader(symbol: "app.badge", title: L("走了，还留东西"),
+                           subtitle: L("App 卸载了，数据没带走——按已装应用逐一对过"))
+                ControlStrip {
+                    if model.scanning {
+                        LoadingRow(text: L("正在盘点已装应用、对孤儿…"))
+                    } else {
+                        Text(LF("对过 %1$@，%2$@，共 %3$@",
+                                cnt(model.appCount, "个应用"),
+                                cnt(model.items.count, "处可疑"),
+                                human(model.totalBytes)))
+                    }
+                    ThemeBadge(text: L("宁可漏报，不可误删"), tone: .neutral)
+                }
+            }
+            .pagePadding()
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            if !model.scanning && model.items.isEmpty {
+                EmptyState(symbol: "app.badge.checkmark", title: L("没有卸载残留"),
+                           hint: L("每个犄角旮旯都对得上号，挺干净"))
+                    .frame(maxHeight: .infinity)
+            } else {
+                List($model.items) { $it in
+                    ItemRow(selected: $it.selected,
+                            name: it.name,
+                            sub: it.loc,
+                            sizeText: human(it.size ?? 0),
+                            fraction: Double(it.size ?? 0) / Double(maxSize),
+                            badge: ItemBadge(text: it.level == "warn" ? L("留意") : L("安全"),
+                                             tone: it.level == "warn" ? .warn : .safe)) {
+                        ExplainLine(key: L("这是什么"), value: orphanWhat(it))
+                        ExplainLine(key: L("删了会怎样"), value: orphanRisk(it))
+                        ExplainLine(key: L("怎么恢复"), value: L("从废纸篓还原，或重装该应用"))
+                        PathLine(path: it.path.path)
+                    }
+                    .themedRow()
+                }
+                .themedList()
+            }
+
+            CleanBar(count: model.selected.count, bytes: model.selectedBytes,
+                     errorText: err) { confirm = true }
+        }
+        .frame(maxWidth: .infinity)
+        .navigationTitle(L("卸载残留"))
+        .onAppear { if model.items.isEmpty { model.scan() } }
+        .onDisappear { model.stop() }
+        .confirmTrash(isPresented: $confirm,
+                      text: LF("将 %1$@（%2$@）移入废纸篓。",
+                               cnt(model.selected.count, "处残留"),
+                               human(model.selectedBytes))) {
+            doClean()
+        }
+    }
+
+    private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
+
+    private func doClean() {
+        err = nil
+        var ok = 0
+        var errs: [String] = []
+        for it in model.selected {
+            do {
+                let t = try trashItem(it.path)
+                store.record(TrashRecord(original: it.path, inTrash: t, size: it.size ?? 0, displayName: it.name))
+                ok += 1
+            } catch { errs.append(failLine(it.name, error)) }
+        }
+        model.items.removeAll { !FileManager.default.fileExists(atPath: $0.path.path) }
+        for i in model.items.indices { model.items[i].selected = false }
+        if !errs.isEmpty { err = errList(errs) }
+        store.notice = trashedNotice(ok, "处残留", failed: errs.count)
+    }
+}

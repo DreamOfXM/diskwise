@@ -1,0 +1,10 @@
+.build/
+dist/
+*.dmg
+# 打包产物。App 名带中文且迟早改名（DiskWise），所以按 *.app 通配，不写死名字
+build_app/*.app/
+build_app/staging/
+# 图标是 make_icon.swift 的生成物，build.sh 缺了就重画，不进仓库
+build_app/AppIcon.icns
+build_app/AppIcon.iconset/
+.DS_Store
