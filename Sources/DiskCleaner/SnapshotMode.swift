@@ -10,7 +10,8 @@ import SwiftUI
 // 总览页会把 ~/Desktop、~/Documents 连同体积原样晒出去，那是隐私不是演示。
 //
 // DISKWISE_SKIN=<皮肤 id> 指定用哪套皮肤拍。注意这只是给渲染器注入 Theme，
-// 不碰购买状态——付费皮肤在正常启动路径里依然要解锁才能穿上。
+// 不写解锁记录——商店渠道下进阶皮肤在正常启动路径里依然要解锁才能穿上，
+// 开源渠道则全部可用。
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
 //   defaults write com.dreamofxm.diskcleaner diskcleaner.language en

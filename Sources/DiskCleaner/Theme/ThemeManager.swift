@@ -2,7 +2,8 @@ import SwiftUI
 
 // ── 皮肤持有者：选择 / 持久化 / 解锁 / 试穿 ────────────────────────────────
 //
-// 商业化只有两个接缝，接 StoreKit 时改这两处就够，视图一行不动：
+// 「这套皮肤能不能用」只有 `usable` 一个判定入口（渠道 + 解锁记录）；
+// 商店版接 StoreKit 时改 canUse / unlock 这两处就够，视图一行不动：
 //   canUse(_:)  —— 能不能用（改成查交易收据）
 //   unlock(_:)  —— 怎么解锁（改成走 Product.purchase）
 
@@ -10,7 +11,7 @@ final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
     @Published private(set) var current: Theme
-    /// 已购买的付费皮肤 id
+    /// 已解锁的进阶皮肤 id（商店渠道的购买记录）
     @Published var unlockedPremiumIDs: Set<String> = []
     /// 试穿中的皮肤 id：能看能摸，不写入偏好，切走即还原
     @Published private(set) var tryingID: String?
@@ -42,8 +43,7 @@ final class ThemeManager: ObservableObject {
         let candidate = Theme.byID(migrated) ?? .dawn
         let unlocked = Set(defaults.stringArray(forKey: Keys.unlocked) ?? [])
         unlockedPremiumIDs = unlocked
-        current = unlocked.contains(candidate.id) || candidate.tier == .free
-            ? candidate : .dawn
+        current = Self.usable(candidate, unlocked: unlocked) ? candidate : .dawn
         if let raw = defaults.string(forKey: Keys.forcedScheme) {
             forcedScheme = raw == "dark" ? .dark : (raw == "light" ? .light : nil)
         }
@@ -60,8 +60,13 @@ final class ThemeManager: ObservableObject {
         forcedScheme ?? effective.scheme
     }
 
+    /// 能不能用：开源渠道全部放行；商店渠道按 tier + 解锁记录。
+    static func usable(_ theme: Theme, unlocked: Set<String>) -> Bool {
+        !Channel.showsPricing || theme.tier == .free || unlocked.contains(theme.id)
+    }
+
     func canUse(_ theme: Theme) -> Bool {
-        theme.tier == .free || unlockedPremiumIDs.contains(theme.id)
+        Self.usable(theme, unlocked: unlockedPremiumIDs)
     }
 
     @discardableResult
@@ -73,9 +78,9 @@ final class ThemeManager: ObservableObject {
         return true
     }
 
-    /// 试穿：付费皮肤先穿上身再决定买不买。锁定态下不许直接 select，只能试。
+    /// 试穿：商店渠道下先穿上身再决定买不买。锁定态不许直接 select，只能试。
     func startTrying(_ theme: Theme) {
-        guard theme.tier == .premium else { return }
+        guard theme.isPaid, !canUse(theme) else { return }
         tryingID = theme.id
     }
 

@@ -1,11 +1,11 @@
 import SwiftUI
 
 // ── 皮肤引擎 v2 ────────────────────────────────────────────────────────────
-// 皮肤 = 商品：免费皮肤拉新，付费皮肤赚钱。
+// 皮肤 = 一整套视觉骨架，不只是配色。
 //
-// v1 的致命伤：Skin 只带颜色，所以付费皮肤和免费皮肤看起来是同一件衣服换了支
-// 口红——没人会为它掏钱。v2 把「结构」也纳入 token：字体设计、圆角、描边粗细、
-// 分层方式（材质）、背景做法、密度、动效签名。付费皮肤必须在骨架上就不一样。
+// v1 的致命伤：Skin 只带颜色，所以每套皮肤看起来是同一件衣服换了支口红。
+// v2 把「结构」也纳入 token：字体设计、圆角、描边粗细、分层方式（材质）、背景做法、
+// 密度、动效签名。两套皮肤要在骨架上就不一样，否则没有存在的必要。
 //
 // 加皮肤 = 在 Skins.swift 加一份数据，视图零改动。
 // 视图只准读 @Environment(\.theme)，禁止硬编码色值。
@@ -91,7 +91,7 @@ struct Theme: Identifiable {
     var name: String
     var tagline: String
     var tier: ThemeTier
-    /// 皮肤自带明暗：付费深色皮肤不该被系统浅色拉回浅色
+    /// 皮肤自带明暗：深色皮肤不该被系统浅色拉回浅色
     var scheme: ColorScheme?
     var palette: ThemePalette
 
@@ -115,8 +115,10 @@ struct Theme: Identifiable {
     var tileShape: TileShape = .squircle
     /// 图标块上色策略
     var tileStrategy: TileStrategy = .spectrum
-    /// 价签（仅付费皮肤有；接 StoreKit 后以本地化价格为准，这里只是货架展示）
-    var price: String? = nil
+
+    /// 当前渠道是否把这套皮肤当收费商品展示。开源渠道下所有皮肤都是普通皮肤。
+    /// 价格不进数据：接 StoreKit 后以商品的本地化价格为准。
+    var isPaid: Bool { Channel.showsPricing && tier == .premium }
 }
 
 enum TileShape: Hashable {
@@ -124,8 +126,8 @@ enum TileShape: Hashable {
 }
 
 /// 侧边栏/行图标块的上色策略。
-/// 免费皮肤走 iOS 设置式「一类一色」，靠颜色认路；
-/// 付费的克制皮肤（黑金/水墨）只准用主色和墨色交替——满屏彩虹会毁掉贵气。
+/// 多数皮肤走 iOS 设置式「一类一色」，靠颜色认路；
+/// 克制的黑金/水墨皮肤只准用主色和墨色交替——满屏彩虹会毁掉它们的安静。
 enum TileStrategy: Hashable {
     case spectrum
     case duotone

@@ -13,3 +13,18 @@ enum Product {
     static let fileName = "DiskWise"
     static let bundleID = "com.dreamofxm.diskcleaner"
 }
+
+// ── 发行渠道：开源分发不展示收费，商店分发才展示 ──
+//
+// 判定在编译期完成（`CHANNEL=appstore bash build_app/build.sh`）：
+// 开源产物一律不渲染价签、解锁按钮、付费墙，六套皮肤全部可用；
+// `Theme.tier` 只是进阶组的分组标记，打开开关即恢复完整货架。价格不进代码，
+// 接 StoreKit 后取商品的本地化价格。
+
+enum Channel {
+    #if APPSTORE
+    static let showsPricing = true
+    #else
+    static let showsPricing = false
+    #endif
+}

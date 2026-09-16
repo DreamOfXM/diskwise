@@ -3,6 +3,7 @@
 # DiskWise（SwiftUI 原生版）一键打包
 # 用法：bash build.sh                      （图标默认「晨雾」变体 a）
 #       ICON_VARIANT=b bash build.sh       （换「午夜」深色图标，见 make_icon.swift）
+#       CHANNEL=appstore bash build.sh     （商店渠道：编译出带价签/解锁/付费墙的界面）
 # 产物：dist/DiskWise-<版本>.dmg（Apple Silicon，macOS 13+）
 # 前提：Xcode 命令行工具（含 swift 编译器）即可，不需要完整 Xcode。
 # 未签名版：首次打开用右键 → 打开；清空废纸篓需授权控制访达。
@@ -21,12 +22,21 @@ STAGING="$BUILD_DIR/staging"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
-VERSION="1.0"
+VERSION="1.1"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
 # 改了等于让老用户的「允许控制访达」授权和皮肤购买记录全部作废。
 BUNDLE_ID="com.dreamofxm.diskcleaner"
 VOLNAME="DiskWise"
-DMG_NAME="DiskWise-$VERSION.dmg"
+# 发行渠道：默认 oss（开源分发）——界面上不出现价签、解锁按钮、付费墙。
+# CHANNEL=appstore 编译时加 -DAPPSTORE，同一套代码恢复完整收费界面，产物名带 -appstore 后缀。
+CHANNEL="${CHANNEL:-oss}"
+SWIFT_FLAGS=""
+DMG_SUFFIX=""
+if [ "$CHANNEL" = "appstore" ]; then
+	SWIFT_FLAGS="-Xswiftc -DAPPSTORE"
+	DMG_SUFFIX="-appstore"
+fi
+DMG_NAME="DiskWise-$VERSION${DMG_SUFFIX}.dmg"
 RES_DIR="$ROOT_DIR/Sources/DiskCleaner/Resources"
 
 echo "==> [1/6] 双语覆盖率对账"
@@ -45,8 +55,8 @@ else
 	echo "    复用已有 AppIcon.icns（改过 make_icon.swift 会自动重生成）"
 fi
 
-echo "==> [3/6] release 编译 + 自检"
-swift build -c release 2>&1 | tail -n 3
+echo "==> [3/6] release 编译 + 自检（渠道 $CHANNEL）"
+swift build -c release $SWIFT_FLAGS 2>&1 | tail -n 3
 BIN="$ROOT_DIR/.build/release/DiskCleaner"
 [ -x "$BIN" ] || { echo "错误：找不到编译产物 $BIN" >&2; exit 1; }
 echo "    二进制：$(du -h "$BIN" | cut -f1)"

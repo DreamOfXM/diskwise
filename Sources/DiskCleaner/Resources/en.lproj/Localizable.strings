@@ -26,6 +26,7 @@
 "废纸篓" = "Trash";
 "外观皮肤" = "Skins";
 "免费 %1$d 套 · 付费 %2$d 套" = "%1$d free · %2$d paid";
+"共 %d 套皮肤" = "%d skins in total";
 
 // ── 总览 ────────────────────────────────────────────────────────────────────
 "空间都去哪了" = "Where the space went";
@@ -172,13 +173,16 @@
 "已请访达清空，真实释放约 %@（以访达完成为准）。" = "Asked Finder to empty it — roughly %@ actually freed (count it once Finder finishes).";
 "清空失败：%@。去「系统设置 → 隐私与安全性 → 自动化」里允许本工具控制访达，然后重试。" = "Emptying failed: %@. Allow this app to control Finder under System Settings → Privacy & Security → Automation, then try again.";
 
-// ── 皮肤商店 ────────────────────────────────────────────────────────────────
+// ── 外观皮肤 ────────────────────────────────────────────────────────────────
 "换件衣服" = "Change the outfit";
 "免费三套随便穿；付费三套连骨架都不一样" = "Three free skins; three premium ones rebuild the skeleton";
+"六套皮肤，连骨架都不一样" = "Six skins, each one a different skeleton";
 "正在试穿「%@」——不满意随时还原，不会自动扣费" = "Trying on “%@” — revert any time, nothing is charged";
+"正在试穿「%@」——不满意随时还原" = "Trying on “%@” — revert any time";
 "还原" = "Revert";
 "免费" = "Free";
 "付费精选" = "Premium picks";
+"全部皮肤" = "All skins";
 "付费皮肤是买断制，一次解锁永久可用。" = "Premium skins are a one-time purchase, unlocked forever.";
 "内购尚未接入：现在点「解锁」会直接放行，方便先看效果；接上 StoreKit 后这里换成真实交易。" = "In-app purchase isn't wired up yet: Unlock just grants access for now, so you can see the effect. This becomes a real transaction once StoreKit lands.";
 "使用中" = "In use";
@@ -189,7 +193,6 @@
 "使用" = "Use";
 "试穿" = "Try on";
 "解锁" = "Unlock";
-"解锁 %@" = "Unlock %@";
 "付费皮肤" = "Premium skin";
 "晨雾" = "Morning Fog";
 "像系统自带的那样自然" = "As native as it gets";
@@ -219,7 +222,7 @@
 "浅色优先，深色可控" = "Light-first, dark on demand";
 "语言" = "Language";
 "中英文各调过一版字距，换语言不串味" = "Letter-spacing tuned for Chinese and English separately";
-"买断制，一次解锁永久可用。内购尚未接入，点解锁会直接放行。" = "One-time purchase, unlocked forever. StoreKit isn't wired up yet, so Unlock just lets you through.";
+"买断制，一次解锁永久可用。价格以内购面板为准；StoreKit 尚未接入，点解锁会直接放行。" = "One-time purchase, unlocked forever. The price comes from the store panel; StoreKit isn't wired up yet, so Unlock just lets you through.";
 "再试穿一下" = "Try it on again";
 "恢复购买" = "Restore Purchases";
 "跟随" = "Auto";

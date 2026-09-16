@@ -1,14 +1,15 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 外观皮肤 = 商店 ─────────────────────────────────────────────────────────
+// ── 外观皮肤页 ─────────────────────────────────────────────────────────────
 //
-// v0.2 的货架是三个色块，看不出付费皮肤贵在哪，所以没人买。
-// v0.3 的货架直接渲染"那套皮肤下的真实界面缩略图"：迷你侧边栏 + 环形图 + 列表行，
-// 材质、字体、圆角、图表配色全都看得见。再配"试穿"——先穿上身再决定买不买。
+// v0.2 的皮肤卡是三个色块，看不出彼此之间的骨架差异。
+// v0.3 直接渲染"那套皮肤下的真实界面缩略图"：迷你侧边栏 + 环形图 + 列表行，
+// 材质、字体、圆角、图表配色全都看得见——骨架差异只有在这种小图里才读得出来。
 //
-// 商业化接缝只有两处（接 StoreKit 时改这里，视图不动）：
-//   ThemeManager.canUse / ThemeManager.unlock
+// 价签、解锁按钮、付费墙这一层全部由 Channel.showsPricing 控制：
+// 开源渠道这一页就是普通的皮肤选择器，六套随便穿。
+// 商店版接 StoreKit 时只改 ThemeManager.canUse / unlock 和 PaywallSheet，视图不动。
 //
 // 这一页同时是「个性化」的总入口：明暗、语言都在右上角那两个分段控件里。
 
@@ -24,7 +25,9 @@ struct AppearanceView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
                 PageHeader(symbol: "paintpalette", title: L("换件衣服"),
-                           subtitle: L("免费三套随便穿；付费三套连骨架都不一样"),
+                           subtitle: Channel.showsPricing
+                             ? L("免费三套随便穿；付费三套连骨架都不一样")
+                             : L("六套皮肤，连骨架都不一样"),
                            variant: .display) {
                     SchemePicker()
                     LanguagePicker()
@@ -36,9 +39,13 @@ struct AppearanceView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 22) {
-                        skinSection(L("免费"), themes: freeSkins)
-                        skinSection(L("付费精选"), themes: premiumSkins)
-                        footnote
+                        if Channel.showsPricing {
+                            skinSection(L("免费"), themes: freeSkins)
+                            skinSection(L("付费精选"), themes: premiumSkins)
+                            footnote
+                        } else {
+                            skinSection(L("全部皮肤"), themes: Theme.all)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
@@ -52,7 +59,7 @@ struct AppearanceView: View {
         .navigationTitle(L("外观皮肤"))
         .sheet(item: $paywallSkin) { skin in
             PaywallSheet(skin: skin)
-                .themed(theme)   // 付费墙用当前皮肤，别在掏钱那一刻跳色
+                .themed(theme)   // 付费墙跟随当前皮肤，别在切过去那一刻跳色
         }
     }
 
@@ -63,13 +70,17 @@ struct AppearanceView: View {
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 13))
                 .foregroundStyle(theme.palette.tint)
-            Text(LF("正在试穿「%@」——不满意随时还原，不会自动扣费", L(skin.name)))
+            Text(skin.isPaid
+                 ? LF("正在试穿「%@」——不满意随时还原，不会自动扣费", L(skin.name))
+                 : LF("正在试穿「%@」——不满意随时还原", L(skin.name)))
                 .font(theme.bodyFont(.callout))
                 .foregroundStyle(theme.palette.ink)
             Spacer()
             ThemeButton(kind: .compact, title: L("还原")) { themeManager.stopTrying() }
-            ThemeButton(kind: .primary, symbol: "lock.open",
-                        title: LF("解锁 %@", skin.price ?? "")) { paywallSkin = skin }
+            if skin.isPaid {
+                ThemeButton(kind: .primary, symbol: "lock.open",
+                            title: L("解锁")) { paywallSkin = skin }
+            }
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 10)
@@ -130,7 +141,24 @@ private struct SkinCard: View {
 
     @State private var hovering = false
 
-    private var locked: Bool { skin.tier == .premium && !isUnlocked }
+    private var locked: Bool { skin.isPaid && !isUnlocked }
+
+    /// 商品状态标签；开源渠道不贴任何状态
+    private var statusText: String? {
+        if isSelected { return L("使用中") }
+        if isTrying { return L("试穿中") }
+        if locked { return L("付费皮肤") }
+        guard Channel.showsPricing else { return nil }
+        if skin.tier == .premium && isUnlocked { return L("已解锁") }
+        return L("免费")
+    }
+
+    private var a11yLabel: String {
+        if let status = statusText {
+            return LF("%1$@，%2$@，%3$@", L(skin.name), L(skin.tagline), status)
+        }
+        return LF("%1$@，%2$@", L(skin.name), L(skin.tagline))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -148,7 +176,7 @@ private struct SkinCard: View {
                 )
                 .overlay(alignment: .topTrailing) {
                     if locked {
-                        ThemeBadge(text: skin.price ?? L("付费"), tone: .neutral, symbol: "lock.fill")
+                        ThemeBadge(text: L("付费"), tone: .neutral, symbol: "lock.fill")
                             .padding(7)
                     }
                 }
@@ -168,10 +196,9 @@ private struct SkinCard: View {
                     ThemeBadge(text: L("试穿中"), tone: .tint)
                 } else if locked {
                     ThemeBadge(text: L("付费"), tone: .warn)
-                } else if skin.tier == .premium {
-                    ThemeBadge(text: L("已解锁"), tone: .neutral)
-                } else {
-                    ThemeBadge(text: L("免费"), tone: .neutral)
+                } else if Channel.showsPricing {
+                    ThemeBadge(text: (skin.tier == .premium && isUnlocked) ? L("已解锁") : L("免费"),
+                               tone: .neutral)
                 }
             }
             .padding(.top, 11)
@@ -213,18 +240,14 @@ private struct SkinCard: View {
         .contentShape(theme.cardShape())
         .onTapGesture { if !locked { onTap() } }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(LF("%1$@，%2$@，%3$@",
-                               L(skin.name), L(skin.tagline),
-                               isSelected ? L("使用中")
-                                 : locked ? L("付费皮肤")
-                                 : skin.tier == .premium ? L("已解锁") : L("免费")))
+        .accessibilityLabel(a11yLabel)
     }
 }
 
 // MARK: - 迷你界面预览
 //
 // 不是色板，是那套皮肤下的真实界面缩影：侧边栏 + 环形图 + 列表行。
-// 用户在这张小图里看到"材质和字体真的不一样"，才愿意掏钱。
+// 用户只有在这张小图里看出"材质和字体真的不一样"，皮肤列表才不只是换个配色。
 
 private struct SkinThumb: View {
     var skin: Theme
@@ -481,7 +504,7 @@ private struct PaywallSheet: View {
 
             HStack(spacing: 12) {
                 ThemeButton(kind: .primary, symbol: "lock.open",
-                            title: LF("解锁 %@", skin.price ?? "")) {
+                            title: L("解锁")) {
                     themeManager.unlock(skin)
                     dismiss()
                 }
@@ -497,7 +520,7 @@ private struct PaywallSheet: View {
             }
             .fixedSize()
 
-            Text(L("买断制，一次解锁永久可用。内购尚未接入，点解锁会直接放行。"))
+            Text(L("买断制，一次解锁永久可用。价格以内购面板为准；StoreKit 尚未接入，点解锁会直接放行。"))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
         }

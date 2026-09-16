@@ -203,12 +203,14 @@ struct ContentView: View {
     }
 
     private var subtitleForSelection: String {
-        if selection == .appearance && theme.tier == .free {
+        guard selection == .appearance else { return "" }
+        if Channel.showsPricing {
+            guard theme.tier == .free else { return "" }
             return LF("免费 %1$d 套 · 付费 %2$d 套",
                       Theme.all.filter { $0.tier == .free }.count,
                       Theme.all.filter { $0.tier == .premium }.count)
         }
-        return ""
+        return LF("共 %d 套皮肤", Theme.all.count)
     }
 }
 

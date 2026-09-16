@@ -34,6 +34,7 @@ DiskWise takes the opposite bet:
 | Emptying the Trash | Handed to **Finder**, so macOS asks you once more. |
 | Docker images | Read-only. Virtual disks have no per-image path, so the app points instead of pretending. |
 | Network | None. No updater, no analytics, no ads. |
+| Price | Nothing. Every feature and all six skins ship unlocked in this build. |
 | Runtime | A single `.app`. No Python, no port, no daemon. |
 
 It is built for machines that have been used by a developer for a few years — the ones where
@@ -57,7 +58,7 @@ It is built for machines that have been used by a developer for a few years — 
 - **Trash** — session stats, undo stack, and an *Empty* button that routes through Finder.
 
 **Personalize**
-- **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes typeface, corner radius, elevation, motion signature and chart palette. Free: Morning Fog, Graphite, Mint. Premium: Polar Night, Aurora Glass, Ink & Paper. Try-on lets you wear a premium skin before deciding.
+- **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes typeface, corner radius, elevation, motion signature and chart palette. Morning Fog, Graphite, Mint, Polar Night, Aurora Glass, Ink & Paper — all six are in the box.
 
 ## Screenshots
 
@@ -76,7 +77,7 @@ buttons, all drawn with that skin's real tokens — so you can see the skeleton 
 
 Six skins, six skeletons. Same page, three of them:
 
-| Graphite (free, dark) | Mint (free) | Polar Night (premium) |
+| Graphite (dark) | Mint | Polar Night |
 |---|---|---|
 | ![graphite](docs/screenshots/skins/graphite.png) | ![mint](docs/screenshots/skins/mint.png) | ![midnight](docs/screenshots/skins/midnight.png) |
 
@@ -121,13 +122,11 @@ Honest list, because a cleanup tool earns trust by admitting what it can't do:
 
 - **Not signed or notarized by Apple.** First launch needs a right-click. Developer identity is on the roadmap.
 - **Apple Silicon only.** Intel images need a CI runner.
-- **In-app purchase is a stub.** Premium skins unlock for free today; StoreKit 2 is not wired up.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
 ## Roadmap
 
-- [ ] StoreKit 2 for premium skins
 - [ ] Developer ID signing + notarization, Intel + arm64
 - [ ] Streaming snapshots for slow scans
 - [ ] More cache knowledge base entries (open a PR — this is the easiest way to contribute)
@@ -158,6 +157,7 @@ DiskWise 押的是反面：
 | 清空废纸篓 | 交给**访达**执行，系统会再问你一次 |
 | Docker 镜像 | 只读。虚拟盘没有独立路径，App 只指路不代删 |
 | 联网 | 无。不自动更新、不统计、无广告 |
+| 收费 | 无。功能全开，六套皮肤全部随包可用 |
 | 运行形态 | 一个 `.app`，没有 Python、没有端口、没有守护进程 |
 
 它服务的是被开发者用了几年的那类机器——`node_modules`、Docker 虚拟盘、Xcode `DerivedData`、
@@ -183,7 +183,7 @@ DiskWise 押的是反面：
 
 **个性化**
 - **外观皮肤**：6 套。关键点是它们**不是换色**——每套各自改字体面、圆角、材质分层、动效签名、图表配色。
-  免费：晨雾 / 石墨 / 薄荷；付费：极夜黑金 / 极光玻璃 / 水墨宣纸。付费皮肤可以先试穿再决定。
+  晨雾 / 石墨 / 薄荷 / 极夜黑金 / 极光玻璃 / 水墨宣纸，六套全部随包可用。
 
 ## 界面截图
 
@@ -203,7 +203,7 @@ DiskWise 押的是反面：
 
 同一页，三套皮肤三种骨架（默认「晨雾」见上方总览图）：
 
-| 石墨（免费·深色） | 极夜黑金（付费） |
+| 石墨（深色） | 极夜黑金 |
 |---|---|
 | ![石墨](docs/screenshots/zh/12-overview-graphite.png) | ![黑金](docs/screenshots/zh/11-overview-midnight.png) |
 
@@ -236,13 +236,11 @@ bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app →
 
 - **未经 Apple 签名与公证**，首次打开要右键确认
 - **只有 Apple Silicon 包**，Intel 需要 CI runner
-- **内购是桩**：现在点「解锁」直接放行，StoreKit 2 尚未接入
 - **node_modules 大盘扫描慢**，且还没有流式快照
 - **卸载残留刻意保守**，会漏报
 
 ## 路线图
 
-- [ ] 接入 StoreKit 2（付费皮肤）
 - [ ] Developer ID 签名 + 公证，出 Intel + arm64 通用包
 - [ ] 慢扫描的流式快照
 - [ ] 扩充缓存知识库（提 PR 最受欢迎的方式）

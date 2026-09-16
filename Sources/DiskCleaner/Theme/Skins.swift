@@ -1,12 +1,12 @@
 import SwiftUI
 
-// ── 六套皮肤：免费三套拉新，付费三套赚钱 ──────────────────────────────────
+// ── 六套皮肤：三套基础 + 三套进阶（premium tier）──────────────────────────
 //
-// 付费皮肤的存在理由不是"颜色不一样"，是"骨架不一样"：
+// 进阶皮肤的存在理由不是"颜色不一样"，是"骨架不一样"：
 //   极夜黑金 = 衬线 + 直角 + 零阴影 + 零动效   → 克制的贵
 //   极光玻璃 = 圆体 + 大圆角 + 真材质 + 弹性   → 外放的炫
 //   水墨宣纸 = 衬线 + 纸纹 + 方印章 + 静        → 有文化的慢
-// 免费三套（晨雾/石墨/薄荷）好看但不惊艳，够用来留住人、不够用来炫耀。
+// tier 只是商店渠道用来分组的标记；开源渠道下六套皮肤一律可用、一律不加价签。
 //
 // 铁律（所有皮肤共用，用户实测反馈定的）：
 //   正文只用 ink / inkSecondary，绝不染色；
@@ -114,7 +114,7 @@ extension Theme {
         tileShape: .circle
     )
 
-    // MARK: 付费 · 极夜黑金
+    // MARK: 进阶 · 极夜黑金
 
     static let midnight = Theme(
         id: "midnight", name: "极夜黑金", tagline: "直角、细线、不解释",
@@ -145,11 +145,10 @@ extension Theme {
                             stroke: 1, rowHeight: 44, cardPadding: 20, sectionGap: 26),
         motion: .still,
         tileShape: .rounded,
-        tileStrategy: .duotone,
-        price: "¥12"
+        tileStrategy: .duotone
     )
 
-    // MARK: 付费 · 极光玻璃
+    // MARK: 进阶 · 极光玻璃
 
     static let aurora = Theme(
         id: "aurora", name: "极光玻璃", tagline: "会呼吸的那一层",
@@ -180,11 +179,10 @@ extension Theme {
         metric: ThemeMetric(radiusCard: 22, radiusControl: 14, radiusTile: 12,
                             stroke: 1, rowHeight: 44, cardPadding: 18, sectionGap: 22),
         motion: .springy,
-        tileShape: .squircle,
-        price: "¥18"
+        tileShape: .squircle
     )
 
-    // MARK: 付费 · 水墨宣纸
+    // MARK: 进阶 · 水墨宣纸
 
     static let inkwash = Theme(
         id: "inkwash", name: "水墨宣纸", tagline: "一纸一印，墨分五色",
@@ -215,8 +213,7 @@ extension Theme {
                             stroke: 1, rowHeight: 46, cardPadding: 20, sectionGap: 26),
         motion: .still,
         tileShape: .rounded,
-        tileStrategy: .duotone,
-        price: "¥15"
+        tileStrategy: .duotone
     )
 
     static let all: [Theme] = [.dawn, .graphite, .mint, .midnight, .aurora, .inkwash]

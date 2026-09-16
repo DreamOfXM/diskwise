@@ -5,8 +5,8 @@
 >
 > **English.** Design rules, Chinese-first. The two that never bend: body text is never colored
 > (only `palette.ink` / `inkSecondary` — color belongs to icon tiles, the ring chart, buttons and
-> badges), and page headers never sit on a fully saturated block. Premium skins sell on
-> *structural* differences (typeface, radius, elevation, motion), not on a different color scheme.
+> badges), and page headers never sit on a fully saturated block. The advanced tier is defined by
+> *structural* differences (typeface, radius, elevation, motion), never by a different color scheme.
 
 ---
 
@@ -18,26 +18,29 @@
 2. **页头 / banner 禁止整块高饱和底色。** 用卡片 + 描边，色彩只留在小面积元素里。
    整块高饱和头图会把视觉重心钉在页面上沿，下面的数据反而没人看。
 
-## 2. 皮肤阵容：免费 3 + 付费 3
+## 2. 皮肤阵容：基础 3 + 进阶 3
 
-| 皮肤 | 档位 | 价格 | 结构身份（不是配色身份） |
-|---|---|---|---|
-| 晨雾 `dawn` | 免费·默认 | — | 系统字 + 软阴影 + squircle，中性纸 + 克制蓝，深色模式一等公民 |
-| 石墨 `graphite` | 免费 | — | 同上骨架，深色 |
-| 薄荷 `mint` | 免费 | — | 圆体 + 大圆角 + 圆形图标块，绿 |
-| 极夜黑金 `midnight` | 付费 | ¥12 | **衬线 + 直角（radius 2–4）+ 零阴影 + 零动效** → 克制的贵 |
-| 极光玻璃 `aurora` | 付费 | ¥18 | **圆体 + radius 22 + 真 `.thinMaterial` + 弹性动画 + 光斑背景** → 外放的炫 |
-| 水墨宣纸 `inkwash` | 付费 | ¥15 | **衬线 + 纸纹纤维 + 方印章 + 静止** → 有文化的慢 |
+| 皮肤 | 分组 | 结构身份（不是配色身份） |
+|---|---|---|
+| 晨雾 `dawn` | 基础·默认 | 系统字 + 软阴影 + squircle，中性纸 + 克制蓝，深色模式一等公民 |
+| 石墨 `graphite` | 基础 | 同上骨架，深色 |
+| 薄荷 `mint` | 基础 | 圆体 + 大圆角 + 圆形图标块，绿 |
+| 极夜黑金 `midnight` | 进阶 | **衬线 + 直角（radius 2–4）+ 零阴影 + 零动效** → 克制的贵 |
+| 极光玻璃 `aurora` | 进阶 | **圆体 + radius 22 + 真 `.thinMaterial` + 弹性动画 + 光斑背景** → 外放的炫 |
+| 水墨宣纸 `inkwash` | 进阶 | **衬线 + 纸纹纤维 + 方印章 + 静止** → 有文化的慢 |
 
-## 3. 三条卖货铁律
+代码里的 `tier` 只是商店渠道用来分组的标记。默认（开源）构建不读它做任何限制——六套皮肤一律可用，
+界面上不出现价签、解锁按钮或付费墙。
 
-1. **付费皮肤靠骨架差异卖，不靠颜色差异卖。** 只换色的皮肤没人买——所以三套付费在字体面、圆角、
-   阴影/材质、动效签名上**互不相同，且都不同于免费三套**。加新付费皮肤先问：它的骨架差异在哪？
+## 3. 三条皮肤设计铁律
+
+1. **差异写在骨架上，不写在配色上。** 只换色的皮肤没有存在的必要——所以三套进阶在字体面、圆角、
+   阴影/材质、动效签名上**互不相同，且都不同于基础三套**。加新皮肤先问：它的骨架差异在哪？
    答不上来就别加。
-2. **免费三套要好看但不够炫耀**——够留住人，不够拿去截图传播。
-3. **货架必须渲染真实缩略图。** 早期货架是三个色块，看不出贵在哪，所以没人买；现在每张卡直接渲该皮肤下的
-   迷你侧边栏 + 环形图 + 列表行 + 按钮。商店在 `AppearanceView`，试穿（`tryingID`）先穿上身、
-   顶部横幅一键还原，不自动扣费。
+2. **进阶组靠气质拉开，不靠功能拉开。** 皮肤只是外观层，六套功能完全一致——差异永远不落在能力上。
+3. **皮肤卡必须渲染真实缩略图。** 早期的卡片是三个色块，看不出皮肤之间的差别；现在每张卡直接渲该皮肤下的
+   迷你侧边栏 + 环形图 + 列表行 + 按钮。皮肤页在 `AppearanceView`，商店渠道另有试穿（`tryingID`）：
+   先穿上身、顶部横幅一键还原。
 
 ## 4. 架构约束
 
@@ -46,19 +49,20 @@
 - **不要**再往 `ContentView` 上加 `.id(skin.id)` 强制重建子树——那个写法每换一次肤就把全盘扫描重跑一遍。
 - 视图层只准引用 `theme.*` token，禁止手写色值、禁止假设浅色。
 - 明暗：皮肤自带 `scheme`（可为 nil = 跟随系统），App 级 `forcedScheme` 优先于皮肤。
-- 付费接缝只有两处：`ThemeManager.canUse` 和 `unlock`。接 StoreKit 时只换这两处 + `PaywallSheet`，
-  **视图零改动**。
+- 收费 UI 只有一个开关：`Channel.showsPricing`（编译期 `-DAPPSTORE`，见 `build.sh` 的 `CHANNEL=appstore`）。
+  默认关闭 → 六套皮肤全可用、不渲染价签/解锁/付费墙。商店版接 StoreKit 时改 `ThemeManager.canUse`
+  和 `unlock` 这两处 + `PaywallSheet`，**视图零改动**。
 - 每个页面只有**一个**滚动容器，列表行用 `LazyVStack` 自绘卡片。macOS 13 的 `ScrollView` 会把内容的完整
   高度当成自己的理想尺寸上报，套两层会让 detail 列胀到一千多磅、整个界面被顶出窗口。
 
 ## 5. 图标块与图表配色
 
 - 侧边栏/列表图标块**不再全皮肤通用**：形状跟 `tileShape`（squircle / circle / rounded），配色跟
-  `tileStrategy`——免费三套 `.spectrum`（`Theme.spectrumLight` / `spectrumDark` 两条 10 色品牌光谱，
-  与侧边栏条目一一对应，靠颜色认路），两套衬线克制皮肤（黑金 / 水墨）`.duotone`
+  `tileStrategy`——基础三套用 `.spectrum`（`Theme.spectrumLight` / `spectrumDark` 两条 10 色品牌光谱，
+  与侧边栏条目一一对应，靠颜色认路），两套衬线克制皮肤（黑金 / 水墨）用 `.duotone`
   （`palette.tint` 与 `palette.ink` 交替，靠形状和位置认路）。
-  理由：**满屏彩虹会毁掉贵气**——水墨宣纸本身是浅色纸面、并不是深色皮肤，照样不该出彩虹，
-  所以分档看的是气质不是明暗。图标前景：深色 + spectrum 用 `palette.paper`，其余纯白。
+  理由：**满屏彩虹会毁掉安静**——水墨宣纸本身是浅色纸面、并不是深色皮肤，照样不该出彩虹，
+  所以选策略看的是气质不是明暗。图标前景：深色 + spectrum 用 `palette.paper`，其余纯白。
 - `chart[]` 有位置语义，**不要当成随机色板取用**：
   - `chart[0..3]`：环形图前 4 大分段和主要数据强调（要饱和）；
   - `chart[4]`：固定是**退让色**——"其他已用"分段、次要条，任何"不想被注意"的数据都用它。
