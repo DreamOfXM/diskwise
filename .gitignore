@@ -1,6 +1,9 @@
 .build/
 dist/
 *.dmg
+*.pkg
+# 描述文件带着账号的 App ID 和团队名，是本机/CI 的输入不是源码
+*.provisionprofile
 # 打包产物。App 名带中文且迟早改名（DiskWise），所以按 *.app 通配，不写死名字
 build_app/*.app/
 build_app/staging/

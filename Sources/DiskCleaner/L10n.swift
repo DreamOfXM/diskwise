@@ -94,9 +94,10 @@ enum L10n {
         }
     }
 
-    /// 自己带壳（.app）才敢自动重启；`swift run` 的裸二进制就只提示手动重启
+    /// 自己带壳（.app）才敢自动重启；`swift run` 的裸二进制、以及不能随便起子进程的
+    /// 商店版，都只提示手动重启。商店版这条路本来就有，别为了它引入新的重启机制。
     static var canRelaunch: Bool {
-        Bundle.main.bundleURL.pathExtension == "app" && NSApp != nil
+        !Channel.isAppStore && Bundle.main.bundleURL.pathExtension == "app" && NSApp != nil
     }
 
     static func relaunch() {

@@ -33,20 +33,7 @@ public struct SafetyDB: Decodable {
     public var entries: [SafetyEntry]
 }
 
-// ── 家目录唯一入口 ──
-
-/// 家目录。所有取家目录的地方都必须走这里，别再用 NSHomeDirectory()
-/// 或 homeDirectoryForCurrentUser——两者不一致就没法整体改道。
-///
-/// DISKWISE_HOME_SHIM 指到一棵假目录树时，全盘扫描/废纸篓统计都只在
-/// 那棵树里跑。README 截图靠它，免得把作者的真实目录晒出去。
-public func homeDir() -> URL {
-    let shim = ProcessInfo.processInfo.environment["DISKWISE_HOME_SHIM"] ?? ""
-    if !shim.isEmpty {
-        return URL(fileURLWithPath: (shim as NSString).expandingTildeInPath, isDirectory: true)
-    }
-    return FileManager.default.homeDirectoryForCurrentUser
-}
+// ── 家目录：定义在 HomeAccess.swift（沙盒下要走真实家目录 + 授权书签）──
 
 public func homePath() -> String { homeDir().path }
 

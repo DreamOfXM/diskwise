@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 商店版必须进沙盒。下面三条是实测出来的最小集：
+	     · user-selected.read-write：授权面板选中的家目录要能读、能把删除项移进废纸篓；
+	     · automation.apple-events：清空废纸篓是指挥访达做的，不给这条 TCC 直接拒；
+	     · 没有 network 任何一条：这个 App 不联网，多给一条都是审核问题。 -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

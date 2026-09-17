@@ -6,12 +6,14 @@
 #   bash build.sh                        默认：arm64 + 自动探测签名身份
 #   ARCH=universal bash build.sh         arm64 + x86_64 通用包（两个 triple 各编一次再 lipo）
 #   ICON_VARIANT=b bash build.sh         换浅底版图标（默认 a 深底冷光，见 make_icon.swift）
-#   CHANNEL=appstore bash build.sh       加 -DAPPSTORE：皮肤按可用性分组展示
-#   NOTARIZE=1 bash build.sh             出包后送 Apple 公证并钉票据（需要下面的凭据）
+#   CHANNEL=appstore bash build.sh       商店版：进沙盒 + 出 .pkg + 找 Apple Distribution 签名
+#                                        （收费展示是另一个开关，见 Sources/DiskCleaner/Product.swift）
+#   NOTARIZE=1 bash build.sh             出包后送 Apple 公证并钉票据（需要下面的凭据，商店包不用）
 #
-# 签名身份：钥匙串里有 "Developer ID Application: ..." 就自动用它，走
-# hardened runtime + 安全时间戳 + entitlements；探测不到就退回 ad-hoc，
-# 产物照出，但用户首次打开要右键 → 打开。想强制 ad-hoc 用 SIGN_IDENTITY=none。
+# 签名身份：两个渠道两张证书，钥匙串里有对应那张就自动用——
+# 直链分发找 "Developer ID Application: ..."，商店找 "Apple Distribution: ..."；
+# 探测不到就退回 ad-hoc，产物照出，但用户首次打开要右键 → 打开，且商店包传不上去。
+# 想强制 ad-hoc 用 SIGN_IDENTITY=none。
 #
 # 公证凭据（三选一，都不落盘进仓库）：
 #   NOTARY_PROFILE=<name>        推荐：先跑一次
@@ -24,7 +26,7 @@
 #
 # 构建闸门，任一失败即不出包：
 #   1. 双语覆盖率（少一条英文译文就构建失败，漏译只会静默退回中文）
-#   2. swift run SelfTest（21 项逻辑自检）
+#   2. swift run SelfTest（27 项逻辑自检）
 #   3. 资源到位断言（知识库 + 图标 + 译文目录 + 反馈二维码）
 #   4. 通用包：两个切片都在，且 x86_64 那个真能跑起来
 #   5. codesign --verify --strict（签名断了不能出厂）
@@ -44,15 +46,18 @@ MIN_MACOS="13.0"
 # 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
 BUNDLE_ID="com.dreamofxm.diskcleaner"
 VOLNAME="DiskWise"
-ENTITLEMENTS="$BUILD_DIR/entitlements.plist"
-# 编译期开关 Channel.showsPricing：默认 oss → false，皮肤一律可用，不渲染分区标题和付费墙。
-# CHANNEL=appstore 加 -DAPPSTORE 则为 true，同一套代码按可用性分组展示皮肤，产物名带 -appstore 后缀。
+# 编译期开关 -DAPPSTORE：商店版进沙盒、出 .pkg、用 Apple Distribution 签名。
+# 它不决定收费展示——那是 `Channel.showsPricing`，见 Sources/DiskCleaner/Product.swift。
 CHANNEL="${CHANNEL:-oss}"
 SWIFT_FLAGS=""
-DMG_SUFFIX=""
+ARTIFACT_SUFFIX=""
+ENTITLEMENTS="$BUILD_DIR/entitlements.plist"
+# 上传被拒「重复的 version + build 组合」时，用 BUILD_NUMBER=2 重出一版
+BUILD_NUMBER="${BUILD_NUMBER:-$VERSION}"
 if [ "$CHANNEL" = "appstore" ]; then
 	SWIFT_FLAGS="-Xswiftc -DAPPSTORE"
-	DMG_SUFFIX="-appstore"
+	ARTIFACT_SUFFIX="-appstore"
+	ENTITLEMENTS="$BUILD_DIR/entitlements-appstore.plist"
 fi
 
 # ── 架构 ────────────────────────────────────────────────────────────────
@@ -64,7 +69,8 @@ case "$ARCH" in
 	universal) ARCH_SUFFIX="-universal" ; ARCH_TRIPLE="" ;;
 	*) echo "错误：ARCH 只能是 arm64 / x86_64 / universal，当前是 '$ARCH'" >&2; exit 1 ;;
 esac
-DMG_NAME="DiskWise-$VERSION${ARCH_SUFFIX}${DMG_SUFFIX}.dmg"
+DMG_NAME="DiskWise-$VERSION${ARCH_SUFFIX}${ARTIFACT_SUFFIX}.dmg"
+PKG_NAME="DiskWise-$VERSION${ARCH_SUFFIX}${ARTIFACT_SUFFIX}.pkg"
 
 RES_DIR="$ROOT_DIR/Sources/DiskCleaner/Resources"
 # 二维码放 docs/contact：README 和 App 用同一张图，不复制两份。
@@ -169,7 +175,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 	<key>CFBundleShortVersionString</key>
 	<string>$VERSION</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$BUILD_NUMBER</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleIconFile</key>
@@ -212,13 +220,32 @@ plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 plutil -lint "$ENTITLEMENTS" >/dev/null
 
 echo "==> [5/7] 签名"
-# 钥匙串里找 Developer ID Application；SIGN_IDENTITY=none 强制走 ad-hoc（用来测回退路径）
+# 两个渠道两张证书：直链分发要 Developer ID Application，商店要 Apple Distribution。
+# 拿错证书签出来的东西传不上去，也装不到对应的地方。
+if [ "$CHANNEL" = "appstore" ]; then
+	IDENT_PATTERN="Apple Distribution:"
+else
+	IDENT_PATTERN="Developer ID Application:"
+fi
+# SIGN_IDENTITY=none 强制走 ad-hoc（用来测回退路径）
 IDENTITY="${SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
 	IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-		| awk -F'"' '/"Developer ID Application:/{print $2; exit}')" || true
+		| awk -F'"' -v pat="$IDENT_PATTERN" 'index($2, pat) == 1 {print $2; exit}')" || true
 fi
 if [ "$IDENTITY" = "none" ]; then IDENTITY=""; fi
+
+# 商店包：描述文件必须在签名之前就位，它把沙盒 entitlements 绑到 App ID 上。
+PROFILE="${PROVISION_PROFILE:-$BUILD_DIR/diskwise-appstore.provisionprofile}"
+if [ "$CHANNEL" = "appstore" ]; then
+	if [ -f "$PROFILE" ]; then
+		cp "$PROFILE" "$APP_DIR/Contents/embedded.provisionprofile"
+		echo "    描述文件：$(basename "$PROFILE")（$(du -h "$APP_DIR/Contents/embedded.provisionprofile" | cut -f1)）"
+	else
+		echo "    没有描述文件（$PROFILE 不存在）——本地能跑，但这份包传不上 App Store Connect"
+	fi
+fi
+
 SIGNED=0
 if [ -n "$IDENTITY" ]; then
 	SIGNED=1
@@ -228,16 +255,41 @@ if [ -n "$IDENTITY" ]; then
 	codesign --force --options runtime --timestamp \
 		--entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP_DIR"
 else
-	echo "    钥匙串里没有 Developer ID Application 证书 → ad-hoc 签名"
-	echo "    产物照出，但用户首次打开要右键 → 打开；不能送公证。"
-	codesign --force --sign - "$APP_DIR"
+	echo "    钥匙串里没有 $IDENT_PATTERN → ad-hoc 签名"
+	if [ "$CHANNEL" = "appstore" ]; then
+		echo "    沙盒照样生效（能本地验授权流），但这份包不能上传，只用于测试。"
+	else
+		echo "    产物照出，但用户首次打开要右键 → 打开；不能送公证。"
+	fi
+	codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_DIR"
 fi
 codesign --verify --strict --verbose=2 "$APP_DIR" 2>&1 | tail -n 1 | sed 's/^/    /'
+# 直链版的 entitlements 是空 dict，grep 不中会带着 set -e 把整个构建掀了，所以先落变量。
+ENT_SUMMARY="$(plutil -p "$ENTITLEMENTS" | grep -E 'app-sandbox|user-selected|apple-events' || true)"
+if [ -n "$ENT_SUMMARY" ]; then
+	echo "$ENT_SUMMARY" | sed 's/^/    /'
+else
+	echo "    entitlements：空 dict（直链版 hardened runtime 不需要任何键）"
+fi
 codesign -dv --verbose=4 "$APP_DIR" 2>&1 \
 	| grep -E "^(Identifier|Format|CodeDirectory)|Signature=|TeamIdentifier|Runtime" \
 	| sed 's/^/    /'
 
-echo "==> [6/7] 组装 DMG 并生成"
+echo "==> [6/7] 组装发布物"
+mkdir -p "$DIST_DIR"
+if [ "$CHANNEL" = "appstore" ]; then
+	# 商店只收 .pkg（Transporter / altool 都不接 DMG），所以这一支不出 DMG，
+	# 也不写 README.txt——那份首次打开说明是直链分发才有的东西。
+	ARTIFACT="$DIST_DIR/$PKG_NAME"
+	if [ "$SIGNED" = 1 ] && productbuild --component "$APP_DIR" /Applications \
+			--sign "$IDENTITY" "$ARTIFACT" >/dev/null 2>&1; then
+		echo "    pkg 已用商店证书签名"
+	else
+		productbuild --component "$APP_DIR" /Applications "$ARTIFACT"
+		echo "    pkg 未签名（没有可用的 Installer 身份）：只能本地验授权流，不能上传"
+	fi
+	echo "    $PKG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
+else
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 cp -R "$APP_DIR" "$STAGING/"
@@ -327,19 +379,22 @@ $LAUNCH_ZH
 把 App 拖进废纸篓即可，无残留、无后台常驻。
 README_EOF
 
-mkdir -p "$DIST_DIR"
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGING" -ov -format UDZO "$DIST_DIR/$DMG_NAME" >/dev/null
-DMG="$DIST_DIR/$DMG_NAME"
-echo "    $DMG_NAME：$(du -h "$DMG" | cut -f1)"
+ARTIFACT="$DIST_DIR/$DMG_NAME"
+echo "    $DMG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
+fi
 
 echo "==> [7/7] 公证"
-if [ "${NOTARIZE:-0}" != 1 ]; then
+if [ "$CHANNEL" = "appstore" ]; then
+	echo "    跳过：商店包由 Apple 上传后自己公证，我们 staple 是多余动作（钉了票据的 pkg 反而是拒点）"
+	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
+elif [ "${NOTARIZE:-0}" != 1 ]; then
 	if [ "$SIGNED" = 1 ]; then
 		echo "    已签名但没送公证（要出双击即开的包：NOTARIZE=1 bash build.sh）"
 	else
 		echo "    跳过：ad-hoc 包送不了公证，先装 Developer ID 证书"
 	fi
-	DMG_SHA="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 else
 	[ "$SIGNED" = 1 ] || {
 		echo "错误：公证需要 Developer ID Application 身份，现在只有 ad-hoc。" >&2
@@ -347,12 +402,12 @@ else
 		exit 1
 	}
 	# DMG 本身也要签，公证的是这个容器
-	codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+	codesign --force --timestamp --sign "$IDENTITY" "$ARTIFACT"
 
 	if [ -n "${NOTARY_PROFILE:-}" ]; then
-		xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+		xcrun notarytool submit "$ARTIFACT" --keychain-profile "$NOTARY_PROFILE" --wait
 	elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APP_SPECIFIC_PASSWORD:-}" ]; then
-		xcrun notarytool submit "$DMG" \
+		xcrun notarytool submit "$ARTIFACT" \
 			--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APP_SPECIFIC_PASSWORD" --wait
 	else
 		echo "错误：没有公证凭据。三选一：" >&2
@@ -363,13 +418,13 @@ else
 		exit 1
 	fi
 
-	xcrun stapler staple "$DMG"
-	xcrun stapler validate "$DMG" 2>&1 | tail -n 1 | sed 's/^/    /'
+	xcrun stapler staple "$ARTIFACT"
+	xcrun stapler validate "$ARTIFACT" 2>&1 | tail -n 1 | sed 's/^/    /'
 	# 这一步就是用户双击时 Gatekeeper 走的那条判定
-	spctl --assess --type open --context context:primary-signature -vv "$DMG" 2>&1 | sed 's/^/    /'
-	DMG_SHA="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+	spctl --assess --type open --context context:primary-signature -vv "$ARTIFACT" 2>&1 | sed 's/^/    /'
+	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 fi
 
 echo "---- 完成 ----"
-ls -lh "$DMG"
-echo "SHA256: $DMG_SHA"
+ls -lh "$ARTIFACT"
+echo "SHA256: $ART_SHA"

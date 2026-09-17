@@ -142,7 +142,7 @@ You need the Xcode Command Line Tools — **not** full Xcode.
 
 ```bash
 swift build                    # debug
-swift run SelfTest             # 21 checks; all green is the precondition for shipping
+swift run SelfTest             # 27 checks; all green is the precondition for shipping
 swift run DiskCleaner          # run the app
 bash build_app/build.sh        # localize check → build → self-test → .app → sign → dist/*.dmg + SHA256
 ```
@@ -338,7 +338,7 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 
 ```bash
 swift build                    # debug 编译
-swift run SelfTest             # 21 项自检，全绿是打包前提
+swift run SelfTest             # 27 项自检，全绿是打包前提
 swift run DiskCleaner          # 直跑 App
 bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app → 签名 → dist/*.dmg + SHA256
 ```

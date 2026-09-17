@@ -9,6 +9,8 @@ struct DiskCleanerApp: App {
     init() {
         // 截图模式自己 exit，不会回到这里往下走
         if let outDir = SnapshotMode.requestedDir { SnapshotMode.run(outDir: outDir) }
+        // 沙盒版：先把上次的家目录授权续上，晚一步就会有页面拿容器路径去扫描
+        HomeAccess.restore()
     }
 
     var body: some Scene {
@@ -103,6 +105,7 @@ struct ContentView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var grant = HomeGrant.shared
     @State private var selection: AppPanel? = .overview
 
     var body: some View {
@@ -136,6 +139,8 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(SidebarMaterial())
+        .disabled(grant.needsGrant)
+        .opacity(grant.needsGrant ? 0.4 : 1)
         .safeAreaInset(edge: .bottom, spacing: 0) { sidebarFooter }
     }
 
@@ -184,29 +189,39 @@ struct ContentView: View {
     @ViewBuilder private var detail: some View {
         ZStack(alignment: .top) {
             Group {
-                switch selection ?? .overview {
-                case .overview: OverviewView()
-                case .big: BigFilesView()
-                case .old: OldFilesView()
-                case .dup: DupView()
-                case .nodemodules: NMView()
-                case .docker: DockerView()
-                case .caches: CachesView()
-                case .orphans: OrphansView()
-                case .trash: TrashView()
-                case .appearance: AppearanceView()
-                case .feedback: FeedbackView()
+                // 没授权就一屏数字都不给：拿容器路径扫出来的「几乎没东西」比报错坏得多
+                if grant.needsGrant {
+                    HomeGrantView()
+                } else {
+                    page
                 }
             }
             NoticeBar()
         }
         .animation(theme.animation, value: store.notice)
         .background(ThemedBackdrop())
-        .navigationTitle(selection?.title ?? L("空间总览"))
+        .navigationTitle(grant.needsGrant ? L("访问授权") : (selection?.title ?? L("空间总览")))
         .navigationSubtitle(subtitleForSelection)
     }
 
+    @ViewBuilder private var page: some View {
+        switch selection ?? .overview {
+        case .overview: OverviewView()
+        case .big: BigFilesView()
+        case .old: OldFilesView()
+        case .dup: DupView()
+        case .nodemodules: NMView()
+        case .docker: DockerView()
+        case .caches: CachesView()
+        case .orphans: OrphansView()
+        case .trash: TrashView()
+        case .appearance: AppearanceView()
+        case .feedback: FeedbackView()
+        }
+    }
+
     private var subtitleForSelection: String {
+        if grant.needsGrant { return L("授权完成后这里就能看到空间去哪了") }
         guard selection == .appearance else { return "" }
         if Channel.showsPricing {
             guard theme.tier == .free else { return "" }
