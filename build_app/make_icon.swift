@@ -2,8 +2,15 @@
 // ============================================================
 // 生成 App 图标（可复现，不依赖任何设计工具）
 //
-// 画的是本 App 的招牌图形：总览页那个分段环形仪表（RingGauge），
-// 配色直接取自皮肤代码——A 版用「晨雾」的图例色，B 版用「午夜」的。
+// 主体：一把斜着的扫帚 —— 柄在左上、刷头在右下，正把灰点往右下角外推。
+// 扫帚是「清理」这件事最不含糊的符号，比环、比弧线都不会被读错。
+// 三层：
+//   1) macOS 圆角底板（深底冷光 / 浅底磨砂两个变体）
+//   2) 刷头后面一道擦干净的光痕 + 被推走的浮灰
+//   3) 扫帚本体：渐变柄 → 亮色箍 → 五束刷毛（小尺寸并成三束）
+//
+// 配色取自皮肤代码：a 用「极光玻璃」那组（深底冷光），
+// b 用「晨雾 + 薄荷」（浅底）。
 //
 // 用法：
 //   swift make_icon.swift [输出iconset目录] [a|b]
@@ -25,7 +32,7 @@ func hexA(_ v: UInt32, _ a: CGFloat) -> NSColor {
             blue: CGFloat(v & 0xFF) / 255, alpha: a)
 }
 func white(_ v: CGFloat) -> NSColor { hexA(0xFFFFFF, v) }
-func deg2rad(_ d: CGFloat) -> CGFloat { d * .pi / 180 }
+func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
 
 // ── 设计尺寸：全部按 1024 逻辑坐标画，再整体缩放到目标像素 ──
 enum Design {
@@ -40,53 +47,78 @@ enum Design {
     static var center: CGPoint { CGPoint(x: canvas / 2, y: canvas / 2) }
 }
 
-// ── 两个候选：一个晨雾（浅），一个午夜（深） ──
+// ── 扫帚本体几何：先在局部坐标里竖着画（y 轴朝上，刷头朝 -y），再整体旋转 ──
+enum Broom {
+    static let pivot = CGPoint(x: 500, y: 492)   // 旋转中心：刷箍附近
+    static let tilt: CGFloat = 35 * .pi / 180    // 逆时针 → 柄朝左上、刷头朝右下
+
+    static let handleTop: CGFloat = 336          // 柄顶
+    static let handleW: CGFloat = 54
+    static let ferruleTop: CGFloat = 66          // 箍：柄与刷毛之间
+    static let ferruleBot: CGFloat = 8
+    static let ferruleW: CGFloat = 208
+    static let fanTop: CGFloat = 8               // 刷毛束上沿（贴着箍）
+    static let fanTip: CGFloat = -200            // 刷毛梢
+    static let fanHalfTop: CGFloat = 96          // 上沿半宽
+    static let fanHalfTip: CGFloat = 122         // 刷梢半宽（往外炸开）
+
+    /// 局部坐标 → 画布坐标（与 ctx.rotate(by: tilt) 同向：逆时针）
+    static func P(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        let s = sin(tilt), co = cos(tilt)
+        return CGPoint(x: pivot.x + x * co - y * s, y: pivot.y + x * s + y * co)
+    }
+}
+
 struct IconSpec {
     var bgTop: NSColor
     var bgBottom: NSColor
     var border: NSColor
-    var track: NSColor
-    var arcs: [NSColor]      // 顺时针，从 12 点起
-    var hub: NSColor
+    var glowA: NSColor          // 底板氛围光（左上）
+    var glowB: NSColor          // 底板氛围光（右下）
+    var handle: [NSColor]       // 柄渐变（顶 → 底）
+    var ferrule: NSColor        // 箍
+    var tuft: [NSColor]         // 刷毛渐变（根 → 梢）
+    var halo: NSColor           // 刷头光晕
+    var gleam: NSColor          // 擦干净的光痕
+    var dust: NSColor           // 灰点
+    var haze: NSColor           // 被推出去的浮灰
+    var gloss: CGFloat          // 底板顶部高光（>0 视为深底）
 }
 
 let specs: [String: IconSpec] = [
+    // a：深底冷光 —— 出厂默认
     "a": IconSpec(
-        bgTop: white(1.0),
-        bgBottom: hex(0xE7ECF3),
-        border: hexA(0xC6CFDC, 0.9),
-        track: hex(0xE2E7EE),
-        arcs: [hex(0x0072B2), hex(0xE69F00), hex(0x009E73)],
-        hub: hex(0x2A62D6)
+        bgTop: hex(0x1D2650),
+        bgBottom: hex(0x05070F),
+        border: white(0.13),
+        glowA: hexA(0x8E7BFF, 0.24),
+        glowB: hexA(0x4FD1C5, 0.16),
+        handle: [hex(0x9C8BFF), hex(0x3E63E0)],
+        ferrule: hex(0xEAF6FF),
+        tuft: [hex(0x5FE3C6), hex(0xBDF6E7)],
+        halo: hexA(0x49DCC0, 0.40),
+        gleam: white(0.07),
+        dust: hexA(0xC3CEE6, 1.0),
+        haze: hexA(0x9AA6C4, 0.15),
+        gloss: 0.10
     ),
+    // b：浅底，跟着晨雾 / 薄荷走
     "b": IconSpec(
-        bgTop: hex(0x1C2A45),
-        bgBottom: hex(0x090C12),
-        border: white(0.10),
-        track: white(0.14),
-        arcs: [hex(0x4FA3E3), hex(0xF2B441), hex(0x35C795)],
-        hub: .white
+        bgTop: white(1.0),
+        bgBottom: hex(0xE0E8F2),
+        border: hexA(0xC3CDDC, 0.95),
+        glowA: hexA(0x8E7BFF, 0.10),
+        glowB: hexA(0x4FD1C5, 0.14),
+        handle: [hex(0x5B86E8), hex(0x2A62D6)],
+        ferrule: hex(0x1B2A44),
+        tuft: [hex(0x0E8F79), hex(0x4FC7AC)],
+        halo: hexA(0x0E8F79, 0.22),
+        gleam: hexA(0x0E8F79, 0.16),
+        dust: hexA(0x8A96AB, 1.0),
+        haze: hexA(0x8A96AB, 0.10),
+        gloss: 0.0
     ),
 ]
-
-// ── 环形仪表几何（1024 空间） ──
-// 三段彩弧共 270°，剩下的露出浅色轨道 = “已用约 75%”，跟总览页语义一致
-let ringRadius: CGFloat = 232      // 描边中线半径
-let ringWidth: CGFloat = 78
-let arcLengths: [CGFloat] = [130, 86, 54]
-let arcStart: CGFloat = 2          // 12 点偏右 2°，起笔不在正上方
-let arcGap: CGFloat = 4
-let hubRadius: CGFloat = 44
-
-/// 从 12 点顺时针排的各段起止角度（度）
-func arcSpans(gap: CGFloat) -> [(from: CGFloat, to: CGFloat)] {
-    var d = arcStart
-    return arcLengths.map { len in
-        let s = (from: d, to: d + len)
-        d += len + gap
-        return s
-    }
-}
 
 func render(px: Int, spec: IconSpec) -> CGImage? {
     let k = CGFloat(px) / Design.canvas
@@ -95,58 +127,141 @@ func render(px: Int, spec: IconSpec) -> CGImage? {
         space: CGColorSpace(name: CGColorSpace.sRGB)!,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else { return nil }
-
+    let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
     ctx.setAllowsAntialiasing(true)
     ctx.scaleBy(x: k, y: k)
 
-    // 小尺寸下彩弧会糊成一团：加粗环、去掉弧间缝隙、放大轴心
+    let c = Design.center
     let small = px <= 64
-    let width = ringWidth * (small ? 1.22 : 1)
-    let hub = hubRadius * (small ? 1.2 : 1)
-    let spans = arcSpans(gap: small ? 0 : arcGap)
+    let tile = CGPath(roundedRect: Design.tileRect,
+                      cornerWidth: Design.tileRadius, cornerHeight: Design.tileRadius,
+                      transform: nil)
+    func radial(_ at: CGPoint, _ from: NSColor, _ to: NSColor, _ r0: CGFloat, _ r1: CGFloat) {
+        guard let g = CGGradient(colorsSpace: srgb, colors: [from.cgColor, to.cgColor] as CFArray,
+                                 locations: [0, 1]) else { return }
+        ctx.drawRadialGradient(g, startCenter: at, startRadius: r0, endCenter: at, endRadius: r1,
+                               options: [])
+    }
+    func linearC(_ from: NSColor, _ to: NSColor, _ a: CGPoint, _ b: CGPoint) {
+        guard let g = CGGradient(colorsSpace: srgb, colors: [from.cgColor, to.cgColor] as CFArray,
+                                 locations: [0, 1]) else { return }
+        ctx.drawLinearGradient(g, start: a, end: b, options: [])
+    }
 
-    let tile = Design.tileRect
-    let path = CGPath(roundedRect: tile, cornerWidth: Design.tileRadius,
-                      cornerHeight: Design.tileRadius, transform: nil)
-
-    // 底板：竖向渐变 + 一圈细描边
+    // ── 1 底板 ──
     ctx.saveGState()
-    ctx.addPath(path)
-    ctx.clip()
-    let grad = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
-                          colors: [spec.bgTop.cgColor, spec.bgBottom.cgColor] as CFArray,
-                          locations: [0, 1])!
-    ctx.drawLinearGradient(grad, start: CGPoint(x: Design.center.x, y: Design.canvas),
-                           end: CGPoint(x: Design.center.x, y: 0), options: [])
+    ctx.addPath(tile); ctx.clip()
+    linearC(spec.bgTop, spec.bgBottom, CGPoint(x: c.x, y: Design.canvas), CGPoint(x: c.x, y: 0))
+    radial(CGPoint(x: c.x - 250, y: c.y + 210), spec.glowA, spec.glowA.withAlphaComponent(0), 0, 470)
+    radial(CGPoint(x: c.x + 260, y: c.y - 240), spec.glowB, spec.glowB.withAlphaComponent(0), 0, 460)
+    if spec.gloss > 0 {
+        linearC(white(spec.gloss), white(0), CGPoint(x: c.x, y: Design.tileRect.maxY),
+                CGPoint(x: c.x, y: c.y))
+    }
     ctx.restoreGState()
 
-    ctx.addPath(path)
+    ctx.saveGState()
+    ctx.addPath(tile)
     ctx.setStrokeColor(spec.border.cgColor)
     ctx.setLineWidth(3)
     ctx.strokePath()
+    ctx.restoreGState()
 
-    let c = Design.center
+    // 刷头在画布上的位置（局部 (0,-100) 处）
+    let headC = Broom.P(0, -100)
 
-    // 轨道
-    ctx.setStrokeColor(spec.track.cgColor)
-    ctx.setLineWidth(width)
-    ctx.setLineCap(.butt)
-    ctx.addArc(center: c, radius: ringRadius, startAngle: 0, endAngle: .pi * 2, clockwise: false)
-    ctx.strokePath()
+    // ── 2 被推走的浮灰：堆在刷梢正前方，越远越小越淡 ──
+    ctx.saveGState()
+    ctx.addPath(tile); ctx.clip()
+    radial(Broom.P(30, -340), spec.haze, spec.haze.withAlphaComponent(0), 0, 320)
+    let motes: [(x: CGFloat, y: CGFloat, r: CGFloat, a: CGFloat)] = [
+        (96, -292, 16, 0.95), (-52, -306, 12, 0.72), (168, -344, 9, 0.55),
+        (34, -378, 7, 0.42), (226, -286, 6, 0.30), (-118, -262, 8, 0.22),
+    ]
+    for m in motes {
+        let p = Broom.P(m.x, m.y), r = m.r
+        ctx.setFillColor(spec.dust.withAlphaComponent(spec.dust.alphaComponent * m.a).cgColor)
+        ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
+    }
+    ctx.restoreGState()
 
-    // 彩弧：角度按“从 12 点顺时针”定义，CG 是 y 朝上逆时针，所以取 90°-θ
-    for (i, s) in spans.enumerated() {
-        ctx.setStrokeColor(spec.arcs[i].cgColor)
-        ctx.setLineWidth(width)
-        ctx.addArc(center: c, radius: ringRadius,
-                   startAngle: deg2rad(90 - s.from), endAngle: deg2rad(90 - s.to),
-                   clockwise: true)
-        ctx.strokePath()
+    // ── 3 扫帚 ──
+    // 刷头光晕先铺，让刷毛像是自己发亮
+    ctx.saveGState()
+    ctx.addPath(tile); ctx.clip()
+    radial(headC, spec.halo, spec.halo.withAlphaComponent(0), 0, 250)
+    ctx.restoreGState()
+
+    // 局部坐标系：原点在 pivot，+y 朝柄顶，-y 朝刷梢
+    func local(_ body: () -> Void) {
+        ctx.saveGState()
+        ctx.addPath(tile); ctx.clip()
+        ctx.translateBy(x: Broom.pivot.x, y: Broom.pivot.y)
+        ctx.rotate(by: Broom.tilt)
+        body()
+        ctx.restoreGState()
     }
 
-    // 轴心：让画面读作「仪表」而不只是一圈彩带
-    ctx.setFillColor(spec.hub.cgColor)
-    ctx.fillEllipse(in: CGRect(x: c.x - hub, y: c.y - hub, width: hub * 2, height: hub * 2))
+    // 柄：圆头长条，顶到底一段渐变
+    local {
+        let r = CGRect(x: -Broom.handleW / 2, y: Broom.ferruleTop - 6,
+                       width: Broom.handleW, height: Broom.handleTop - Broom.ferruleTop + 6)
+        let p = CGPath(roundedRect: r, cornerWidth: Broom.handleW / 2,
+                       cornerHeight: Broom.handleW / 2, transform: nil)
+        ctx.addPath(p); ctx.clip()
+        linearC(spec.handle[0], spec.handle[1], CGPoint(x: 0, y: Broom.handleTop),
+                CGPoint(x: 0, y: Broom.ferruleTop))
+    }
+    // 柄上高光：靠左半边一条细亮线，做出圆柱感
+    local {
+        let r = CGRect(x: -Broom.handleW / 2 + 8, y: Broom.ferruleTop + 24,
+                       width: 11, height: Broom.handleTop - Broom.ferruleTop - 40)
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 5.5, cornerHeight: 5.5, transform: nil))
+        ctx.clip()
+        ctx.setFillColor(white(spec.gloss > 0 ? 0.30 : 0.45).cgColor)
+        ctx.fill(r)
+    }
+
+    // 刷毛：根部在箍下连成一片，往梢部各自外扩、分开、收圆头
+    let bundles = small ? 4 : 5
+    local {
+        for i in 0..<bundles {
+            let f0 = CGFloat(i) / CGFloat(bundles), f1 = CGFloat(i + 1) / CGFloat(bundles)
+            let rootL = lerp(-Broom.fanHalfTop, Broom.fanHalfTop, f0)
+            let rootR = lerp(-Broom.fanHalfTop, Broom.fanHalfTop, f1)
+            let splay = Broom.fanHalfTip / Broom.fanHalfTop
+            let tipC = (rootL + rootR) / 2 * splay
+            let tipHalf = (rootR - rootL) / 2 * (small ? 0.96 : 0.97)
+            var tuft = CGMutablePath()
+            tuft.move(to: CGPoint(x: rootL, y: Broom.fanTop))
+            tuft.addLine(to: CGPoint(x: rootR, y: Broom.fanTop))
+            tuft.addLine(to: CGPoint(x: tipC + tipHalf, y: Broom.fanTip + 14))
+            tuft.addQuadCurve(to: CGPoint(x: tipC - tipHalf, y: Broom.fanTip + 14),
+                              control: CGPoint(x: tipC, y: Broom.fanTip - 16))
+            tuft.closeSubpath()
+            ctx.saveGState()
+            ctx.addPath(tuft); ctx.clip()
+            linearC(spec.tuft[0], spec.tuft[1], CGPoint(x: 0, y: Broom.fanTop),
+                    CGPoint(x: 0, y: Broom.fanTip))
+            ctx.restoreGState()
+        }
+    }
+
+    // 箍：压住刷毛根部的亮色金属圈，比刷毛宽一点点
+    local {
+        let r = CGRect(x: -Broom.ferruleW / 2, y: Broom.ferruleBot,
+                       width: Broom.ferruleW, height: Broom.ferruleTop - Broom.ferruleBot)
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 22, cornerHeight: 22, transform: nil))
+        ctx.setFillColor(spec.ferrule.cgColor)
+        ctx.fillPath()
+    }
+
+    // 刷梢前缘的一团柔光：让「正在扫」这件事更明确（不能带边界，否则成一块亮斑）
+    ctx.saveGState()
+    ctx.addPath(tile); ctx.clip()
+    if spec.gloss > 0 { ctx.setBlendMode(.plusLighter) }
+    radial(Broom.P(0, Broom.fanTip - 6), spec.gleam, spec.gleam.withAlphaComponent(0), 0, 210)
+    ctx.restoreGState()
 
     return ctx.makeImage()
 }
