@@ -119,19 +119,22 @@ brew install --cask diskwise
 
 Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
 
-Homebrew does not skip Gatekeeper here: the installed app still carries `com.apple.quarantine`
-and `spctl` rejects the ad-hoc signature, so first launch needs the same
+Homebrew does not skip Gatekeeper here: whatever the cask installs is the same build the
+Releases page carries. Signed + notarized builds open with a double-click; if a release note
+says the build is ad-hoc signed, first launch needs the same
 **right-click → Open → Open** as the DMG.
 
 **Option B — DMG**
 
-1. Download `DiskWise-<version>.dmg` from [Releases](https://github.com/DreamOfXM/diskwise/releases).
+1. Download `DiskWise-<version>-universal.dmg` from
+   [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
-3. First launch, either install path: **right-click → Open → Open**. The build is
-   ad-hoc signed, so Gatekeeper wants a human once. (See [Known limits](#known-limits).)
+3. First launch: double-click. Release builds are signed with a Developer ID certificate and
+   notarized by Apple. If a release note flags an ad-hoc build instead, use
+   **right-click → Open → Open** once. (See [Known limits](#known-limits).)
 
-Apple Silicon (arm64) only for now. Checksums are published next to each release asset, and
-the cask pins the same SHA-256.
+Release DMGs are universal — one file runs on both Apple Silicon and Intel. Checksums are
+published next to each release asset, and the cask pins the same SHA-256.
 
 ## Build from source
 
@@ -145,7 +148,8 @@ bash build_app/build.sh        # localize check → build → self-test → .app
 ```
 
 `build.sh` refuses to produce a package if any of the three gates fails: missing translations,
-a failing self-test, or an unpacked resource.
+a failing self-test, or an unpacked resource. Releasing one — Developer ID signing, notarization,
+the CI workflow, the pre-push checklist — is documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 Contributing? Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DESIGN.md](docs/DESIGN.md) — both encode
@@ -180,26 +184,26 @@ They're in the cache knowledge base, because on a Chinese developer's Mac those 
 single biggest consumers. That's also why the UI ships bilingual.
 
 **Intel Mac?**
-Not yet — published DMGs are arm64-only until a universal CI build exists.
+Release DMGs are universal — one binary carries both the arm64 and x86_64 slices, so the same
+download runs on Apple Silicon and Intel. `bash build_app/build.sh` defaults to arm64;
+`ARCH=universal` produces the shipped file.
 
 **Why does macOS complain on first launch?**
-The build is ad-hoc signed and not notarized, so the app stays quarantined after download —
-on both install paths — and first launch needs one right-click → Open
-(see [Install](#install)). Developer ID signing and notarization
-are on the [roadmap](#roadmap).
+It depends on the build. Release builds from CI are signed with a Developer ID certificate and
+notarized by Apple, so they open with a double-click. An ad-hoc build — a local `build.sh` run
+without a certificate in the keychain, or any release whose note says so — stays quarantined
+after download and needs one **right-click → Open** (see [Install](#install)).
 
 ## Known limits
 
 Honest list, because a cleanup tool earns trust by admitting what it can't do:
 
-- **Not signed or notarized by Apple.** First launch needs a right-click. Developer identity is on the roadmap.
-- **Apple Silicon only.** Intel images need a CI runner.
+- **No auto-update.** You get new versions from the Releases page or `brew upgrade`.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
 ## Roadmap
 
-- [ ] Developer ID signing + notarization, Intel + arm64
 - [ ] Streaming snapshots for slow scans
 - [ ] More cache knowledge base entries (open a PR — this is the easiest way to contribute)
 
@@ -315,16 +319,18 @@ brew install --cask diskwise
 
 tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
 
-用 Homebrew 也躲不过 Gatekeeper：装完后 App 仍然带 `com.apple.quarantine` 标记，`spctl` 会拒绝
-这个 ad-hoc 签名，所以首次打开跟走 DMG 一样要**右键 → 打开 → 打开**确认一次。
+用 Homebrew 也躲不过 Gatekeeper——但装的就是 Releases 页那个包：签名 + 公证过的双击即开；
+只有某条 Release 的说明里写明是 ad-hoc 构建时，才需要**右键 → 打开 → 打开**确认一次。
 
 **方式二：DMG**
 
-1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>.dmg`
+1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>-universal.dmg`
 2. 打开后把 **DiskWise.app** 拖进「应用程序」
-3. 首次打开请**右键 → 打开 → 打开**：当前是 ad-hoc 签名，Gatekeeper 需要人确认一次
+3. 首次打开直接双击：发布包用 Developer ID 证书签名并经 Apple 公证。若某条 Release 注明是
+   ad-hoc 构建，才需要**右键 → 打开 → 打开**一次（见[已知边界](#已知不足)）
 
-目前只出 Apple Silicon（arm64）包。每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
+发布包是通用二进制——同一个文件里同时带 arm64 和 x86_64 两个切片，Apple Silicon 和 Intel 都能跑。
+每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
 
 ## 从源码构建
 
@@ -338,6 +344,8 @@ bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app →
 ```
 
 三道闸门任一失败就不出包：缺译文、自检不过、资源没拷进去。
+出发布包那一整套 —— Developer ID 签名、公证、CI、发版前的自查清单 —— 在
+[docs/RELEASE.md](docs/RELEASE.md) 里。
 
 想提 PR 请先读 [CONTRIBUTING.md](CONTRIBUTING.md)、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 和 [docs/DESIGN.md](docs/DESIGN.md)——里面每条规则都是踩过坑定下来的。
@@ -365,22 +373,22 @@ GitHub、邮箱或 QQ 群的原因。
 管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，界面也因此做成中英双语。
 
 **Intel 机器能用吗？**
-暂时不能，当前只发 arm64 包，等通用包和签名跟上。
+能。发布包是通用二进制，同一个文件里 arm64 和 x86_64 两个切片都在。本地 `build.sh` 默认只出
+arm64，`ARCH=universal bash build_app/build.sh` 出发布用的那个。
 
 **为什么首次打开系统要警告？**
-现在是 ad-hoc 签名、未公证，两条安装路径下来的 App 都带着隔离标记，首次打开都要右键 → 打开
-确认一次（见[下载与安装](#下载与安装)）。Developer ID 签名和公证在[路线图](#路线图)上。
+看是哪条 Release。CI 出的发布包用 Developer ID 签名并过了 Apple 公证，双击就开。没证书时
+`build.sh` 会退回 ad-hoc 签名，这种包带着隔离标记，首次打开要右键 → 打开确认一次
+（见[下载与安装](#下载与安装)）。
 
 ## 已知不足
 
-- **未经 Apple 签名与公证**，首次打开要右键确认
-- **只有 Apple Silicon 包**，Intel 需要 CI runner
+- **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
 - **node_modules 大盘扫描慢**，且还没有流式快照
 - **卸载残留刻意保守**，会漏报
 
 ## 路线图
 
-- [ ] Developer ID 签名 + 公证，出 Intel + arm64 通用包
 - [ ] 慢扫描的流式快照
 - [ ] 扩充缓存知识库（提 PR 最受欢迎的方式）
 

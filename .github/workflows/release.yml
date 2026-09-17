@@ -1,0 +1,165 @@
+name: Release
+
+# 打 tag（v1.3、v1.3.1 这种）就出包；也可以手动跑一次只出构建产物、不发 Release。
+# 签名和公证看仓库 secrets 齐不齐：齐了就 Developer ID + hardened runtime + 公证钉票据，
+# 缺任何一项就退回 ad-hoc 包（用户首次打开要右键 → 打开），构建本身不会失败。
+#
+# 需要的 secrets（怎么来的见 docs/RELEASE.md）：
+#   DEVELOPER_ID_CERT_P12   Developer ID Application 证书导出的 .p12，base64 单行
+#   CERT_PASSWORD           导出 .p12 时设的密码
+#   APPLE_ID                开发者账号邮箱
+#   APPLE_TEAM_ID           团队 ID
+#   APP_SPECIFIC_PASSWORD   appleid.apple.com 生成的 App 专用密码
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "打包架构"
+        type: choice
+        options:
+          - universal
+          - arm64
+          - x86_64
+        default: universal
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 构建 · 签名 · 公证 · 发布
+    runs-on: macos-14
+    env:
+      ARCH: ${{ inputs.arch || 'universal' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 工具链
+        run: |
+          sw_vers
+          xcode-select -p
+          swift --version | head -n 2
+
+      # tag 说 v1.3、build.sh 里写着 1.2 的话，发出去的包版本号就是错的，直接拦下。
+      - name: 版本号对账
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          V="$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' build_app/build.sh | head -n 1)"
+          T="${GITHUB_REF_NAME#v}"
+          if [ "$V" != "$T" ]; then
+              echo "::error::tag 是 v$T，build_app/build.sh 里 VERSION=\"$V\"，对不上"
+              exit 1
+          fi
+          echo "VERSION=$V"
+
+      - name: 检查签名与公证凭据
+        id: creds
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          PW: ${{ secrets.CERT_PASSWORD }}
+          AID: ${{ secrets.APPLE_ID }}
+          TID: ${{ secrets.APPLE_TEAM_ID }}
+          ASP: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$P12" ] || missing="$missing DEVELOPER_ID_CERT_P12"
+          [ -n "$PW" ]  || missing="$missing CERT_PASSWORD"
+          [ -n "$AID" ] || missing="$missing APPLE_ID"
+          [ -n "$TID" ] || missing="$missing APPLE_TEAM_ID"
+          [ -n "$ASP" ] || missing="$missing APP_SPECIFIC_PASSWORD"
+          if [ -z "$missing" ]; then
+              echo "signed=true" >> "$GITHUB_OUTPUT"
+              echo "公证凭据齐备"
+          else
+              echo "signed=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::缺$missing —— 本次出 ad-hoc 包，不签名不公证"
+          fi
+
+      - name: 导入 Developer ID 证书
+        if: steps.creds.outputs.signed == 'true'
+        env:
+          P12_B64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KC="$RUNNER_TEMP/build.keychain-db"
+          rm -f "$KC"
+          security create-keychain -p "$RUNNER_TEMP" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$RUNNER_TEMP" "$KC"
+          base64 -D -o "$RUNNER_TEMP/developer_id.p12" <<< "$P12_B64"
+          # -A 让密钥先整体可访问，再用 partition-list 收窄到 codesign，
+          # 否则签名时会弹「codesign 想访问密钥」的框，CI 上就卡死了。
+          security import "$RUNNER_TEMP/developer_id.p12" \
+              -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign -A
+          rm -f "$RUNNER_TEMP/developer_id.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$RUNNER_TEMP" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" "$(security list-keychains -d user | tr -d '"' | head -n 1)"
+          security find-identity -v -p codesigning | sed -n '1,8p'
+
+      - name: 构建（build.sh 内部完成编译 / 自检 / 签名 / 打包 / 公证）
+        env:
+          NOTARIZE: ${{ steps.creds.outputs.signed == 'true' && '1' || '0' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+        run: bash build_app/build.sh
+
+      - name: 产物清单 + 校验和
+        id: assets
+        run: |
+          ls -lh dist
+          DMG="$(ls dist/*.dmg | head -n 1)"
+          SHA="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$DMG")" >> "$GITHUB_OUTPUT"
+          echo "$SHA  $(basename "$DMG")"
+
+      - name: 上传构建产物（workflow 页可下）
+        uses: actions/upload-artifact@v4
+        with:
+          name: diskwise-${{ env.ARCH }}-${{ github.sha }}
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      # 已经有这条 Release（比如手写过说明）就只补附件，不覆盖正文。
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DMG: ${{ steps.assets.outputs.dmg }}
+          NAME: ${{ steps.assets.outputs.name }}
+          SHA256: ${{ steps.assets.outputs.sha256 }}
+          ARCH: ${{ env.ARCH }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              gh release upload "$GITHUB_REF_NAME" "$DMG" --clobber
+              echo "已挂到现有 Release $GITHUB_REF_NAME"
+              exit 0
+          fi
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<EOF
+          DiskWise ${GITHUB_REF_NAME} · macOS 13+ · 架构 ${ARCH}
+
+          下载后拖进「应用程序」即可。校验：\`shasum -a 256 ${NAME}\`
+          SHA-256：\`${SHA256}\`
+          EOF
+          gh release create "$GITHUB_REF_NAME" "$DMG" \
+              --title "DiskWise ${GITHUB_REF_NAME}" \
+              --notes-file "$NOTES"
+
+      - name: 清理临时钥匙串
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
