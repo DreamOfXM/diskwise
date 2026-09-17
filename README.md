@@ -119,11 +119,15 @@ brew install --cask diskwise
 
 Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
 
+Homebrew does not skip Gatekeeper here: the installed app still carries `com.apple.quarantine`
+and `spctl` rejects the ad-hoc signature, so first launch needs the same
+**right-click → Open → Open** as the DMG.
+
 **Option B — DMG**
 
 1. Download `DiskWise-<version>.dmg` from [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
-3. First launch of a browser-downloaded DMG: **right-click → Open → Open**. The build is
+3. First launch, either install path: **right-click → Open → Open**. The build is
    ad-hoc signed, so Gatekeeper wants a human once. (See [Known limits](#known-limits).)
 
 Apple Silicon (arm64) only for now. Checksums are published next to each release asset, and
@@ -179,8 +183,9 @@ single biggest consumers. That's also why the UI ships bilingual.
 Not yet — published DMGs are arm64-only until a universal CI build exists.
 
 **Why does macOS complain on first launch?**
-The build is ad-hoc signed and not notarized, so a browser-downloaded DMG needs one
-right-click → Open (see [Install](#install)). Developer ID signing and notarization
+The build is ad-hoc signed and not notarized, so the app stays quarantined after download —
+on both install paths — and first launch needs one right-click → Open
+(see [Install](#install)). Developer ID signing and notarization
 are on the [roadmap](#roadmap).
 
 ## Known limits
@@ -310,6 +315,9 @@ brew install --cask diskwise
 
 tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
 
+用 Homebrew 也躲不过 Gatekeeper：装完后 App 仍然带 `com.apple.quarantine` 标记，`spctl` 会拒绝
+这个 ad-hoc 签名，所以首次打开跟走 DMG 一样要**右键 → 打开 → 打开**确认一次。
+
 **方式二：DMG**
 
 1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>.dmg`
@@ -360,8 +368,8 @@ GitHub、邮箱或 QQ 群的原因。
 暂时不能，当前只发 arm64 包，等通用包和签名跟上。
 
 **为什么首次打开系统要警告？**
-现在是 ad-hoc 签名、未公证，浏览器下载的 DMG 首次要右键 → 打开确认一次（见[下载与安装](#下载与安装)）。
-Developer ID 签名和公证在[路线图](#路线图)上。
+现在是 ad-hoc 签名、未公证，两条安装路径下来的 App 都带着隔离标记，首次打开都要右键 → 打开
+确认一次（见[下载与安装](#下载与安装)）。Developer ID 签名和公证在[路线图](#路线图)上。
 
 ## 已知不足
 
