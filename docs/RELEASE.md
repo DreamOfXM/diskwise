@@ -50,8 +50,17 @@
 2. developer.apple.com → Certificates, Identifiers & Profiles → Certificates → `+` →
    选 **Developer ID Application**（商店则选 **Apple Distribution** 和 **Mac Installer
    Distribution**）→ 上传 CSR → 下载 `.cer` → 双击装进登录钥匙串。
-3. 验一下：`security find-identity -v -p codesigning`，能看到
-   `"Developer ID Application: <名字> (<TEAMID>)"` 就对了。
+   门户那张列表是单选的，一张一次，商店两张要走两遍；**同一份 CSR 可以重复上传**，
+   私钥不用重新生成。
+3. 验一下。两类身份要用两条命令，`-p codesigning` 这个过滤器**看不到 Installer 身份**
+   （Apple 打包文档专门提醒过），拿它去查 installer 证书会得到「没有」的错误结论：
+   ```bash
+   security find-identity -v -p codesigning   # Developer ID Application / Apple Distribution
+   security find-identity -v                  # 再加一张：Mac Installer Distribution
+   ```
+   只有 CSR 是钥匙串访问的证书助理生成的，双击 `.cer` 才会把私钥和证书配成一条身份；
+   私钥在钥匙串外（比如 openssl 生成的 `.key.pem`）就得先把 `.cer` + 私钥合成 `.p12` 再导入，
+   否则证书装进去了、`find-identity` 里依然查不到。
 
 ### 两套 entitlements，各自为什么长这样
 
