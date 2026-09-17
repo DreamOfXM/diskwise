@@ -47,6 +47,7 @@ diskwise/
 ├── docs/
 │   ├── ARCHITECTURE.md            # 本文件
 │   ├── DESIGN.md                  # 两条跨皮肤铁律 + 皮肤阵容与配色语义 + 文案语气
+│   ├── PRIVACY.md                 # 零收集声明（中英双语）——App Store Connect 的隐私政策 URL 指向它
 │   └── screenshots/               # README 用图（双语 × 多皮肤，由 SnapshotMode 拍出）
 ├── README.md                      # 双语首页
 ├── CONTRIBUTING.md                # 安全铁律 + 知识库怎么加条目 + 翻译规矩
@@ -200,6 +201,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 ## 7. 设计资产
 
 - `docs/DESIGN.md`：皮肤设计规则（阵容、「差异写在骨架上不写在配色上」、图标块 `tileStrategy`、`chart[]` 位语义）+ 两条跨皮肤铁律：**正文禁染色**（只用 `palette.ink` / `inkSecondary`，彩色只给图标块、环形图、按钮、徽章）；**页头 / banner 禁整块高饱和底色**。token 的权威定义始终在代码：`Sources/DiskCleaner/Theme/Skins.swift`。
+- `docs/PRIVACY.md`：对外隐私政策，中英各一段，口径必须和代码一致——不联网、不收集、只写本机偏好、删除只进废纸篓。App Store Connect 的「隐私政策 URL」填指向它的仓库公开页。
 - `docs/RELEASE.md`：发布流程的唯一权威说明 —— `build.sh` 七步各做什么、两条发行路线两张不能互换的证书（Developer ID / Apple Distribution）、两套 entitlements 各自为什么长这样、公证凭据怎么存、CI 的五个 secrets、商店路线的出包上传与提审前清单、发版前七项自查。签名与公证的逻辑别在别处再写一遍。
 - **App 图标**：`build_app/make_icon.swift` 用 CoreGraphics 现画一把斜着的扫帚——柄在左上、发亮的刷头在右下，刷梢前面推着几粒被扫出去的灰点。三层：macOS 圆角底板（竖向渐变 + 两团氛围光）→ 浮灰和灰点 → 扫帚本体（渐变柄 + 亮色箍 + 五束在根部相连、往梢部外扩收圆的刷毛）。配色取自皮肤：变体 a 用「极光玻璃」那组深底冷光（默认出厂），变体 b 用「晨雾 + 薄荷」的浅底。走 macOS 图标栅格（图形居中 824×1024、圆角 185.4），≤64px 自动加粗整把扫帚、刷毛收成四束。`AppIcon.icns` 和 `docs/icon.png` 都是生成物，改样式改脚本，别改图。
 
