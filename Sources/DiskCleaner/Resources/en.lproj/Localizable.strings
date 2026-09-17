@@ -25,6 +25,8 @@
 "卸载残留" = "Leftovers";
 "废纸篓" = "Trash";
 "外观皮肤" = "Skins";
+"支持" = "Support";
+"问题反馈" = "Feedback";
 "免费 %1$d 套 · 付费 %2$d 套" = "%1$d free · %2$d paid";
 "共 %d 套皮肤" = "%d skins in total";
 
@@ -234,6 +236,34 @@
 "语言已切换，重启后整屏生效" = "Language changed — it fully applies after a relaunch";
 "立即重启" = "Relaunch now";
 "退出后重新打开即可" = "Quit and reopen to apply";
+
+// ── 问题反馈 ────────────────────────────────────────────────────────────────
+"App 不联网，反馈得由你亲手发出来" = "This app never touches the network, so feedback has to come from you";
+"邮箱" = "Email";
+"写邮件" = "Compose";
+"复制地址" = "Copy address";
+"QQ 群" = "QQ group";
+"群号 %@" = "Group no. %@";
+"复制群号" = "Copy group number";
+"手机打开 QQ，扫这个码进群" = "Open QQ on your phone and scan this code to join";
+"QQ 群二维码" = "QQ group QR code";
+"加不上就按群号搜索，或直接把问题发到邮箱" = "Can't join? Search the group number, or send it to the mailbox instead";
+"群里聊什么：清理求助、缓存知识库补条目、使用技巧" = "What we talk about: cleanup help, cache knowledge base entries, tips";
+"二维码没能加载出来。在 QQ 里按群号 %@ 搜索也能加。" = "The QR image didn't load. Search group no. %@ in QQ to join anyway.";
+"仓库 %@" = "Repo %@";
+"复制仓库" = "Copy repo URL";
+"提 Issue" = "Open an issue";
+"怎么提才有用" = "What makes a report useful";
+"你在哪一步" = "Where";
+"哪一页、点了哪个按钮、扫的是哪个目录" = "Which page, which button, which folder you scanned";
+"看到了什么" = "What you saw";
+"报错原文整段贴过来，截图也行" = "Paste the error verbatim, or attach a screenshot";
+"你的机器" = "Your machine";
+"macOS 版本、Apple Silicon 还是 Intel" = "macOS version, Apple Silicon or Intel";
+"已复制到剪贴板：%@" = "Copied: %@";
+"复制失败，请手动选中复制" = "Copy failed — select the text and copy it by hand";
+"打不开 %@，可能被系统拦了" = "Couldn't open %@ — your system may have blocked it";
+"这个 App 不联网，也没有任何遥测：以上信息只有你主动发出来时才存在。" = "No network, no telemetry: none of the above exists until you send it yourself.";
 
 // ── 共享控件与提示 ──────────────────────────────────────────────────────────
 "还没勾选任何东西" = "Nothing selected yet";

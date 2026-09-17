@@ -57,7 +57,7 @@ final class AppStore: ObservableObject {
 }
 
 enum AppPanel: Hashable, CaseIterable {
-    case overview, big, old, dup, nodemodules, docker, caches, orphans, trash, appearance
+    case overview, big, old, dup, nodemodules, docker, caches, orphans, trash, appearance, feedback
 
     var symbol: String {
         switch self {
@@ -71,6 +71,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .orphans: return "app.badge"
         case .trash: return "trash"
         case .appearance: return "paintpalette"
+        case .feedback: return "text.bubble"
         }
     }
 
@@ -87,6 +88,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .orphans: return "卸载残留"
         case .trash: return "废纸篓"
         case .appearance: return "外观皮肤"
+        case .feedback: return "问题反馈"
         }
     }
 
@@ -126,6 +128,7 @@ struct ContentView: View {
                 sideSection(L("开发机专项"), [.nodemodules, .docker])
                 sideSection(L("清理"), [.caches, .orphans, .trash])
                 sideSection(L("个性化"), [.appearance])
+                sideSection(L("支持"), [.feedback])
             }
             .padding(.horizontal, 8)
             .padding(.top, 4)
@@ -192,6 +195,7 @@ struct ContentView: View {
                 case .orphans: OrphansView()
                 case .trash: TrashView()
                 case .appearance: AppearanceView()
+                case .feedback: FeedbackView()
                 }
             }
             NoticeBar()

@@ -4,14 +4,14 @@
 
 **A native macOS disk cleaner that never deletes anything.**
 Every removal goes to the Trash and stays undoable until *you* empty it.
-SwiftUI, no Electron, no Python sidecar, no local server, no telemetry. 1.6 MB.
+SwiftUI, no Electron, no Python sidecar, no local server, no telemetry. 1.8 MB.
 
 [English](#english) · [中文](#中文)
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-1.6%20MB-blue)
+![size](https://img.shields.io/badge/DMG-1.8%20MB-blue)
 
 </div>
 
@@ -131,6 +131,21 @@ Honest list, because a cleanup tool earns trust by admitting what it can't do:
 - [ ] Streaming snapshots for slow scans
 - [ ] More cache knowledge base entries (open a PR — this is the easiest way to contribute)
 
+## Feedback
+
+The app has no network access, so there is no built-in "send feedback" button — pick a channel:
+
+| Channel | Where |
+|---|---|
+| Email | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
+| QQ group | **913022339** — scan to join |
+| GitHub | [Open an issue](https://github.com/DreamOfXM/diskwise/issues) — English or Chinese is fine |
+
+<img src="docs/contact/qq-group.png" width="240" alt="QQ group QR code">
+
+The same three channels live in-app: the **Feedback** page at the bottom of the sidebar, with
+copy buttons for every address.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
@@ -142,7 +157,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 ## DiskWise 是什么
 
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具。所有删除只进废纸篓，本次会话内随时可撤销；
-SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、没有端口、不联网、无遥测。安装包 1.6 MB。
+SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、没有端口、不联网、无遥测。安装包 1.8 MB。
 
 ## 它凭什么值得信任
 
@@ -244,6 +259,20 @@ bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app →
 - [ ] Developer ID 签名 + 公证，出 Intel + arm64 通用包
 - [ ] 慢扫描的流式快照
 - [ ] 扩充缓存知识库（提 PR 最受欢迎的方式）
+
+## 反馈与交流
+
+App 不联网，所以没有「一键发送反馈」这种按钮。三个渠道随你挑：
+
+| 渠道 | 入口 |
+|---|---|
+| 邮箱 | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
+| QQ 群 | **913022339**，扫码进群 |
+| GitHub | [提 Issue](https://github.com/DreamOfXM/diskwise/issues)，中文英文都收 |
+
+<img src="docs/contact/qq-group.png" width="240" alt="QQ 群二维码">
+
+App 内侧边栏最下面就是「问题反馈」页，同样这三条渠道，每个地址都能一键复制。
 
 ## 许可
 

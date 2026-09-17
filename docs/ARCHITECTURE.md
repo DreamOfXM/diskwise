@@ -17,7 +17,7 @@ diskwise/
 ├── Sources/
 │   ├── DiskCleaner/               # App 层（UI + 打包资源）
 │   │   ├── DiskCleanerApp.swift   # 入口、侧边栏、AppStore（跨页跳转 + 撤销栈）
-│   │   ├── Product.swift          # 品牌 + 发行渠道开关 Channel.showsPricing
+│   │   ├── Product.swift          # 品牌 + 反馈渠道 Contact + 发行渠道开关 Channel.showsPricing
 │   │   ├── L10n.swift             # L() / LF() / cnt()：中文原文即 key
 │   │   ├── SnapshotMode.swift     # 截图模式：逐页把窗口拍成 PNG（README 用图靠它）
 │   │   ├── Theme/                 # ★皮肤引擎 v2，四个文件分工：
@@ -25,7 +25,7 @@ diskwise/
 │   │   │   ├── Skins.swift        #   6 套皮肤数据（基础 3 + 进阶 3），加皮肤只加这里
 │   │   │   ├── ThemeManager.swift #   单例：持久化 + 试穿 + canUse/unlock（收费渠道的接缝）
 │   │   │   └── Components.swift   #   自绘组件库：卡片/按钮/徽章/环形仪表/背景/图标块
-│   │   ├── Views/                 # 10 个页面 + SharedViews.swift（themedRow/ItemRow/CleanBar 等共用件）
+│   │   ├── Views/                 # 11 个页面 + SharedViews.swift（themedRow/ItemRow/CleanBar 等共用件）
 │   │   └── Resources/
 │   │       ├── safety_db.json     # 缓存知识库（路径写成 ~ 可移植格式）
 │   │       └── en.lproj/Localizable.strings   # 唯一需要维护的译文
@@ -68,6 +68,7 @@ bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .
                              # 图标变体：ICON_VARIANT=b bash build_app/build.sh
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
+# DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤商店那种长页）
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner -diskcleaner.language en
@@ -126,7 +127,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 
 ---
 
-## 5. 功能清单（侧边栏 9 + 1 页）
+## 5. 功能清单（侧边栏 10 + 1 页）
 
 | 页 | 后端 | 说明 |
 |---|---|---|
@@ -140,6 +141,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 | 卸载残留 | Info.plist 基准 + denylist | 以已装 App 为基准找孤儿，宁可漏报 |
 | 废纸篓 | trashSize / undo / empty | 撤销栈在 `AppStore` |
 | 外观皮肤 | `ThemeManager` | 六套皮肤全部可选：每张卡带实时缩略微组件；进阶组靠结构差异不靠配色；明暗三选；收费 UI 仅商店渠道编译（`-DAPPSTORE`） |
+| 问题反馈 | 无（纯静态） | 邮箱 / QQ 群 / GitHub 三条渠道，地址只在 `Product.swift` 的 `Contact` 定义一处；二维码走 `Contents/Resources` + 源码树兜底，同 `safety_db.json` 套路 |
 
 ---
 

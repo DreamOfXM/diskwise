@@ -14,6 +14,22 @@ enum Product {
     static let bundleID = "com.dreamofxm.diskcleaner"
 }
 
+// ── 反馈渠道：地址只这一处 ──
+//
+// 全是公开地址（README 里同样这几个），所以不进词表、不本地化。
+// App 不联网，这些渠道都得用户主动发起；页面只负责把地址摆清楚并保证可复制。
+
+enum Contact {
+    static let email = "hnyxgxm2009@163.com"
+    /// 交给系统打开邮件客户端要用带 scheme 的 URL，光一个地址没有 scheme
+    static let mailto = "mailto:\(email)"
+    static let qqGroup = "913022339"
+    /// GitHub 上的 owner/repo，界面里展示的就是这一串
+    static let repoSlug = "DreamOfXM/diskwise"
+    static let repo = "https://github.com/\(repoSlug)"
+    static let issues = "https://github.com/\(repoSlug)/issues"
+}
+
 // ── 发行渠道：开源分发不展示收费，商店分发才展示 ──
 //
 // 判定在编译期完成（`CHANNEL=appstore bash build_app/build.sh`）：

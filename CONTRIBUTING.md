@@ -81,6 +81,12 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 ```
 
+Two knobs narrow a run so you're not re-rendering 13 pages to look at one:
+
+- `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
+- `DISKWISE_WIN=1280x1543` — window size, default `1280x820`. Raise the height for long
+  scrolling pages, otherwise the shot just cuts off mid-card.
+
 English copy runs ~30% wider than Chinese, so check **both** languages — a lot of layout bugs are
 only visible in one of them.
 

@@ -192,14 +192,14 @@ extension Theme {
         Color(hex: 0x2A62D6), Color(hex: 0xE0762A), Color(hex: 0x7B4FC9),
         Color(hex: 0xC93F76), Color(hex: 0x18884F), Color(hex: 0x0E8FA8),
         Color(hex: 0xB8860B), Color(hex: 0xC8372D), Color(hex: 0x5B6472),
-        Color(hex: 0x0E8F79)
+        Color(hex: 0x0E8F79), Color(hex: 0x6E7B2F)
     ]
 
     static let spectrumDark: [Color] = [
         Color(hex: 0x6C9BFF), Color(hex: 0xF2954E), Color(hex: 0xA98BE8),
         Color(hex: 0xE879A6), Color(hex: 0x4FC98A), Color(hex: 0x4FC3DD),
         Color(hex: 0xE0B84A), Color(hex: 0xFF6B60), Color(hex: 0x98A0AC),
-        Color(hex: 0x3FC9AC)
+        Color(hex: 0x3FC9AC), Color(hex: 0xB0BE63)
     ]
 }
 

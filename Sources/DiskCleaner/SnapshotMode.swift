@@ -18,6 +18,7 @@ import SwiftUI
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
 //     DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
+// 皮肤商店那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -38,7 +39,19 @@ enum SnapshotMode {
         (.orphans, "08-leftovers", 12, 60),
         (.trash, "09-trash", 6, 20),
         (.appearance, "10-skins", 4, 15),
+        (.feedback, "13-feedback", 2, 8),
     ]
+
+    /// 截图窗口尺寸：默认 1280x820。皮肤商店那种长页用 DISKWISE_WIN=1280x1543 拉高。
+    /// 数值不合理就整体退回默认，别打错一个字符就拍出一张没法用的图。
+    private static var windowSize: NSSize {
+        let fallback = NSSize(width: 1280, height: 820)
+        let raw = ProcessInfo.processInfo.environment["DISKWISE_WIN"] ?? ""
+        let parts = raw.lowercased().split(separator: "x").compactMap { Int($0) }
+        guard parts.count == 2, (900...2400).contains(parts[0]), (500...2600).contains(parts[1])
+        else { return fallback }
+        return NSSize(width: parts[0], height: parts[1])
+    }
 
     @MainActor
     static func run(outDir: String) {
@@ -51,33 +64,40 @@ enum SnapshotMode {
         let skin = Theme.byID(skinID) ?? manager.effective
         let paper = NSColor(skin.palette.paper)
 
-        let root = ContentView()
+        let content = ContentView()
             .environmentObject(store)
             .environmentObject(manager)
             .themed(skin)
             .preferredColorScheme(skin.scheme)
             .tint(skin.palette.tint)
 
+        let size = windowSize
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+            contentRect: NSRect(x: 0, y: 0, width: size.width, height: size.height),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        window.contentView = NSHostingView(rootView: root)
+        let host = NSHostingView(rootView: content)
+        window.contentView = host
         window.center()
         window.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
 
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         pump(3)
+        // 换页之前量一次，这就是整套图的画幅。之后窗口会被内容的理想尺寸撑高（SwiftUI 的
+        // ScrollView 把自己的理想高度报成内容高度），但每张图都只从内容顶部截这一块——
+        // 否则一趟跑完就是五张不同尺寸的图，README 的表格直接散架。
+        // 皮肤商店那页装不下，用 DISKWISE_WIN 把画幅拉高，别硬截。
+        let canvas = host.bounds.size
         hideWindowServerLayers(in: window.contentView)
         let only = Set((ProcessInfo.processInfo.environment["DISKWISE_ONLY"] ?? "")
             .split(separator: ",").map { $0.lowercased() })
         for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
             store.jumpTo = panel
-            waitSettled(window, paper: paper, minSeconds: minWait, maxSeconds: maxWait)
+            waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
             let path = (outDir as NSString).appendingPathComponent(name + ".png")
             var ok = false
-            if let data = pngData(window, paper: paper) {
+            if let data = pngData(window, paper: paper, canvas: canvas) {
                 ok = (try? data.write(to: URL(fileURLWithPath: path))) != nil
             }
             FileHandle.standardError.write(ok
@@ -104,14 +124,15 @@ enum SnapshotMode {
     /// 扫描是后台 Task + @MainActor 回填，拍到一半就是「Counting…」。
     /// 光看「两帧一样」不够——进度条隔几秒才动一下，静帧会骗人，所以先泡够
     /// 最短时间，再要求连续三帧完全一致；一直动的页面就泡到上限为止。
-    private static func waitSettled(_ window: NSWindow, paper: NSColor, minSeconds: Double, maxSeconds: Double) {
+    private static func waitSettled(_ window: NSWindow, paper: NSColor, canvas: NSSize,
+                                    minSeconds: Double, maxSeconds: Double) {
         pump(minSeconds)
-        var previous = pngData(window, paper: paper)
+        var previous = pngData(window, paper: paper, canvas: canvas)
         var stable = 0
         let deadline = Date().addingTimeInterval(maxSeconds)
         while Date() < deadline {
             pump(1.5)
-            let current = pngData(window, paper: paper)
+            let current = pngData(window, paper: paper, canvas: canvas)
             if current != nil && current == previous {
                 stable += 1
                 if stable >= 3 { return }
@@ -125,7 +146,7 @@ enum SnapshotMode {
     /// 只拍内容区：窗口边框视图会在圆角外留一圈黑。
     /// 走 layer 树——SwiftUI 的内容层是 Core Animation 画的，
     /// 视图自己的 drawRect 路径里什么都没有。
-    private static func pngData(_ window: NSWindow, paper: NSColor) -> Data? {
+    private static func pngData(_ window: NSWindow, paper: NSColor, canvas: NSSize) -> Data? {
         guard let view = window.contentView, view.bounds.width > 1 else { return nil }
         view.layoutSubtreeIfNeeded()
         let scale = window.backingScaleFactor
@@ -146,8 +167,16 @@ enum SnapshotMode {
             view.displayIgnoringOpacity(view.bounds, in: ctx)
         }
         NSGraphicsContext.restoreGraphicsState()
-        guard rep.pixelsWide > 0 else { return nil }
-        return rep.representation(using: .png, properties: [:])
+        guard rep.pixelsWide > 0, let full = rep.cgImage else { return nil }
+        // 整张拍完再按画幅裁顶。窗口只会因为内容变高、不会变矮，所以整张永远是页面顶部对齐的，
+        // 多出来的是底部那段空白或滚出画面的行——裁掉它就等于用户把窗口缩到画幅大小时看到的样子。
+        let cropH = Int(canvas.height * scale)
+        let out = full.height > cropH
+            ? full.cropping(to: CGRect(x: 0, y: 0, width: full.width, height: cropH)) ?? full
+            : full
+        let cropped = NSBitmapImageRep(cgImage: out)
+        cropped.size = NSSize(width: CGFloat(out.width) / scale, height: CGFloat(out.height) / scale)
+        return cropped.representation(using: .png, properties: [:])
     }
 
     private static func bitmapContext(for view: NSView, pixels: NSSize)

@@ -7,4 +7,6 @@ build_app/staging/
 # 图标是 make_icon.swift 的生成物，build.sh 缺了就重画，不进仓库
 build_app/AppIcon.icns
 build_app/AppIcon.iconset/
+# 方案文档含商业化和身份暴露分析，public 仓库历史里收不回来，一律不入库
+plans/
 .DS_Store

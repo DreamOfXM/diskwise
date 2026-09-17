@@ -11,7 +11,7 @@
 # 三道构建闸门，任一失败即不出包：
 #   1. 双语覆盖率（少一条英文译文就构建失败，漏译只会静默退回中文）
 #   2. swift run SelfTest（21 项逻辑自检）
-#   3. 资源到位断言（知识库 + 图标 + 译文目录）
+#   3. 资源到位断言（知识库 + 图标 + 译文目录 + 反馈二维码）
 # ============================================================
 set -euo pipefail
 
@@ -22,7 +22,7 @@ STAGING="$BUILD_DIR/staging"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
-VERSION="1.1"
+VERSION="1.2"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
 # 改了等于让老用户的「允许控制访达」授权和皮肤购买记录全部作废。
 BUNDLE_ID="com.dreamofxm.diskcleaner"
@@ -38,6 +38,9 @@ if [ "$CHANNEL" = "appstore" ]; then
 fi
 DMG_NAME="DiskWise-$VERSION${DMG_SUFFIX}.dmg"
 RES_DIR="$ROOT_DIR/Sources/DiskCleaner/Resources"
+# 二维码放 docs/contact：README 和 App 用同一张图，不复制两份。
+# 运行时先查 Contents/Resources，查不到回落到这个仓库相对路径（见 FeedbackView）。
+QR_SRC="$ROOT_DIR/docs/contact/qq-group.png"
 
 echo "==> [1/6] 双语覆盖率对账"
 cd "$ROOT_DIR"
@@ -69,6 +72,7 @@ cp "$BIN" "$APP_DIR/Contents/MacOS/DiskCleaner"
 cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$RES_DIR/safety_db.json" "$APP_DIR/Contents/Resources/"
 cp -R "$RES_DIR/en.lproj" "$APP_DIR/Contents/Resources/"
+cp "$QR_SRC" "$APP_DIR/Contents/Resources/qq-group.png"
 # 缓存清理页整页内容都来自这份知识库；丢了不会崩，但会静默变空白页
 [ -f "$APP_DIR/Contents/Resources/safety_db.json" ] \
 	|| { echo "错误：safety_db.json 没进 .app，缓存清理页会是空的" >&2; exit 1; }
@@ -78,6 +82,9 @@ cp -R "$RES_DIR/en.lproj" "$APP_DIR/Contents/Resources/"
 # 译文目录丢了不报错，只是英文界面整体退回中文——静默发布等于没做双语
 [ -f "$APP_DIR/Contents/Resources/en.lproj/Localizable.strings" ] \
 	|| { echo "错误：en.lproj/Localizable.strings 没进 .app，英文界面会退回中文" >&2; exit 1; }
+# 反馈页没图不会崩，但只剩一行群号——获客入口不能这么静默丢掉
+[ -f "$APP_DIR/Contents/Resources/qq-group.png" ] \
+	|| { echo "错误：qq-group.png 没进 .app，反馈页的二维码会是空的" >&2; exit 1; }
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
