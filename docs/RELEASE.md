@@ -128,7 +128,8 @@ ad-hoc（未签名）、已签名但未公证、已签名且已公证——只�
    （同一份 CSR 可以复用，两张都要；Developer ID 是第三种，互相顶替不了）。
 2. Identifiers → App ID `com.dreamofxm.diskcleaner` → 不用勾任何 Capability：不联网、
    不用推送、不用 Keychain 共享组。
-3. Profiles → `+` → 模板选 Mac 那组的 **App Store Connect**（旧界面叫 Mac App Store）→
+3. Profiles → `+` → Distribution 组里选 **Mac App Store Connect**（不是它上面那格
+   `App Store Connect`，那格是 iOS/iPadOS 的，选错的话下一步根本列不出 macOS 的 App ID）→
    选上面这个 App ID + **Apple Distribution 那张**证书（描述文件只绑签 `.app` 的证书，
    Installer 那张不参与）→ 下载 `.provisionprofile`。默认放
    `build_app/diskwise-appstore.provisionprofile`
