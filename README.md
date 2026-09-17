@@ -212,7 +212,7 @@ DiskWise 押的是反面：
 |---|---|
 | ![缓存](docs/screenshots/zh/07-caches.png) | ![残留](docs/screenshots/zh/08-leftovers.png) |
 
-皮肤商店里每张卡都实时渲染该皮肤下的迷你侧边栏 + 环形图 + 列表行 + 按钮，看得懂骨架再决定穿不穿：
+皮肤页里每张卡都实时渲染该皮肤下的迷你侧边栏 + 环形图 + 列表行 + 按钮，看得懂骨架再决定穿不穿：
 
 ![外观皮肤](docs/screenshots/zh/10-skins.png)
 

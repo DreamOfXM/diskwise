@@ -10,15 +10,15 @@ import SwiftUI
 // 总览页会把 ~/Desktop、~/Documents 连同体积原样晒出去，那是隐私不是演示。
 //
 // DISKWISE_SKIN=<皮肤 id> 指定用哪套皮肤拍。注意这只是给渲染器注入 Theme，
-// 不写解锁记录——商店渠道下进阶皮肤在正常启动路径里依然要解锁才能穿上，
-// 开源渠道则全部可用。
+// 不写解锁记录——`Channel.showsPricing` 为真时进阶皮肤在正常启动路径里依然要解锁才能穿上，
+// 默认（false）则全部可用。
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
 //   defaults write com.dreamofxm.diskcleaner diskcleaner.language en
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
 //     DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
-// 皮肤商店那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
+// 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -42,7 +42,7 @@ enum SnapshotMode {
         (.feedback, "13-feedback", 2, 8),
     ]
 
-    /// 截图窗口尺寸：默认 1280x820。皮肤商店那种长页用 DISKWISE_WIN=1280x1543 拉高。
+    /// 截图窗口尺寸：默认 1280x820。皮肤页那种长页用 DISKWISE_WIN=1280x1543 拉高。
     /// 数值不合理就整体退回默认，别打错一个字符就拍出一张没法用的图。
     private static var windowSize: NSSize {
         let fallback = NSSize(width: 1280, height: 820)
@@ -87,7 +87,7 @@ enum SnapshotMode {
         // 换页之前量一次，这就是整套图的画幅。之后窗口会被内容的理想尺寸撑高（SwiftUI 的
         // ScrollView 把自己的理想高度报成内容高度），但每张图都只从内容顶部截这一块——
         // 否则一趟跑完就是五张不同尺寸的图，README 的表格直接散架。
-        // 皮肤商店那页装不下，用 DISKWISE_WIN 把画幅拉高，别硬截。
+        // 皮肤页一屏装不下，用 DISKWISE_WIN 把画幅拉高，别硬截。
         let canvas = host.bounds.size
         hideWindowServerLayers(in: window.contentView)
         let only = Set((ProcessInfo.processInfo.environment["DISKWISE_ONLY"] ?? "")

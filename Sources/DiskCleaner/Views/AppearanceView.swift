@@ -7,9 +7,9 @@ import DiskCleanerCore
 // v0.3 直接渲染"那套皮肤下的真实界面缩略图"：迷你侧边栏 + 环形图 + 列表行，
 // 材质、字体、圆角、图表配色全都看得见——骨架差异只有在这种小图里才读得出来。
 //
-// 价签、解锁按钮、付费墙这一层全部由 Channel.showsPricing 控制：
-// 开源渠道这一页就是普通的皮肤选择器，六套随便穿。
-// 商店版接 StoreKit 时只改 ThemeManager.canUse / unlock 和 PaywallSheet，视图不动。
+// 分区标题、解锁按钮、付费墙这一层全部由 Channel.showsPricing 控制：
+// 默认这一页就是普通的皮肤选择器，六套随便穿。
+// 开关为真时可用性判定只落在 ThemeManager.canUse / unlock 两处，视图不动。
 //
 // 这一页同时是「个性化」的总入口：明暗、语言都在右上角那两个分段控件里。
 
@@ -143,7 +143,7 @@ private struct SkinCard: View {
 
     private var locked: Bool { skin.isPaid && !isUnlocked }
 
-    /// 商品状态标签；开源渠道不贴任何状态
+    /// 商品状态标签；开关关闭时不贴任何状态
     private var statusText: String? {
         if isSelected { return L("使用中") }
         if isTrying { return L("试穿中") }

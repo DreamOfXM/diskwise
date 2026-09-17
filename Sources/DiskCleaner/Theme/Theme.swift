@@ -116,8 +116,7 @@ struct Theme: Identifiable {
     /// 图标块上色策略
     var tileStrategy: TileStrategy = .spectrum
 
-    /// 当前渠道是否把这套皮肤当收费商品展示。开源渠道下所有皮肤都是普通皮肤。
-    /// 价格不进数据：接 StoreKit 后以商品的本地化价格为准。
+    /// `Channel.showsPricing` 为真时这套皮肤按商品展示；开关关闭时所有皮肤都是普通皮肤。
     var isPaid: Bool { Channel.showsPricing && tier == .premium }
 }
 
@@ -222,7 +221,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// 皮肤商店的迷你预览靠这个把整棵子树渲染成另一套皮肤
+    /// 皮肤页的迷你预览靠这个把整棵子树渲染成另一套皮肤
     func themed(_ theme: Theme) -> some View {
         environment(\.theme, theme)
     }

@@ -30,12 +30,11 @@ enum Contact {
     static let issues = "https://github.com/\(repoSlug)/issues"
 }
 
-// ── 发行渠道：开源分发不展示收费，商店分发才展示 ──
+// ── 编译期开关：皮肤是否按可用性分组展示 ──
 //
-// 判定在编译期完成（`CHANNEL=appstore bash build_app/build.sh`）：
-// 开源产物一律不渲染价签、解锁按钮、付费墙，六套皮肤全部可用；
-// `Theme.tier` 只是进阶组的分组标记，打开开关即恢复完整货架。价格不进代码，
-// 接 StoreKit 后取商品的本地化价格。
+// 判定在编译期完成（`CHANNEL=appstore bash build_app/build.sh` → `-DAPPSTORE`）：
+// 默认 false，六套皮肤一律可用，`Theme.tier` 不参与判定，分区标题与 `PaywallSheet` 不渲染；
+// 为 true 时可用性只由 `ThemeManager.canUse` / `unlock` 决定，视图不感知这个开关。
 
 enum Channel {
     #if APPSTORE

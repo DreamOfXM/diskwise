@@ -17,13 +17,13 @@ diskwise/
 ├── Sources/
 │   ├── DiskCleaner/               # App 层（UI + 打包资源）
 │   │   ├── DiskCleanerApp.swift   # 入口、侧边栏、AppStore（跨页跳转 + 撤销栈）
-│   │   ├── Product.swift          # 品牌 + 反馈渠道 Contact + 发行渠道开关 Channel.showsPricing
+│   │   ├── Product.swift          # 品牌常量 + 反馈入口 Contact + 编译期开关 Channel.showsPricing
 │   │   ├── L10n.swift             # L() / LF() / cnt()：中文原文即 key
 │   │   ├── SnapshotMode.swift     # 截图模式：逐页把窗口拍成 PNG（README 用图靠它）
 │   │   ├── Theme/                 # ★皮肤引擎 v2，四个文件分工：
 │   │   │   ├── Theme.swift        #   纯数据类型：Theme / ThemePalette / 结构化 token / Environment key
 │   │   │   ├── Skins.swift        #   6 套皮肤数据（基础 3 + 进阶 3），加皮肤只加这里
-│   │   │   ├── ThemeManager.swift #   单例：持久化 + 试穿 + canUse/unlock（收费渠道的接缝）
+│   │   │   ├── ThemeManager.swift #   单例：持久化 + 试穿 + canUse/unlock
 │   │   │   └── Components.swift   #   自绘组件库：卡片/按钮/徽章/环形仪表/背景/图标块
 │   │   ├── Views/                 # 11 个页面 + SharedViews.swift（themedRow/ItemRow/CleanBar 等共用件）
 │   │   └── Resources/
@@ -43,7 +43,7 @@ diskwise/
 │   ├── ARCHITECTURE.md            # 本文件
 │   ├── DESIGN.md                  # 两条跨皮肤铁律 + 皮肤阵容与配色语义 + 文案语气
 │   └── screenshots/               # README 用图（双语 × 多皮肤，由 SnapshotMode 拍出）
-├── README.md                      # 双语门面
+├── README.md                      # 双语首页
 ├── CONTRIBUTING.md                # 安全铁律 + 知识库怎么加条目 + 翻译规矩
 └── LICENSE                        # Apache-2.0
 ```
@@ -68,7 +68,7 @@ bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .
                              # 图标变体：ICON_VARIANT=b bash build_app/build.sh
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
-# DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤商店那种长页）
+# DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤页那种长页）
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner -diskcleaner.language en
@@ -94,7 +94,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `ThemeManager` 单例（刻意不标 `@MainActor`）。持久化三个键：`diskcleaner.theme.id` / `diskcleaner.theme.premium.unlocked` / `diskcleaner.theme.forcedScheme`。
 - 现有 6 套：`dawn` 晨雾（默认）· `graphite` 石墨 · `mint` 薄荷 · `midnight` 极夜黑金 · `aurora` 极光玻璃 · `inkwash` 水墨宣纸。
 - 试穿 `startTrying/stopTrying` 只改 `effective`，不写偏好，切走即还原。
-- 收费 UI 由 `Channel.showsPricing` 控制，默认 false（`Product.swift`）：开源构建里六套皮肤一律可用，不渲染价签、解锁按钮、分区标题、试穿横幅和 `PaywallSheet`。商店构建加 `-DAPPSTORE` 才恢复；**接 StoreKit 时只改 `ThemeManager.canUse/unlock` 两处**，视图不动。
+- `Channel.showsPricing`（`Product.swift`）是编译期常量，默认 false：六套皮肤一律可用，不渲染分区标题、试穿横幅和 `PaywallSheet`。`-DAPPSTORE` 编译时为 true，此时「这套皮肤能不能用」只由 `ThemeManager.canUse` / `unlock` 两处判定，视图不感知开关。
 - `palette.chart` 约定：**下标 4 恒为「其他已用」兜底色**，必须是整套里最弱的一支（灰 / 低饱和）——它常年是环形仪表最大的一段，抢色就把整张图糊了。
 - macOS 13 的 `ScrollView` 会把**内容的完整高度**当成自己的理想尺寸上报。页面里再套 `ScrollView`/`List`，detail 列会胀到一千多磅、整页被顶出窗口。规矩：**每页只有一个滚动容器**，列表行用 `LazyVStack` 自绘卡片。
 
@@ -140,19 +140,18 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 | 缓存清理 | `safety_db.json` + glob | 每项四元组解释（这是什么 / 删了会怎样 / 怎么恢复 / 风险等级）；**条目重叠不可加总**，UI 已不加总 |
 | 卸载残留 | Info.plist 基准 + denylist | 以已装 App 为基准找孤儿，宁可漏报 |
 | 废纸篓 | trashSize / undo / empty | 撤销栈在 `AppStore` |
-| 外观皮肤 | `ThemeManager` | 六套皮肤全部可选：每张卡带实时缩略微组件；进阶组靠结构差异不靠配色；明暗三选；收费 UI 仅商店渠道编译（`-DAPPSTORE`） |
+| 外观皮肤 | `ThemeManager` | 六套皮肤全部可选：每张卡带实时缩略微组件；进阶组靠结构差异不靠配色；明暗三选 |
 | 问题反馈 | 无（纯静态） | 邮箱 / QQ 群 / GitHub 三条渠道，地址只在 `Product.swift` 的 `Contact` 定义一处；二维码走 `Contents/Resources` + 源码树兜底，同 `safety_db.json` 套路 |
 
 ---
 
 ## 6. 已知缺口（按建议顺序修）
 
-1. **StoreKit 未接入**：默认（开源）渠道压根不渲染收费界面，所以这一条只影响商店渠道——那边的 `canUse/unlock` + `PaywallSheet` 仍是桩，点「解锁」直接放行。真上商店前必须补：接 StoreKit 2 非消耗型商品（价格取商品的本地化价格，代码里不写死），只改这两处。
-2. **node_modules 无流式快照**：大盘要等几分钟才出结果。修法：`findNodeModules` 改 `AsyncStream`。
-3. **Intel 包**：本机 arm64，只能出 Apple Silicon。修法：CI 的 macos-13 runner 跑同样的 `build.sh`。
-4. **未签名**：ad-hoc 签名，首次打开要右键确认。修法：Apple 开发者账号签名 + 公证。
-5. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
-6. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
+1. **node_modules 无流式快照**：大盘要等几分钟才出结果。修法：`findNodeModules` 改 `AsyncStream`。
+2. **Intel 包**：本机 arm64，只能出 Apple Silicon。修法：CI 的 macos-13 runner 跑同样的 `build.sh`。
+3. **未签名**：ad-hoc 签名，首次打开要右键确认。修法：Apple 开发者账号签名 + 公证。
+4. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
+5. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
 
 ---
 

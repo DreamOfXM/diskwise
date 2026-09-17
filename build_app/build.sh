@@ -3,7 +3,7 @@
 # DiskWise（SwiftUI 原生版）一键打包
 # 用法：bash build.sh                      （图标默认「晨雾」变体 a）
 #       ICON_VARIANT=b bash build.sh       （换「午夜」深色图标，见 make_icon.swift）
-#       CHANNEL=appstore bash build.sh     （商店渠道：编译出带价签/解锁/付费墙的界面）
+#       CHANNEL=appstore bash build.sh     （加 -DAPPSTORE：皮肤按可用性分组展示，含付费墙界面）
 # 产物：dist/DiskWise-<版本>.dmg（Apple Silicon，macOS 13+）
 # 前提：Xcode 命令行工具（含 swift 编译器）即可，不需要完整 Xcode。
 # 未签名版：首次打开用右键 → 打开；清空废纸篓需授权控制访达。
@@ -24,11 +24,11 @@ APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 VERSION="1.2"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
-# 改了等于让老用户的「允许控制访达」授权和皮肤购买记录全部作废。
+# 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
 BUNDLE_ID="com.dreamofxm.diskcleaner"
 VOLNAME="DiskWise"
-# 发行渠道：默认 oss（开源分发）——界面上不出现价签、解锁按钮、付费墙。
-# CHANNEL=appstore 编译时加 -DAPPSTORE，同一套代码恢复完整收费界面，产物名带 -appstore 后缀。
+# 编译期开关 Channel.showsPricing：默认 oss → false，皮肤一律可用，不渲染分区标题和付费墙。
+# CHANNEL=appstore 加 -DAPPSTORE 则为 true，同一套代码按可用性分组展示皮肤，产物名带 -appstore 后缀。
 CHANNEL="${CHANNEL:-oss}"
 SWIFT_FLAGS=""
 DMG_SUFFIX=""

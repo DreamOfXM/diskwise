@@ -29,8 +29,7 @@
 | 极光玻璃 `aurora` | 进阶 | **圆体 + radius 22 + 真 `.thinMaterial` + 弹性动画 + 光斑背景** → 外放的炫 |
 | 水墨宣纸 `inkwash` | 进阶 | **衬线 + 纸纹纤维 + 方印章 + 静止** → 有文化的慢 |
 
-代码里的 `tier` 只是商店渠道用来分组的标记。默认（开源）构建不读它做任何限制——六套皮肤一律可用，
-界面上不出现价签、解锁按钮或付费墙。
+代码里的 `tier` 在默认构建里不参与任何判定——六套皮肤一律可用，`Channel.showsPricing` 为真时它才成为分组依据。
 
 ## 3. 三条皮肤设计铁律
 
@@ -39,7 +38,7 @@
    答不上来就别加。
 2. **进阶组靠气质拉开，不靠功能拉开。** 皮肤只是外观层，六套功能完全一致——差异永远不落在能力上。
 3. **皮肤卡必须渲染真实缩略图。** 早期的卡片是三个色块，看不出皮肤之间的差别；现在每张卡直接渲该皮肤下的
-   迷你侧边栏 + 环形图 + 列表行 + 按钮。皮肤页在 `AppearanceView`，商店渠道另有试穿（`tryingID`）：
+   迷你侧边栏 + 环形图 + 列表行 + 按钮。皮肤页在 `AppearanceView`，另有试穿（`tryingID`）：
    先穿上身、顶部横幅一键还原。
 
 ## 4. 架构约束
@@ -49,9 +48,9 @@
 - **不要**再往 `ContentView` 上加 `.id(skin.id)` 强制重建子树——那个写法每换一次肤就把全盘扫描重跑一遍。
 - 视图层只准引用 `theme.*` token，禁止手写色值、禁止假设浅色。
 - 明暗：皮肤自带 `scheme`（可为 nil = 跟随系统），App 级 `forcedScheme` 优先于皮肤。
-- 收费 UI 只有一个开关：`Channel.showsPricing`（编译期 `-DAPPSTORE`，见 `build.sh` 的 `CHANNEL=appstore`）。
-  默认关闭 → 六套皮肤全可用、不渲染价签/解锁/付费墙。商店版接 StoreKit 时改 `ThemeManager.canUse`
-  和 `unlock` 这两处 + `PaywallSheet`，**视图零改动**。
+- 皮肤可用性只有一个开关：`Channel.showsPricing`（编译期 `-DAPPSTORE`，见 `build.sh` 的 `CHANNEL=appstore`）。
+  默认关闭 → 六套皮肤全可用，不渲染分区标题和 `PaywallSheet`；为真时判定只落在 `ThemeManager.canUse`
+  和 `unlock` 两处，**视图零改动**。
 - 每个页面只有**一个**滚动容器，列表行用 `LazyVStack` 自绘卡片。macOS 13 的 `ScrollView` 会把内容的完整
   高度当成自己的理想尺寸上报，套两层会让 detail 列胀到一千多磅、整个界面被顶出窗口。
 
