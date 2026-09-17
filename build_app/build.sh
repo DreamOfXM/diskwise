@@ -285,8 +285,11 @@ if [ "$CHANNEL" = "appstore" ]; then
 	ARTIFACT="$DIST_DIR/$PKG_NAME"
 	INSTALLER_IDENT=""
 	if [ "$SIGNED" = 1 ]; then
-		INSTALLER_IDENT="$(security find-identity -v -p codesigning 2>/dev/null \
-			| awk -F'"' 'index($2, "Mac Installer Distribution:") == 1 {print $2; exit}')" || true
+		# 这里不能加 -p codesigning：installer 身份不属于 codesigning 策略，
+		# 那个过滤器会把 Mac Installer Distribution 整个滤掉（Apple 打包文档明确提醒过）。
+		INSTALLER_IDENT="$(security find-identity -v 2>/dev/null \
+			| awk -F'"' 'index($2, "Mac Installer Distribution:") == 1 ||
+					index($2, "3rd Party Mac Developer Installer:") == 1 {print $2; exit}')" || true
 	fi
 	PKG_LOG="$BUILD_DIR/productbuild.log"
 	if [ -n "$INSTALLER_IDENT" ] && productbuild --component "$APP_DIR" /Applications \
