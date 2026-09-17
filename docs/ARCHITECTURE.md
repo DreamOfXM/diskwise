@@ -52,7 +52,8 @@ diskwise/
 
 ## 2. 环境要求
 
-- macOS 13+，Apple Silicon（发布包只出 arm64）
+- macOS 13+。发布包是通用二进制（arm64 + x86_64 两个切片），本机开发只用 arm64 也够；
+  要出发布那份就 `ARCH=universal bash build_app/build.sh`
 - **只需要 Xcode 命令行工具，不需要完整 Xcode**（`xcodebuild` 不可用是正常的）
 - CLT 里**没有 XCTest**，所以没有 `swift test`——回归靠独立的 `SelfTest` target
 
@@ -148,17 +149,16 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 ## 6. 已知缺口（按建议顺序修）
 
 1. **node_modules 无流式快照**：大盘要等几分钟才出结果。修法：`findNodeModules` 改 `AsyncStream`。
-2. **Intel 包**：本机 arm64，只能出 Apple Silicon。修法：CI 的 macos-13 runner 跑同样的 `build.sh`。
-3. **未签名**：ad-hoc 签名，首次打开要右键确认。修法：Apple 开发者账号签名 + 公证。
-4. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
-5. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
+2. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
+3. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
 
 ---
 
 ## 7. 设计资产
 
 - `docs/DESIGN.md`：皮肤设计规则（阵容、「差异写在骨架上不写在配色上」、图标块 `tileStrategy`、`chart[]` 位语义）+ 两条跨皮肤铁律：**正文禁染色**（只用 `palette.ink` / `inkSecondary`，彩色只给图标块、环形图、按钮、徽章）；**页头 / banner 禁整块高饱和底色**。token 的权威定义始终在代码：`Sources/DiskCleaner/Theme/Skins.swift`。
-- **App 图标**：`build_app/make_icon.swift` 用 CoreGraphics 现画，画的就是总览页那个分段环形仪表（三段彩弧 ≈264°，余下露浅色轨道 = 「已用 73%」）。配色取自皮肤：变体 a 用「晨雾」图例色（默认），变体 b 用「午夜」的。走 macOS 图标栅格（图形居中 824×1024、圆角 185.4），≤64px 自动加粗环、去掉弧间缝隙。`AppIcon.icns` 是生成物，改样式改脚本，别改图。
+- `docs/RELEASE.md`：发布流程的唯一权威说明 —— `build.sh` 七步各做什么、Developer ID 证书怎么申请、`entitlements.plist` 为什么是空的、公证凭据怎么存、CI 的五个 secrets、发版前六项自查清单。签名与公证的逻辑别在别处再写一遍。
+- **App 图标**：`build_app/make_icon.swift` 用 CoreGraphics 现画一把斜着的扫帚——柄在左上、发亮的刷头在右下，刷梢前面推着几粒被扫出去的灰点。三层：macOS 圆角底板（竖向渐变 + 两团氛围光）→ 浮灰和灰点 → 扫帚本体（渐变柄 + 亮色箍 + 五束在根部相连、往梢部外扩收圆的刷毛）。配色取自皮肤：变体 a 用「极光玻璃」那组深底冷光（默认出厂），变体 b 用「晨雾 + 薄荷」的浅底。走 macOS 图标栅格（图形居中 824×1024、圆角 185.4），≤64px 自动加粗整把扫帚、刷毛收成四束。`AppIcon.icns` 和 `docs/icon.png` 都是生成物，改样式改脚本，别改图。
 
 ---
 

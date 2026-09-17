@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  DiskWise 的 entitlements。
+
+  直发版（Developer ID，非沙盒）在 hardened runtime 下不需要任何 entitlement：
+  这个 App 不加载第三方动态库、不注入代码、不起子进程解释器，所以库校验、
+  unsigned memory、JIT 这些默认限制一条都碰不到，开 hardened runtime 只是加 flags，
+  不需要申请豁免。
+
+  两个容易误加项，都不该出现在这里：
+    com.apple.security.automation.apple-events —— 沙盒版（App Store）才需要。
+      直发版让「清空废纸篓」这件事由 Info.plist 的 NSAppleEventsUsageDescription
+      加一次 TCC 授权弹窗解决，加了这个 key 也不生效。
+    com.apple.security.cs.allow-jit —— 默认就是 false，写 <false/> 是空操作。
+
+  真要加东西时（比如嵌进一个需要子进程的解释器），往这个 dict 里加对应 key，
+  并在 docs/RELEASE.md 写清为什么要开这个口子。
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
