@@ -25,6 +25,7 @@ private let qqQRImage: NSImage? = qqQRURL().flatMap { NSImage(contentsOf: $0) }
 struct FeedbackView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @ObservedObject private var grant = HomeGrant.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +36,7 @@ struct FeedbackView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
+                        if HomeAccess.runsSandboxed { sandboxCard }
                         emailCard
                         qqCard
                         githubCard
@@ -65,6 +67,17 @@ struct FeedbackView: View {
                         title: L("复制地址")) { copy(Contact.email) }
             ThemeButton(kind: .primary, symbol: "paperplane",
                         title: L("写邮件")) { open(Contact.mailto) }
+        }
+    }
+
+    /// 商店版专属：报「什么都没扫到」九成是授权过期或选错了目录，
+    /// 与其让用户提 issue，不如把当前授权状态和重选入口摆在他眼前。
+    private var sandboxCard: some View {
+        FeedbackCard(symbol: "checkmark.shield", title: L("沙盒授权"),
+                     subtitle: HomeAccess.granted.map { LF("已授权：%@", $0.path) } ?? L("尚未授权"),
+                     extra: { EmptyView() }) {
+            ThemeButton(kind: .secondary, symbol: "folder.badge.gearshape",
+                        title: L("重新授权")) { grant.revoke(); grant.request() }
         }
     }
 

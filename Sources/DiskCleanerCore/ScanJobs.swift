@@ -414,8 +414,10 @@ private func dockerCLI() -> String? {
 
 public func scanDocker() async -> [DockerItem] {
     let base = homeDir().appendingPathComponent("Library/Containers/com.docker.docker")
-    // CLI 在且守护进程在跑：分类明细
-    if let cli = dockerCLI(),
+    // CLI 在且守护进程在跑：分类明细。沙盒版不走这条路——起外部可执行文件在沙盒里本就不确定，
+    // 而这一页要答的「Docker 占了多少」按目录统计同样答得出，只是粒度粗一点。
+    if !HomeAccess.runsSandboxed,
+       let cli = dockerCLI(),
        let info = runCmd(cli, ["info", "--format", "{{.ServerVersion}}"], timeout: 4),
        !info.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         var items: [DockerItem] = []

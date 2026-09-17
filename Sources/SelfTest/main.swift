@@ -27,12 +27,26 @@ let entries = loadSafetyEntries(from: _dbURL)
 check(entries.count > 20, "知识库条目 \(entries.count) > 20")
 check(entries.contains { $0.name == "npm 缓存" }, "知识库含 npm 缓存")
 
-// 2. 路径可移植展开
-let home = NSHomeDirectory()
+// 2. 路径可移植展开（用 homePath() 而不是 NSHomeDirectory()：沙盒会改写后者）
+let home = homePath()
 check(expandHome("~/.npm") == home + "/.npm", "展开 ~")
 check(expandHome("$HOME/.npm") == home + "/.npm", "展开 $HOME")
 check(expandHome("/Users/别人/Library/Caches") == home + "/Library/Caches", "改写别人的 /Users 前缀")
 check(expandHome("/Applications/X.app") == "/Applications/X.app", "系统路径不动")
+
+// 2.2 沙盒家目录层（回归：Foundation 的家目录在沙盒里指向 App 容器，
+//     拿它当扫描根不报错，只会扫一个空壳然后报「你机器上几乎没东西」）
+check(!HomeAccess.runsSandboxed, "自检跑在非沙盒环境")
+check(!HomeAccess.needsGrant, "非沙盒不该拦授权")
+check(!realHomeDir().path.contains("/Library/Containers/"), "真实家目录没被改写成容器路径")
+check(homeDir() == realHomeDir(), "未授权时 homeDir 落回真实家目录，不是容器")
+setenv("DISKWISE_HOME_SHIM", "/tmp/diskwise-selftest-home", 1)
+check(homeDir().path == "/tmp/diskwise-selftest-home", "假家目录开关仍然优先")
+unsetenv("DISKWISE_HOME_SHIM")
+check(!HomeAccess.grant(URL(fileURLWithPath: "/tmp/diskwise-没有这个目录-\(getpid())")),
+      "指向不存在的目录不能算授权成功")
+// 注：「没经授权面板就不该拿到访问权」这条在非沙盒里量不出来——
+// startAccessingSecurityScopedResource() 对没进沙盒的进程永远返回 true。
 
 // 2.5 容量格式化（回归：单位错位曾把 6GB 显示成 6TB）
 check(human(500) == "500 B", "500 B")

@@ -17,8 +17,9 @@ diskwise/
 ├── Sources/
 │   ├── DiskCleaner/               # App 层（UI + 打包资源）
 │   │   ├── DiskCleanerApp.swift   # 入口、侧边栏、AppStore（跨页跳转 + 撤销栈）
-│   │   ├── Product.swift          # 品牌常量 + 反馈入口 Contact + 编译期开关 Channel.showsPricing
+│   │   ├── Product.swift          # 品牌常量 + 反馈入口 Contact + 编译期开关 Channel（isAppStore / showsPricing）
 │   │   ├── L10n.swift             # L() / LF() / cnt()：中文原文即 key
+│   │   ├── HomeGrant.swift        # 商店版首启授权：NSOpenPanel + 授权页（Core 不含 AppKit，所以在这层）
 │   │   ├── SnapshotMode.swift     # 截图模式：逐页把窗口拍成 PNG（README 用图靠它）
 │   │   ├── Theme/                 # ★皮肤引擎 v2，四个文件分工：
 │   │   │   ├── Theme.swift        #   纯数据类型：Theme / ThemePalette / 结构化 token / Environment key
@@ -30,14 +31,18 @@ diskwise/
 │   │       ├── safety_db.json     # 缓存知识库（路径写成 ~ 可移植格式）
 │   │       └── en.lproj/Localizable.strings   # 唯一需要维护的译文
 │   ├── DiskCleanerCore/           # 无 UI 纯逻辑（跨 target 符号必须 public）
+│   │   ├── HomeAccess.swift       # ★家目录唯一入口：真实家目录、是否沙盒、授权书签（见 4.7）
 │   │   ├── Models.swift           # 知识库解析、路径展开、保护规则、home/applications 锚点、human()
 │   │   ├── Scanner.swift          # 占盘统计、通配展开、移废纸篓 + 撤销、访达清空
 │   │   └── ScanJobs.swift         # 遍历、重复检测、卸载残留、node_modules、Docker
 │   └── SelfTest/main.swift        # 自检程序（没有 XCTest 环境时的替代，见 §3）
 ├── build_app/
-│   ├── build.sh                   # 三道闸门 + 组装 .app + ad-hoc 签名 + DMG + SHA256
+│   ├── build.sh                   # 七步：对账 → 图标 → 编译自检 → 组装 .app → 签名 → DMG/.pkg → 公证
+│   │                              #   两个渠道两张证书：CHANNEL=oss 找 Developer ID，appstore 找 Apple Distribution
+│   ├── entitlements.plist         # 直链版：刻意留空（见 docs/RELEASE.md §2）
+│   ├── entitlements-appstore.plist # 商店版：沙盒 + 用户选择读写 + 访达自动化，三条实测最小集
 │   ├── l10n_tool.swift            # 双语覆盖率对账：缺译文 / 占位符不匹配 / Int 喂给 %@ 都拦下
-│   ├── make_icon.swift            # App 图标参数化生成（CoreGraphics 画环形仪表）
+│   ├── make_icon.swift            # App 图标参数化生成（CoreGraphics 画一把扫帚）
 │   └── make_demo_home.sh          # 造一棵演示用假家目录，给截图和界面自查用
 ├── docs/
 │   ├── ARCHITECTURE.md            # 本文件
@@ -61,12 +66,13 @@ diskwise/
 
 ```bash
 swift build                  # debug 编译
-swift run SelfTest           # ★21 项自检，全绿是打包前提
+swift run SelfTest           # ★27 项自检，全绿是打包前提
 swift run DiskCleaner        # 直跑 App（调试用）
 
 swift build_app/l10n_tool.swift check      # 双语覆盖率对账（build.sh 会自动跑）
 bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .app → 签名 → DMG + SHA256
                              # 图标变体：ICON_VARIANT=b bash build_app/build.sh
+                             # 商店版（进沙盒 + 出 .pkg）：CHANNEL=appstore ARCH=universal bash build_app/build.sh
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
 # DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤页那种长页）
@@ -95,7 +101,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `ThemeManager` 单例（刻意不标 `@MainActor`）。持久化三个键：`diskcleaner.theme.id` / `diskcleaner.theme.premium.unlocked` / `diskcleaner.theme.forcedScheme`。
 - 现有 6 套：`dawn` 晨雾（默认）· `graphite` 石墨 · `mint` 薄荷 · `midnight` 极夜黑金 · `aurora` 极光玻璃 · `inkwash` 水墨宣纸。
 - 试穿 `startTrying/stopTrying` 只改 `effective`，不写偏好，切走即还原。
-- `Channel.showsPricing`（`Product.swift`）是编译期常量，默认 false：六套皮肤一律可用，不渲染分区标题、试穿横幅和 `PaywallSheet`。`-DAPPSTORE` 编译时为 true，此时「这套皮肤能不能用」只由 `ThemeManager.canUse` / `unlock` 两处判定，视图不感知开关。
+- `Channel.showsPricing`（`Product.swift`）是编译期常量，两个渠道都是 false：六套皮肤一律可用，不渲染分区标题、试穿横幅和 `PaywallSheet`。此时「这套皮肤能不能用」只由 `ThemeManager.canUse` / `unlock` 两处判定，视图不感知开关。`-DAPPSTORE` 与它是两回事，只决定沙盒、签名身份和产物格式（见 4.7）。
 - `palette.chart` 约定：**下标 4 恒为「其他已用」兜底色**，必须是整套里最弱的一支（灰 / 低饱和）——它常年是环形仪表最大的一段，抢色就把整张图糊了。
 - macOS 13 的 `ScrollView` 会把**内容的完整高度**当成自己的理想尺寸上报。页面里再套 `ScrollView`/`List`，detail 列会胀到一千多磅、整页被顶出窗口。规矩：**每页只有一个滚动容器**，列表行用 `LazyVStack` 自绘卡片。
 
@@ -126,6 +132,40 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 
 `AppStore.jumpTo` + `bigScanDir`：总览点「深挖」→ 大文件页带定向范围扫描，一次性消费。
 
+### 4.7 沙盒与家目录授权（商店版）
+
+商店包必须 `com.apple.security.app-sandbox`，而这个 App 的每件事都发生在家目录里。危险不在于读不到，
+在于**读错了还像读对了**：
+
+- 沙盒里 `NSHomeDirectory()` 和 `FileManager.default.homeDirectoryForCurrentUser` 都会返回
+  `~/Library/Containers/<bundle id>/Data`。拿它当扫描根不报错、不弹窗，只是那棵树几乎为空——
+  总览页会显示「你的盘很干净」。**这是本 App 最坏的一种错**，所以宁可什么都不显示。
+
+三层设计（`Sources/DiskCleanerCore/HomeAccess.swift`，全 AppKit-free）：
+
+1. `realHomeDir()` 从 `getpwuid(getuid())->pw_dir` 取，不经 Foundation，拿到的永远是真实家目录；
+2. `HomeAccess.runsSandboxed` **运行时**判定（看 Foundation 的家目录是不是容器路径），不看编译开关——
+   同一个二进制在两环境下都该表现正确，`-DAPPSTORE` 只影响签名不影响这套逻辑；
+3. `HomeAccess.granted` 有值才允许扫描。没值时 `DiskWiseApp` 的 `ContentView` 把侧边栏禁用、
+   detail 换成 `HomeGrantView`（`Sources/DiskCleaner/HomeGrant.swift`），扫描作业一次都不发。
+
+`grant()` 存的是一条 security-scoped bookmark，`init()` 里 `HomeAccess.restore()` 把它解回来续上，
+所以授权是一次性的、重启仍在。解不开（换机器 / 重新签名换了容器身份）就**清档回授权页**，
+不拿着读不到的路径继续跑——所有失败分支都朝「回到授权页」收，没有一处朝「当作成功」收。
+
+实测出来的三条，别重新推一遍：
+
+- `startAccessingSecurityScopedResource()` 只认**从书签解析回来的那个 URL 实例**。把 `NSOpenPanel`
+  返回的 URL 直接拿去调用会返回 false（`grant()` 里先写书签再解析回来 adopt，就是在绕这条）。
+- `/Applications` 在沙盒里可枚举 → 卸载残留页一行没改。
+- `com.apple.security.temporary-exception.files.home-relative-path.read-write` 能把真实家目录整条
+  放开（实测可用），但**商店包不能用**：temporary exception 是审核红线，写了等于给自己找拒。
+
+约束：Core 不许 `import AppKit`，所以弹面板、按钮、状态提示全在 `DiskWise` 那层的 `HomeGrant`
+（`@MainActor` 单例，UI 只读它的 `needsGrant` / `failure`）；反馈页留了「重新授权」出口，
+用户改主意或书签失效都能就地重来，不用删 App。`DISKWISE_HOME_SHIM` 的优先级仍高于授权结果
+（见 4.5），截图链路不受沙盒改造影响。
+
 ---
 
 ## 5. 功能清单（侧边栏 10 + 1 页）
@@ -151,20 +191,23 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 1. **node_modules 无流式快照**：大盘要等几分钟才出结果。修法：`findNodeModules` 改 `AsyncStream`。
 2. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
 3. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
+4. **商店包的授权闭环只能真点一次验证**：`NSOpenPanel` 选中目录这个动作本身才是 powerbox 交出访问权
+   的时机，无头环境里造不出来说「用户选过了」的东西。已用探针量清的部分见 4.7（容器改写、书签解析、
+   失败分支一律回授权页）；剩下「面板 → 存书签 → 重启后 `restore()` 仍能读到」这一条要靠人点。
 
 ---
 
 ## 7. 设计资产
 
 - `docs/DESIGN.md`：皮肤设计规则（阵容、「差异写在骨架上不写在配色上」、图标块 `tileStrategy`、`chart[]` 位语义）+ 两条跨皮肤铁律：**正文禁染色**（只用 `palette.ink` / `inkSecondary`，彩色只给图标块、环形图、按钮、徽章）；**页头 / banner 禁整块高饱和底色**。token 的权威定义始终在代码：`Sources/DiskCleaner/Theme/Skins.swift`。
-- `docs/RELEASE.md`：发布流程的唯一权威说明 —— `build.sh` 七步各做什么、Developer ID 证书怎么申请、`entitlements.plist` 为什么是空的、公证凭据怎么存、CI 的五个 secrets、发版前六项自查清单。签名与公证的逻辑别在别处再写一遍。
+- `docs/RELEASE.md`：发布流程的唯一权威说明 —— `build.sh` 七步各做什么、两条发行路线两张不能互换的证书（Developer ID / Apple Distribution）、两套 entitlements 各自为什么长这样、公证凭据怎么存、CI 的五个 secrets、商店路线的出包上传与提审前清单、发版前七项自查。签名与公证的逻辑别在别处再写一遍。
 - **App 图标**：`build_app/make_icon.swift` 用 CoreGraphics 现画一把斜着的扫帚——柄在左上、发亮的刷头在右下，刷梢前面推着几粒被扫出去的灰点。三层：macOS 圆角底板（竖向渐变 + 两团氛围光）→ 浮灰和灰点 → 扫帚本体（渐变柄 + 亮色箍 + 五束在根部相连、往梢部外扩收圆的刷毛）。配色取自皮肤：变体 a 用「极光玻璃」那组深底冷光（默认出厂），变体 b 用「晨雾 + 薄荷」的浅底。走 macOS 图标栅格（图形居中 824×1024、圆角 185.4），≤64px 自动加粗整把扫帚、刷毛收成四束。`AppIcon.icns` 和 `docs/icon.png` 都是生成物，改样式改脚本，别改图。
 
 ---
 
 ## 8. 接手第一步
 
-1. `swift run SelfTest` —— 21 项 ALL PASS 是红线；
+1. `swift run SelfTest` —— 27 项 ALL PASS 是红线；
 2. `bash build_app/build.sh` —— 三道闸门（双语覆盖、自检、资源断言）任一失败不出包，记下 DMG 的 SHA256；
 3. `bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome` 造演示数据，开截图模式逐页点一遍「勾选 → 删除 → 撤销 → 文件回来」（尤其重复文件和卸载残留）；
 4. 再碰皮肤和新功能。改 token 前先读 §7 的两条铁律，并用两种语言各看一遍图——英文比中文长 30%，很多宽度问题只有拍出来才看得见。

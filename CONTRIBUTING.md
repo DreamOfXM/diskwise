@@ -26,7 +26,7 @@ missing is normal here.
 
 ```bash
 swift build          # debug build
-swift run SelfTest   # 21 checks — all green is the bar for any PR
+swift run SelfTest   # 27 checks — all green is the bar for any PR
 swift run DiskCleaner
 ```
 
@@ -93,7 +93,7 @@ only visible in one of them.
 ## Before opening a PR
 
 ```bash
-swift run SelfTest        # 21/21
+swift run SelfTest        # 27/27
 bash build_app/build.sh   # localization gate + self-test + resource assertions + DMG
 ```
 

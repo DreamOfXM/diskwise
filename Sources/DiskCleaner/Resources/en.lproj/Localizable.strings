@@ -298,6 +298,21 @@
 "清空前随时可在访达里把文件拖回原位置" = "Drag files back from Finder until it's emptied";
 "清空后才真正释放空间，清空后不可恢复" = "Space frees only when emptied, and emptying is permanent";
 
+// ── 沙盒授权 ────────────────────────────────────────────────────────────────
+"访问授权" = "Folder access";
+"还没拿到访问授权" = "No folder access yet";
+"授权完成后这里就能看到空间去哪了" = "Grant access and this shows where your disk space went";
+"沙盒版不能自己翻你的硬盘。选一次家目录，DiskWise 才知道空间去了哪；之后不会再问。" = "The App Store build can't browse your disk on its own. Point it at your home folder once and it never asks again.";
+"授权家目录" = "Grant home folder";
+"授权访问" = "Grant Access";
+"已经帮你定位到家目录了，直接点「授权访问」就行。DiskWise 只读你选中的这一个目录。" = "Your home folder is already selected — just press Grant Access. DiskWise reads this one folder and nothing else.";
+"它只读你选中的这一个目录：不联网、不上传，删除一律进废纸篓。" = "It reads only the folder you pick: no network, no uploads, and every delete goes to the Trash.";
+"授权没生效，再试一次。" = "That didn't take — try again.";
+"沙盒授权" = "Folder access";
+"已授权：%@" = "Granted: %@";
+"尚未授权" = "Not granted yet";
+"重新授权" = "Re-grant";
+
 // ── 知识库条目名（safety_db.json）───────────────────────────────────────────
 "Codex 崩溃转储" = "Codex crash dumps";
 "Codex 崩溃时生成的 .dmp 报告，只用于上报诊断" = ".dmp reports Codex writes when it crashes, used only for diagnostics";
