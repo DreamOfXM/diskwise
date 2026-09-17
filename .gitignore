@@ -12,6 +12,8 @@ build_app/AppIcon.icns
 build_app/AppIcon.iconset/
 # ARCH=universal 时 lipo 出来的合刀，进 .app 前的中转
 build_app/DiskCleaner.universal
+# productbuild 的输出日志，只在 pkg 签名失败时给人看最后一行
+build_app/productbuild.log
 # 本地草稿笔记，还没到能发布的程度，一律不入库
 plans/
 .DS_Store

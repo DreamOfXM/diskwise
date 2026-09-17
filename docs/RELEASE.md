@@ -31,25 +31,25 @@
 
 ## 2. 签名
 
-两条路线两张证书，`build.sh` 按 `CHANNEL` 决定去钥匙串里找哪一张：
+直链一张证书，商店两张——`.app` 和 `.pkg` 由不同的证书签，这是 Apple 证书分工表里写死的：
 
-| 渠道 | 找的身份 | 找不到时 |
+| 渠道 | `build.sh` 找的身份 | 找不到时 |
 | --- | --- | --- |
-| `CHANNEL=oss`（默认） | `Developer ID Application: ...` | 退回 ad-hoc（`codesign --sign -`），产物照出，用户首次打开要右键 → 打开 |
-| `CHANNEL=appstore` | `Apple Distribution: ...` | 退回 ad-hoc，但这样的 `.pkg` 传不上去，只能本地验构建链 |
+| `CHANNEL=oss`（默认） | `Developer ID Application: ...`（签 `.app`） | 退回 ad-hoc（`codesign --sign -`），产物照出，用户首次打开要右键 → 打开 |
+| `CHANNEL=appstore` | `Apple Distribution: ...`（签 `.app`）+ `Mac Installer Distribution: ...`（`productbuild` 签 `.pkg`） | 退回 ad-hoc，但这样的 `.pkg` 传不上去，只能本地验构建链 |
 
 想强制走 ad-hoc 测回退路径：`SIGN_IDENTITY=none`。两边都带 `--options runtime --timestamp`
 （hardened runtime + 安全时间戳），entitlements 各用各的文件（下一节）。
 
-直链分发只能用它自己的那种证书：**Developer ID Application**。Apple Distribution 签出来的
-东西不能拿到 Mac App Store 外面装，反过来 Developer ID 的包也进不了商店——这两张不是
-「新旧版本」关系，是两条渠道各自的入口。拿证书的步骤（换成另一种只是选择的类型不同）：
+三种身份不能互相顶替：Developer ID 的包进不了商店，Apple Distribution 的包装不到商店外面，
+而 `productbuild --sign` 只认 Installer 那张——拿 Apple Distribution 去签 `.pkg` 会直接失败。
+拿证书的步骤（三种只是选的模板不同，同一份 CSR 可以复用给多张证书）：
 
 1. 钥匙串访问 → 证书助理 → 从证书颁发机构请求证书 → 只存到磁盘（`.certSigningRequest`）；
    私钥留在钥匙串里，别把 CSR 提交进仓库。
 2. developer.apple.com → Certificates, Identifiers & Profiles → Certificates → `+` →
-   选 **Developer ID Application**（商店则选 **Apple Distribution**）→ 上传 CSR →
-   下载 `.cer` → 双击装进登录钥匙串。
+   选 **Developer ID Application**（商店则选 **Apple Distribution** 和 **Mac Installer
+   Distribution**）→ 上传 CSR → 下载 `.cer` → 双击装进登录钥匙串。
 3. 验一下：`security find-identity -v -p codesigning`，能看到
    `"Developer ID Application: <名字> (<TEAMID>)"` 就对了。
 
@@ -108,17 +108,21 @@ ad-hoc（未签名）、已签名但未公证、已签名且已公证——只�
 
 ## 4. 上 Mac App Store
 
-商店路线比直链多三样东西：**Apple Distribution 证书**、一张 **Mac App Store 描述文件**、
-**App Store Connect 里那条 App 记录**。构建链本身不碰账号——缺描述文件也照样出 `.pkg`
-（退回 ad-hoc 签名），只是传不上去，所以本地验构建不需要账号。
+商店路线比直链多四样东西：**Apple Distribution 证书**（签 `.app`）、**Mac Installer Distribution
+证书**（签 `.pkg`）、一张 **Mac App Store 描述文件**、**App Store Connect 里那条 App 记录**。
+构建链本身不碰账号——缺证书和描述文件也照样出 `.pkg`（退回 ad-hoc 签名），只是传不上去，
+所以本地验构建不需要账号。
 
 ### 4.1 账号侧一次性准备（产物都不进仓库）
 
-1. 证书：按第 2 节流程拿 **Apple Distribution**（跟 Developer ID 是两张，不能互相顶替）。
+1. 证书：按第 2 节流程拿 **Apple Distribution** 和 **Mac Installer Distribution** 两张
+   （同一份 CSR 可以复用，两张都要；Developer ID 是第三种，互相顶替不了）。
 2. Identifiers → App ID `com.dreamofxm.diskcleaner` → 不用勾任何 Capability：不联网、
    不用推送、不用 Keychain 共享组。
-3. Profiles → `+` → 模板选 **Mac App Store** → 选上面这个 App ID + 上面那张证书 →
-   下载 `.provisionprofile`。默认放 `build_app/diskwise-appstore.provisionprofile`
+3. Profiles → `+` → 模板选 Mac 那组的 **App Store Connect**（旧界面叫 Mac App Store）→
+   选上面这个 App ID + **Apple Distribution 那张**证书（描述文件只绑签 `.app` 的证书，
+   Installer 那张不参与）→ 下载 `.provisionprofile`。默认放
+   `build_app/diskwise-appstore.provisionprofile`
    （`.gitignore` 已经挡掉了：描述文件里带着账号的 App ID 前缀和团队名，不该公开），
    换路径给 `PROVISION_PROFILE=<路径>`。
 4. App Store Connect → 我的 App → 新建 macOS App，Bundle ID 选第 2 步那个，SKU 定了就别改。
@@ -131,8 +135,9 @@ CHANNEL=appstore ARCH=universal bash build_app/build.sh
 ```
 
 `build.sh` 在签名前把描述文件拷成 `Contents/embedded.provisionprofile`，再用
-`productbuild --component … /Applications` 打成 `.pkg`。上传用 **Transporter**（把 `.pkg`
-拖进去，勾「上传后校验」）；`altool --upload-app` 那条命令行 Apple 已经停更，别再写进脚本。
+`productbuild --component … /Applications --sign "Mac Installer Distribution: …"` 打成 `.pkg`。
+上传用 **Transporter**（把 `.pkg` 拖进去，勾「上传后校验」）；`altool --upload-app` 那条命令行
+Apple 已经停更，别再写进脚本。
 
 上传被拒「重复的 version + build 组合」时用 `BUILD_NUMBER=2` 重出——`CFBundleShortVersionString`
 管对外版本号，`CFBundleVersion` 管这条对账，商店要求后者在同一条版本线上单调递增。
@@ -157,7 +162,7 @@ CHANNEL=appstore ARCH=universal bash build_app/build.sh
 | 项 | 值 / 位置 | 为什么 |
 | --- | --- | --- |
 | 出口合规 | `Info.plist` 已写 `ITSAppUsesNonExemptEncryption=false` | 少了它每次上传都要手答问卷，漏答会卡在「等待出口合规信息」 |
-| 隐私政策 URL | App Store Connect 必填 | 不能 404，也不能指到仓库首页了事 |
+| 隐私政策 URL | `docs/PRIVACY.md` 的公开页：`https://github.com/DreamOfXM/diskwise/blob/main/docs/PRIVACY.md` | 不能 404，所以这条要等那个提交推上去再填；口径和代码一致——不联网、不收集 |
 | 数据收集声明 | Data Not Collected | App 不联网、不写分析；一旦选了收集就得逐项补标签 |
 | 截图 | 13" 与 16" 各一张，真窗口截图 | 用假家目录截（第 6 节那条命令），别把真实目录晒出去 |
 | 权限用途文案 | `NSAppleEventsUsageDescription`（`Info.plist` 已有） | 控制访达清空废纸篓要用 |

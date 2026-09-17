@@ -222,6 +222,11 @@ The app has no network access, so there is no built-in "send feedback" button �
 The same three channels live in-app: the **Feedback** page at the bottom of the sidebar, with
 copy buttons for every address.
 
+## Privacy
+
+DiskWise has no network access and collects nothing — every scan runs locally on your Mac.
+Full policy: [docs/PRIVACY.md](docs/PRIVACY.md).
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
@@ -405,6 +410,11 @@ App 不联网，所以没有「一键发送反馈」这种按钮。三个渠道�
 <img src="docs/contact/qq-group.png" width="240" alt="QQ 群二维码">
 
 App 内侧边栏最下面就是「问题反馈」页，同样这三条渠道，每个地址都能一键复制。
+
+## 隐私
+
+DiskWise 不联网、不收集任何数据，每一次扫描都只在你自己的 Mac 上完成。
+完整政策见 [docs/PRIVACY.md](docs/PRIVACY.md)。
 
 ## 许可
 

@@ -280,13 +280,30 @@ mkdir -p "$DIST_DIR"
 if [ "$CHANNEL" = "appstore" ]; then
 	# 商店只收 .pkg（Transporter / altool 都不接 DMG），所以这一支不出 DMG，
 	# 也不写 README.txt——那份首次打开说明是直链分发才有的东西。
+	# 两张证书不能混用：.app 用 Apple Distribution，.pkg 必须用 Mac Installer
+	# Distribution 签（Apple 证书分工表里写死的区别），拿错身份 productbuild 直接失败。
 	ARTIFACT="$DIST_DIR/$PKG_NAME"
-	if [ "$SIGNED" = 1 ] && productbuild --component "$APP_DIR" /Applications \
-			--sign "$IDENTITY" "$ARTIFACT" >/dev/null 2>&1; then
-		echo "    pkg 已用商店证书签名"
+	INSTALLER_IDENT=""
+	if [ "$SIGNED" = 1 ]; then
+		INSTALLER_IDENT="$(security find-identity -v -p codesigning 2>/dev/null \
+			| awk -F'"' 'index($2, "Mac Installer Distribution:") == 1 {print $2; exit}')" || true
+	fi
+	PKG_LOG="$BUILD_DIR/productbuild.log"
+	if [ -n "$INSTALLER_IDENT" ] && productbuild --component "$APP_DIR" /Applications \
+			--sign "$INSTALLER_IDENT" "$ARTIFACT" >"$PKG_LOG" 2>&1; then
+		echo "    pkg 已签名：$INSTALLER_IDENT"
 	else
-		productbuild --component "$APP_DIR" /Applications "$ARTIFACT"
-		echo "    pkg 未签名（没有可用的 Installer 身份）：只能本地验授权流，不能上传"
+		rm -f "$ARTIFACT"
+		productbuild --component "$APP_DIR" /Applications "$ARTIFACT" >>"$PKG_LOG" 2>&1
+		if [ "$SIGNED" != 1 ]; then
+			echo "    pkg 未签名：App 本身是 ad-hoc 的，这份只能本地验授权流"
+		elif [ -z "$INSTALLER_IDENT" ]; then
+			echo "    pkg 未签名：App 签好了，但钥匙串里没有 \"Mac Installer Distribution: ...\""
+			echo "    商店要求 product archive 由这张证书签，缺它 Transporter 会拒——门户上再建一张，CSR 用同一份即可"
+		else
+			echo "    pkg 签名失败，productbuild 原话："
+			sed 's/^/      /' "$PKG_LOG" | tail -6
+		fi
 	fi
 	echo "    $PKG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
 else
