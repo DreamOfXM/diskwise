@@ -325,9 +325,11 @@ struct ThemeCheckStyle: ToggleStyle {
     private func box(on: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: theme.metric.radiusControl * 0.55, style: .continuous)
         ZStack {
-            shape.fill(on ? theme.palette.tint : theme.palette.surface)
-            shape.stroke(on ? theme.palette.tint : theme.palette.separator.opacity(0.9),
-                         lineWidth: on ? 1 : 1.2)
+            shape.fill(on ? theme.palette.tint : theme.palette.surfaceAlt.opacity(0.45))
+            // 未勾选态不能只用分隔线色：这颗粒子决定删什么，是整页权重最高的控件，
+            // 而在深色皮肤上 separator 描边几乎看不见，反倒输给行里那些装饰性的线。
+            shape.stroke(on ? theme.palette.tint : theme.palette.inkTertiary.opacity(0.62),
+                         lineWidth: on ? 1 : 1.4)
             if on {
                 Image(systemName: "checkmark")
                     .font(.system(size: side * 0.62, weight: .bold))
@@ -472,23 +474,29 @@ struct ThemeBadge: View {
 
 // MARK: - 比例条
 
+/// 相对量级的迷你刻度。
+///
+/// 刻意不做成通栏细线：贴在文字底下、铺满整行的 3pt 长条会被读成下划线或链接，
+/// 深色皮肤下轨道看不见，短条就更像「画了一半的墨线」。定宽 + 可见轨道，
+/// 让它先被认成仪表，再谈颜色。宽度封顶在这里，四个页面共用一条规则。
 struct ProportionBar: View {
     @Environment(\.theme) private var theme
     var fraction: Double
     var color: Color? = nil
-    var height: CGFloat = 6
+    var height: CGFloat = 4
+    var trackWidth: CGFloat = 96
 
     var body: some View {
         GeometryReader { geo in
             let w = max(0, min(1, fraction)) * geo.size.width
             ZStack(alignment: .leading) {
-                Capsule().fill(theme.palette.surfaceAlt)
+                Capsule().fill(theme.palette.separator)
                 Capsule()
                     .fill(color ?? theme.palette.tint)
                     .frame(width: max(w, height))
             }
         }
-        .frame(height: height)
+        .frame(width: trackWidth, height: height, alignment: .leading)
         .accessibilityHidden(true)
     }
 }

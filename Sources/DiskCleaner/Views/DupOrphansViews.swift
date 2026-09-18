@@ -183,7 +183,7 @@ private struct DupGroupRow: View {
             }
             .buttonStyle(.plain)
 
-            ProportionBar(fraction: fraction, color: theme.palette.chart[3], height: 3)
+            ProportionBar(fraction: fraction, color: theme.palette.chart[3])
                 .padding(.leading, 21)
 
             if expanded {

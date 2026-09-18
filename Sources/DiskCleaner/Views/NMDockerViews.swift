@@ -277,7 +277,7 @@ private struct DockerRow: View {
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.ink)
             }
-            ProportionBar(fraction: fraction, color: theme.palette.chart[5], height: 3)
+            ProportionBar(fraction: fraction, color: theme.palette.chart[5])
                 .padding(.leading, 16)
             if expanded {
                 VStack(alignment: .leading, spacing: 6) {
