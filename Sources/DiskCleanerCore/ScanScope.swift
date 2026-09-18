@@ -15,6 +15,14 @@ public enum ScanScope: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 }
 
+extension ScanScope {
+    /// 这一版跑得起来、真能扫到的范围。沙盒里「整盘」是扫不动的（`setScope` 会把它
+    /// 降级回用户区），那就不该在选择器里留一颗点了没反应的格子。
+    public static var reachable: [ScanScope] {
+        HomeAccess.runsSandboxed ? [.user] : allCases
+    }
+}
+
 /// 家目录之外、普通用户能读的盘顶目录。
 ///
 /// 走白名单而不是从 `/` 往下爬，因为盘顶那几块各有坑：
