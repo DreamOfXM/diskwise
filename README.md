@@ -120,21 +120,22 @@ brew install --cask diskwise
 Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
 
 Homebrew does not skip Gatekeeper here: whatever the cask installs is the same build the
-Releases page carries. Signed + notarized builds open with a double-click; if a release note
-says the build is ad-hoc signed, first launch needs the same
-**right-click → Open → Open** as the DMG.
+Releases page carries. **Read the release note of the version you are about to install** — it
+says whether that build is Developer ID-signed and notarized (double-click) or ad-hoc signed
+(first launch needs **right-click → Open → Open**). Everything published so far is ad-hoc.
 
 **Option B — DMG**
 
-1. Download `DiskWise-<version>-universal.dmg` from
+1. Download `DiskWise-<version>[-universal].dmg` from
    [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
-3. First launch: double-click. Release builds are signed with a Developer ID certificate and
-   notarized by Apple. If a release note flags an ad-hoc build instead, use
+3. First launch depends on the build, and the release note for that version is the authority:
+   a Developer ID-signed, notarized build opens with a double-click; an ad-hoc one needs
    **right-click → Open → Open** once. (See [Known limits](#known-limits).)
 
-Release DMGs are universal — one file runs on both Apple Silicon and Intel. Checksums are
-published next to each release asset, and the cask pins the same SHA-256.
+Releases built with `ARCH=universal` are named `…-universal.dmg` and carry both the Apple
+Silicon and Intel slices in one file; the Apple Silicon-only ones are named `DiskWise-<version>.dmg`.
+Checksums are published next to each release asset, and the cask pins the same SHA-256.
 
 ## Build from source
 
@@ -142,7 +143,7 @@ You need the Xcode Command Line Tools — **not** full Xcode.
 
 ```bash
 swift build                    # debug
-swift run SelfTest             # 27 checks; all green is the precondition for shipping
+swift run SelfTest             # all green is the precondition for shipping
 swift run DiskCleaner          # run the app
 bash build_app/build.sh        # localize check → build → self-test → .app → sign → dist/*.dmg + SHA256
 ```
@@ -184,21 +185,25 @@ They're in the cache knowledge base, because on a Chinese developer's Mac those 
 single biggest consumers. That's also why the UI ships bilingual.
 
 **Intel Mac?**
-Release DMGs are universal — one binary carries both the arm64 and x86_64 slices, so the same
-download runs on Apple Silicon and Intel. `bash build_app/build.sh` defaults to arm64;
-`ARCH=universal` produces the shipped file.
+`bash build_app/build.sh` defaults to Apple Silicon; `ARCH=universal` produces one DMG carrying
+both the arm64 and x86_64 slices. Which one a given release ships is written in that release's
+note — so far every published DMG has been the arm64 one, so Intel users should check before
+downloading, or just build from source (it takes a minute and needs no Xcode).
 
 **Why does macOS complain on first launch?**
-It depends on the build. Release builds from CI are signed with a Developer ID certificate and
-notarized by Apple, so they open with a double-click. An ad-hoc build — a local `build.sh` run
-without a certificate in the keychain, or any release whose note says so — stays quarantined
-after download and needs one **right-click → Open** (see [Install](#install)).
+It depends on how that build was signed. `build.sh` uses a Developer ID certificate and
+notarizes when the certificate and notarization credentials are present, and such a build opens
+with a double-click. Without them it falls back to ad-hoc signing — which is what every release
+published so far got — and a quarantined ad-hoc build needs one **right-click → Open**
+(see [Install](#install)). The release note of the version you're downloading says which it is.
 
 ## Known limits
 
 Honest list, because a cleanup tool earns trust by admitting what it can't do:
 
 - **No auto-update.** You get new versions from the Releases page or `brew upgrade`.
+- **Direct downloads are ad-hoc signed so far**, so the first launch needs right-click → Open.
+  The Developer ID + notarization path is in `build.sh` and CI, waiting on a certificate.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
@@ -324,18 +329,19 @@ brew install --cask diskwise
 
 tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
 
-用 Homebrew 也躲不过 Gatekeeper——但装的就是 Releases 页那个包：签名 + 公证过的双击即开；
-只有某条 Release 的说明里写明是 ad-hoc 构建时，才需要**右键 → 打开 → 打开**确认一次。
+用 Homebrew 也躲不过 Gatekeeper——但装的就是 Releases 页那个包：**装之前读一眼那条 Release 的说明**，
+里面写清了这一版是 Developer ID 签名 + 公证（双击即开）还是 ad-hoc 签名（首次要**右键 → 打开 → 打开**）。
+目前发出去的每一个包都是 ad-hoc。
 
 **方式二：DMG**
 
-1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>-universal.dmg`
+1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>[-universal].dmg`
 2. 打开后把 **DiskWise.app** 拖进「应用程序」
-3. 首次打开直接双击：发布包用 Developer ID 证书签名并经 Apple 公证。若某条 Release 注明是
-   ad-hoc 构建，才需要**右键 → 打开 → 打开**一次（见[已知边界](#已知不足)）
+3. 首次打开怎么点，以那条 Release 的说明为准：Developer ID 签名 + 公证过的双击即开；
+   ad-hoc 的那份要**右键 → 打开 → 打开**一次（见[已知不足](#已知不足)）
 
-发布包是通用二进制——同一个文件里同时带 arm64 和 x86_64 两个切片，Apple Silicon 和 Intel 都能跑。
-每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
+`ARCH=universal` 出的包文件名带 `-universal`，同一个文件里同时有 arm64 和 x86_64 两个切片；
+不带后缀的那份只有 Apple Silicon。每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
 
 ## 从源码构建
 
@@ -343,7 +349,7 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 
 ```bash
 swift build                    # debug 编译
-swift run SelfTest             # 27 项自检，全绿是打包前提
+swift run SelfTest             # 全量自检，全绿是打包前提
 swift run DiskCleaner          # 直跑 App
 bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app → 签名 → dist/*.dmg + SHA256
 ```
@@ -378,17 +384,20 @@ GitHub、邮箱或 QQ 群的原因。
 管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，界面也因此做成中英双语。
 
 **Intel 机器能用吗？**
-能。发布包是通用二进制，同一个文件里 arm64 和 x86_64 两个切片都在。本地 `build.sh` 默认只出
-arm64，`ARCH=universal bash build_app/build.sh` 出发布用的那个。
+代码和构建链都支持——`ARCH=universal bash build_app/build.sh` 出的那个文件里 arm64 和 x86_64
+两个切片都在，闸门会单独把 x86_64 那份跑一遍。但**目前发出去的每个 DMG 都只带 arm64**，
+所以 Intel 用户下载前先看那条 Release 的说明，或者干脆自己编一条命令的事（不需要完整 Xcode）。
 
 **为什么首次打开系统要警告？**
-看是哪条 Release。CI 出的发布包用 Developer ID 签名并过了 Apple 公证，双击就开。没证书时
-`build.sh` 会退回 ad-hoc 签名，这种包带着隔离标记，首次打开要右键 → 打开确认一次
-（见[下载与安装](#下载与安装)）。
+看那一版是怎么签的。`build.sh` 有 Developer ID 证书和公证凭据时走正式签名 + 公证，双击就开；
+缺任何一样就退回 ad-hoc 签名——**到现在为止发出去的包全是这一种**——带着隔离标记，
+首次打开要右键 → 打开确认一次（见[下载与安装](#下载与安装)）。
 
 ## 已知不足
 
 - **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
+- **直链包目前都是 ad-hoc 签名**，首次打开要右键 → 打开一次；Developer ID + 公证那条链路
+  已经在 `build.sh` 和 CI 里，缺一张证书
 - **node_modules 大盘扫描慢**，且还没有流式快照
 - **卸载残留刻意保守**，会漏报
 

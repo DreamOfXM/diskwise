@@ -26,7 +26,7 @@ missing is normal here.
 
 ```bash
 swift build          # debug build
-swift run SelfTest   # 27 checks — all green is the bar for any PR
+swift run SelfTest   # every check must pass before a PR is mergeable
 swift run DiskCleaner
 ```
 
