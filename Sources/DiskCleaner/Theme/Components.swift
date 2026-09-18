@@ -344,20 +344,85 @@ struct ThemeCheckStyle: ToggleStyle {
 
 struct IconTile: View {
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     var symbol: String
     var side: CGFloat = 30
     var fill: Color? = nil
     var foreground: Color? = nil
+    /// 浅底同色 glyph：用在「一排里只要认得出、不该抢视线」的位置。
+    /// 满屏实心彩块会让导航变成启动器，而且和主按钮撞形——用户会去点它。
+    var muted: Bool = false
 
     var body: some View {
         let color = fill ?? theme.palette.tint
+        let isDark = (theme.scheme ?? colorScheme) == .dark
         ZStack {
-            theme.tileShape(side).fill(color)
+            theme.tileShape(side).fill(muted ? color.opacity(theme.tileWash(dark: isDark)) : color)
             Image(systemName: symbol)
-                .font(.system(size: side * 0.46, weight: .semibold))
-                .foregroundStyle(foreground ?? .white)
+                .font(.system(size: side * 0.46, weight: muted ? .medium : .semibold))
+                .foregroundStyle(foreground ?? (muted ? color : .white))
         }
         .frame(width: side, height: side)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - 窗口外框
+
+/// 自绘标题栏区：红绿灯是系统画的，我们只负责在它下面留出一条跟皮肤走的分隔线。
+enum Chrome {
+    /// 我们自己再让的宽度。0 不是随手写的：窗口是 fullSizeContentView + 带侧栏切换按钮的
+    /// 工具条，系统已经把标题栏那一条（实测 52pt）让了出来，再叠一条就成了大片空白。
+    static let topClearance: CGFloat = 0
+    /// 侧边栏顶部这条要给红绿灯让出的宽度（三颗灯 + 右边呼吸）
+    static let trafficLightInset: CGFloat = 72
+}
+
+/// 把内容顶到窗口最上边：SwiftUI 的 hiddenTitleBar 只把标题栏涂透明，
+/// 并没有让内容铺到它下面，于是系统那 28pt 白带 + 我们自己的让位条叠成
+/// 一条 58pt 的空档，而且它不跟皮肤走（极光那套下就是一块死白）。
+/// 补上 fullSizeContentView，让位只由 ChromeStrip 这一处负责。
+struct WindowContentUnderTitleBar: NSViewRepresentable {
+    /// 尺寸只在第一次配置时定一次，否则每次视图更新都会把窗口拽回那个尺寸，用户就再也拉不动了。
+    private static var sized = false
+
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        // 建视图时还没挂到窗口上，下一轮 runloop 才有
+        DispatchQueue.main.async { configure(v.window) }
+        return v
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configure(nsView.window)
+    }
+
+    private func configure(_ window: NSWindow?) {
+        guard let window else { return }
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        if !Self.sized, let size = SnapshotMode.requestedWindowSize {
+            Self.sized = true
+            window.setContentSize(size)
+        }
+    }
+}
+
+/// 贴在窗口最上面的一条：只做出让和分隔，不放控件
+struct ChromeStrip: View {
+    @Environment(\.theme) private var theme
+    var leading: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: leading, height: Chrome.topClearance)
+            Spacer(minLength: 0)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(theme.palette.separator).frame(height: theme.metric.stroke)
+        }
+        .frame(maxWidth: .infinity)
         .accessibilityHidden(true)
     }
 }
@@ -748,6 +813,7 @@ struct NoticeBar: View {
             .shadow(color: theme.palette.shadow, radius: 14, x: 0, y: 6)
             .padding(.horizontal, 16)
             .padding(.top, 10)
+            .padding(.bottom, 2)
             .transition(reduceMotion ? .opacity
                                      : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
                                                    removal: .opacity))

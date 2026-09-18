@@ -51,10 +51,9 @@ struct FeedbackView: View {
                 .themedList()
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("问题反馈"))
     }
 
     // MARK: 三条渠道
@@ -63,9 +62,9 @@ struct FeedbackView: View {
         FeedbackCard(symbol: "envelope", title: L("邮箱"),
                      subtitle: Contact.email,
                      extra: { EmptyView() }) {
-            ThemeButton(kind: .secondary, symbol: "doc.on.doc",
+            ThemeButton(kind: .compact, symbol: "doc.on.doc",
                         title: L("复制地址")) { copy(Contact.email) }
-            ThemeButton(kind: .primary, symbol: "paperplane",
+            ThemeButton(kind: .secondary, symbol: "paperplane",
                         title: L("写邮件")) { open(Contact.mailto) }
         }
     }
@@ -94,9 +93,9 @@ struct FeedbackView: View {
                      title: L("GitHub Issue"),
                      subtitle: LF("仓库 %@", Contact.repoSlug),
                      extra: { EmptyView() }) {
-            ThemeButton(kind: .secondary, symbol: "doc.on.doc",
+            ThemeButton(kind: .compact, symbol: "doc.on.doc",
                         title: L("复制仓库")) { copy(Contact.repo) }
-            ThemeButton(kind: .primary, symbol: "arrow.up.right.square",
+            ThemeButton(kind: .secondary, symbol: "arrow.up.right.square",
                         title: L("提 Issue")) { open(Contact.issues) }
         }
     }
@@ -117,7 +116,7 @@ struct FeedbackView: View {
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                ThemeButton(kind: .secondary, symbol: "doc.on.doc",
+                ThemeButton(kind: .compact, symbol: "doc.on.doc",
                             title: L("复制群号")) { copy(Contact.qqGroup) }
                     .padding(.top, 3)
             }

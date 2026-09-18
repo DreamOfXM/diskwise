@@ -77,13 +77,9 @@ struct BigFilesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "doc.on.doc", title: L("谁最大，一目了然"),
-                           subtitle: L("按个头排好队，大的先杀")) {
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.rescan() }
-                    ThemeStepper(label: L("前"), value: $model.limit, range: 10...200, step: 10) {
-                        model.applyLimit()
-                    }
-                }
+                PageHeader(symbol: "doc.on.doc", title: L("大文件"),
+                           subtitle: L("按个头排好队，大的先杀"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在翻你的文件夹…"))
@@ -95,12 +91,18 @@ struct BigFilesView: View {
                         ThemeButton(kind: .compact, title: L("恢复默认")) { model.scan() }
                     }
                 } trailing: {
+                    // 筛选控件放工具条右侧，不放页头：页头那一条要留给标题和副标题，
+                    // 英文副标题一长就被控件挤到换行，控件自己也会顶出窗口边。
+                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.rescan() }
+                    ThemeStepper(label: L("前"), value: $model.limit, range: 10...200, step: 10) {
+                        model.applyLimit()
+                    }
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.rescan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.rows.isEmpty {
@@ -111,7 +113,7 @@ struct BigFilesView: View {
                 List($model.rows) { $r in
                     ItemRow(selected: $r.selected,
                             name: r.name,
-                            sub: r.url.deletingLastPathComponent().path + " · " + r.dateStr,
+                            sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
                             sizeText: human(r.size),
                             fraction: Double(r.size) / Double(maxSize)) {
                         PathLine(path: r.url.path)
@@ -125,7 +127,6 @@ struct BigFilesView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("大文件"))
         .onAppear {
             // 总览跳过来的定向扫描只消费一次
             if let dir = store.bigScanDir {
@@ -218,14 +219,9 @@ struct OldFilesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "clock", title: L("落灰的，该走了"),
-                           subtitle: L("下载和桌面里，好久没碰的东西")) {
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.scan() }
-                    ThemeStepper(label: L("超过"), value: $model.days, range: 30...365, step: 30) {
-                        model.scan()
-                    }
-                    ThemeBadge(text: L("天"), tone: .neutral)
-                }
+                PageHeader(symbol: "clock", title: L("很久没动"),
+                           subtitle: L("下载和桌面里，好久没碰的东西"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在看哪些文件落灰…"))
@@ -233,12 +229,17 @@ struct OldFilesView: View {
                         Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"), human(model.totalBytes)))
                     }
                 } trailing: {
+                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.scan() }
+                    ThemeStepper(label: L("超过"), unit: L("天"),
+                                 value: $model.days, range: 30...365, step: 30) {
+                        model.scan()
+                    }
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.rows.isEmpty {
@@ -249,7 +250,7 @@ struct OldFilesView: View {
                 List($model.rows) { $r in
                     ItemRow(selected: $r.selected,
                             name: r.name,
-                            sub: r.url.deletingLastPathComponent().path + " · " + r.dateStr,
+                            sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
                             sizeText: human(r.size),
                             fraction: Double(r.size) / Double(maxSize)) {
                         PathLine(path: r.url.path)
@@ -263,7 +264,6 @@ struct OldFilesView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("很久没动"))
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",

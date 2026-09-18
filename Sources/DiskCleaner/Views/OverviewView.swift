@@ -73,41 +73,46 @@ struct OverviewView: View {
     @ObservedObject var model: OverviewModel
 
     var body: some View {
-        // 整页只有一个滚动容器：macOS 13 的 ScrollView 会把内容的完整高度
-        // 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点
-        ScrollView {
-            VStack(alignment: .leading, spacing: theme.metric.sectionGap) {
-                PageHeader(symbol: "internaldrive", title: L("空间都去哪了"),
-                           subtitle: L("先看清，再下手——下面每块地方都能一键深挖"),
-                           variant: .display) {
-                    ScanControl(scanning: model.scanning, kind: .primary,
-                                rescan: { model.refresh() }, stop: { model.stop() })
-                }
-                .pagePadding()
-
-                if let u = model.usage {
-                    heroCard(u)
-                        .pagePadding()
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    SectionLabel(text: L("最占地方的文件夹"),
-                                 detail: model.scanning ? L("统计中…") : cnt(model.hotspots.count, "项"))
-                    if model.hotspots.isEmpty && !model.scanning {
-                        EmptyState(symbol: "magnifyingglass", title: L("还没扫出来"),
-                                   hint: L("点右上角重新扫描"))
-                            .frame(minHeight: 220)
-                    } else {
-                        hotspotList
-                    }
-                }
-                .pagePadding()
+        // 页头钉在滚动区外面：它是这一屏的标题，滚走了就没人知道自己在哪页。
+        // 下面仍然只有一个 ScrollView——macOS 13 的 ScrollView 会把内容的完整高度
+        // 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点。
+        VStack(spacing: 0) {
+            PageHeader(symbol: "internaldrive", title: L("空间总览"),
+                       subtitle: L("先看清，再下手——下面每块地方都能一键深挖"),
+                       variant: .display) {
+                ScanControl(scanning: model.scanning, kind: .primary,
+                            rescan: { model.refresh() }, stop: { model.stop() })
             }
-            .padding(.top, 18)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .pagePadding()
+            .padding(.top, 14)
+            .padding(.bottom, 2)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: theme.metric.sectionGap) {
+                    if let u = model.usage {
+                        heroCard(u)
+                            .pagePadding()
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(text: L("最占地方的文件夹"),
+                                     detail: model.scanning ? L("统计中…") : cnt(model.hotspots.count, "项"))
+                        if model.hotspots.isEmpty && !model.scanning {
+                            EmptyState(symbol: "magnifyingglass", title: L("还没扫出来"),
+                                       hint: L("点右上角重新扫描"))
+                                .frame(minHeight: 220)
+                        } else {
+                            hotspotList
+                        }
+                    }
+                    .pagePadding()
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .navigationTitle(L("空间总览"))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { model.started ? model.refreshUsage() : model.refresh() }
     }
 
@@ -231,8 +236,7 @@ private struct HotspotRow: View {
         HStack(spacing: 12) {
             IconTile(symbol: glyph, side: 26,
                      fill: theme.tileColor(index: tileIndex, dark: isDark),
-                     foreground: isDark && theme.tileStrategy == .spectrum
-                        ? theme.palette.paper : .white)
+                     muted: true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
                     .font(theme.bodyFont(.callout))

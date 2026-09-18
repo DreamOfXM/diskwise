@@ -25,6 +25,20 @@ func cacheGroupLabel(_ key: String) -> String {
     }
 }
 
+/// 行内副标题。原来写分组名，可知识库 27 条里 25 条的 grp 都是 general，
+/// 于是每行都是「常规缓存」——一行字重复 25 遍就等于没有信息。
+/// 认一条缓存靠的是路径尾段，所以副标题给真实路径；展开行里仍是全路径。
+private func cacheRowSub(_ item: CacheItem) -> String? {
+    guard let first = item.resolvedPaths.first else { return nil }
+    var parts: [String] = []
+    if item.groupKey != "general" { parts.append(cacheGroupLabel(item.groupKey)) }
+    parts.append(displayPath(first))
+    if item.resolvedPaths.count > 1 {
+        parts.append(LF("%d 处", item.resolvedPaths.count))
+    }
+    return parts.joined(separator: " · ")
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class CachesModel: ObservableObject {
@@ -101,8 +115,9 @@ struct CachesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "sparkles", title: L("哪些缓存敢删"),
-                           subtitle: L("每项都写明来历，勾你认得的，不认识的别碰"))
+                PageHeader(symbol: "sparkles", title: L("缓存清理"),
+                           subtitle: L("每项都写明来历，勾你认得的，不认识的别碰"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在翻你的缓存目录，稍等…"))
@@ -116,7 +131,7 @@ struct CachesView: View {
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.items.isEmpty {
@@ -127,7 +142,7 @@ struct CachesView: View {
                 List($model.items) { $item in
                     ItemRow(selected: $item.selected,
                             name: L(item.entry.name),
-                            sub: cacheGroupLabel(item.groupKey),
+                            sub: cacheRowSub(item),
                             sizeText: item.size.map { human($0) } ?? L("统计中…"),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: ItemBadge(text: item.entry.level == "warn" ? L("留意") : L("安全"),
@@ -149,7 +164,6 @@ struct CachesView: View {
                      errorText: errorText) { confirmClean = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("缓存清理"))
         .onAppear { model.load() }
         .alert(L("确认清理？"), isPresented: $confirmClean) {
             Button(L("取消"), role: .cancel) {}
