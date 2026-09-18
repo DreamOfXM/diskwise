@@ -544,7 +544,8 @@ struct RingGauge: View {
             }
         }
         .onAppear { run() }
-        .onChange(of: segments.count) { _ in run() }
+        // 不按 segments.count 重放：总览是边扫边填的，段数一路 2→3→4→5，
+        // 每次变化都把整圈打回零重扫，看着像坏了几次。
     }
 
     private var dial: some View {
@@ -748,6 +749,35 @@ struct EmptyState: View {
                 Image(systemName: symbol)
                     .font(.system(size: 30, weight: .medium))
                     .foregroundStyle(theme.palette.tint)
+            }
+            .accessibilityHidden(true)
+            Text(title).font(theme.display(.headline)).foregroundStyle(theme.palette.ink)
+            Text(hint).font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+            Spacer(minLength: 40)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// 扫描中的占位，跟空态同量级。
+///
+/// 整盘范围要把每个目录走一遍，可能要几分钟，而列表是扫完才一次性回来的——
+/// 这段时间什么都不画，用户看到的就是一大片白，只会以为程序卡住了。
+struct ScanningState: View {
+    @Environment(\.theme) private var theme
+    var title: String
+    var hint: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Spacer(minLength: 40)
+            ZStack {
+                Circle().fill(theme.palette.tintSoft)
+                    .frame(width: 76, height: 76)
+                ProgressView().controlSize(.large)
             }
             .accessibilityHidden(true)
             Text(title).font(theme.display(.headline)).foregroundStyle(theme.palette.ink)

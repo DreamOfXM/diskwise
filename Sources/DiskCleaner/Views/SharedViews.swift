@@ -11,6 +11,17 @@ import DiskCleanerCore
 
 // MARK: - 失败原因与提示（各页共用，措辞只这一处）
 
+extension ScanScope {
+    /// 界面上的范围名。总览的范围开关和各扫描页的范围标签共用这一份叫法，
+    /// 两处不一致的话用户就不知道「整盘」和「全盘」是不是同一件事。
+    var uiName: String {
+        switch self {
+        case .user: return L("用户区")
+        case .disk: return L("整盘")
+        }
+    }
+}
+
 extension View {
     /// 内容区列表：拿掉 List 的默认底和分隔线，皮肤背景才透得出来
     func themedList() -> some View {
@@ -66,6 +77,22 @@ struct ItemBadge {
 }
 
 // MARK: - 可清理条目行
+
+/// 整盘扫描会扫到我们删不动的位置。行照样列出来（那是账），但勾选框锁死，
+/// 而且得说清为什么锁——不然用户只会以为工具坏了。
+/// 做成计算属性而不是常量：语言切换后要跟着换。
+var outsideScopeHint: String {
+    L("这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。")
+}
+
+/// 扫描中、一行都还没出来时画什么。
+///
+/// 列表是扫完才一次性回填的，整盘范围能走几分钟；这段时间留着空白页，用户只能
+/// 猜程序是不是死了。范围写在文案里，等起来才有理由。
+func scanningState(scope: ScanScope) -> some View {
+    ScanningState(title: L("正在扫描"),
+                  hint: LF("范围「%@」，要把每个目录走一遍才出列表。", scope.uiName))
+}
 
 struct ItemRow<Detail: View>: View {
     @Environment(\.theme) private var theme

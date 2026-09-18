@@ -9,6 +9,7 @@ public func dirSize(_ url: URL) async -> Int64 {
     var seen = Set<String>()   // 硬链接去重（dev+ino）
     var stack = [url.path]
     let fm = FileManager.default
+    let rootDev = deviceOf(url)
     var ticks = 0
     while let dir = stack.popLast() {
         if Task.isCancelled { break }
@@ -21,6 +22,8 @@ public func dirSize(_ url: URL) async -> Int64 {
             let mode = st.st_mode & S_IFMT
             if mode == S_IFLNK { continue }
             if mode == S_IFDIR {
+                // 跨卷就停：挂载点后面可能是外置盘或备份盘，不是这块盘的账
+                if let d = rootDev, st.st_dev != d { continue }
                 stack.append(p)
                 continue
             }
@@ -101,7 +104,24 @@ public struct VolumeUsage {
     public var used: Int64 { total - free }
 }
 
+/// 演示盘容量：`DISKWISE_DEMO_USAGE=<总GB>:<可用GB>`。
+///
+/// 只在假家目录生效。环形图的「未覆盖」是拿整盘已用减去扫到的量，
+/// 不钉住盘容量的话，README 那几张图的主角数字就取决于跑脚本的人那天盘里剩多少——
+/// 说好的可复现就没了。
+private func demoVolume() -> VolumeUsage? {
+    guard homeIsDemo,
+          let raw = ProcessInfo.processInfo.environment["DISKWISE_DEMO_USAGE"],
+          !raw.isEmpty else { return nil }
+    let parts = raw.split(separator: ":")
+    guard parts.count == 2,
+          let t = Double(parts[0]), let f = Double(parts[1]), t > f, f >= 0 else { return nil }
+    let gib = Int64(1024 * 1024 * 1024)
+    return VolumeUsage(total: Int64(t * Double(gib)), free: Int64(f * Double(gib)))
+}
+
 public func volumeUsage() -> VolumeUsage? {
+    if let demo = demoVolume() { return demo }
     guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: "/"),
           let total = attrs[.systemSize] as? Int64,
           let free = attrs[.systemFreeSize] as? Int64 else {
@@ -159,7 +179,7 @@ public enum TrashError: Error {
 
 public func trashItem(_ url: URL) throws -> URL {
     guard !isProtected(url) else { throw TrashError.protected(url.path) }
-    guard inAllowedRoot(url) else { throw TrashError.outsideAllowed(url.path) }
+    guard isDeletable(url) else { throw TrashError.outsideAllowed(url.path) }
     var out: NSURL?
     do {
         try FileManager.default.trashItem(at: url, resultingItemURL: &out)

@@ -14,6 +14,8 @@ public struct FileRow: Identifiable {
     public var selected = false
 
     public var name: String { url.lastPathComponent }
+    /// 这一项我们删得动吗。整盘扫描会把系统区也摆上列表：账要算全，手不能伸。
+    public var deletable: Bool { isDeletable(url) }
     public var dateStr: String {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
@@ -36,9 +38,20 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
     var out: [FileRow] = []
     var matched = 0
     let cutoff = olderThan.map { $0.timeIntervalSince1970 }
-    var stack = dirs.map { $0.path }
+    // 每个根记住自己的卷号：跨卷守卫要按根比，不能拿第一个根的号去卡所有根。
+    //
+    // 还要记住「哪些别的根就在我底下」，走到就跳过，让那块以自己的根身份去扫。
+    // 不挡的话同一份文件会被走两遍：列表按 path 作 ForEach 的 id，第二条只占行高不画字；
+    // 重复文件页会把同一份内容算成两组。演示树里整盘根全落在假家目录底下，正是这种嵌套。
+    let rootPaths = dirs.map { $0.standardizedFileURL.path }
+    func nestedRoots(under root: String) -> Set<String> {
+        Set(rootPaths.filter { $0 != root && $0.hasPrefix(root + "/") })
+    }
+    var stack: [(String, dev_t?, Set<String>)] = rootPaths.map {
+        ($0, deviceOf(URL(fileURLWithPath: $0)), nestedRoots(under: $0))
+    }
     var n = 0
-    while let dir = stack.popLast() {
+    while let (dir, rootDev, skip) = stack.popLast() {
         if Task.isCancelled { break }
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
         for name in items {
@@ -49,7 +62,9 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             let mode = st.st_mode & S_IFMT
             if mode == S_IFLNK { continue }
             if mode == S_IFDIR {
-                stack.append(p)
+                if skip.contains(URL(fileURLWithPath: p).standardizedFileURL.path) { continue }
+                if let d = rootDev, st.st_dev != d { continue }
+                stack.append((p, rootDev, skip))
                 continue
             }
             n += 1
@@ -71,14 +86,13 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
     return WalkResult(rows: out, matched: matched)
 }
 
-public func defaultScanDirs() -> [URL] {
-    let home = homeDir()
-    return ["Downloads", "Desktop", "Documents", "Movies", "Pictures", "Music"].compactMap { d -> URL? in
-        let u = home.appendingPathComponent(d)
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir), isDir.boolValue else { return nil }
-        return u
-    }
+/// 各扫描页的默认根。
+///
+/// 这里以前写死六个家目录子夹（Downloads / Desktop / Documents / Movies / Pictures / Music），
+/// 在一台 434 GB 的盘上只覆盖约 20 GB——「大文件」页因此名不副实：照着它的列表清完，盘还是满的。
+/// 范围必须和总览页同源，且明写在页头上。
+public func defaultScanDirs(scope: ScanScope) -> [URL] {
+    scanRoots(scope: scope)
 }
 
 // ══ 重复文件：大小 → 首尾1MB → 全量哈希 ══
@@ -309,15 +323,22 @@ public struct NMProject: Identifiable {
     public var selected = false
 }
 
-public func findNodeModules(roots: [URL]? = nil) async -> [NMProject] {
+/// node_modules 只在用户区找，不跟着「整盘」开关走。
+///
+/// 这不是漏扫，是算过的：依赖目录只会长在项目里，而项目在家目录。系统区里唯一像样的
+/// 一处是包管理器自己的全局目录（`/opt/homebrew/lib/node_modules` 那类），删它等于拆掉
+/// 命令行工具，而且 brew 有自己的清理方式。为了这一处把整棵 /Library 走一遍，
+/// 换来的是几分钟空转 + 一个勾不得的条目。
+public func findNodeModules() async -> [NMProject] {
     let home = homePath()
-    let scanRoots = (roots ?? [URL(fileURLWithPath: home), URL(fileURLWithPath: applicationsDir())])
+    let roots = [URL(fileURLWithPath: home), URL(fileURLWithPath: applicationsDir())]
         .filter { FileManager.default.fileExists(atPath: $0.path) }
     // 第一段：翻目录找 node_modules（命中即不再下钻）
     var nmDirs: [String] = []
-    var stack = scanRoots.map { $0.path }
+    // 每个根记自己的卷号：跨卷守卫要按根比
+    var stack = roots.map { ($0.path, deviceOf($0)) }
     var visited = 0
-    while let d = stack.popLast() {
+    while let (d, rootDev) = stack.popLast() {
         if Task.isCancelled { break }
         guard let kids = try? FileManager.default.contentsOfDirectory(atPath: d) else { continue }
         for k in kids {
@@ -328,7 +349,8 @@ public func findNodeModules(roots: [URL]? = nil) async -> [NMProject] {
             var st = stat()
             if lstat(p, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK { continue }
             if k == "node_modules" { nmDirs.append(p); continue }
-            stack.append(p)
+            if let dev = rootDev, st.st_dev != dev { continue }
+            stack.append((p, rootDev))
         }
         visited += 1
     }

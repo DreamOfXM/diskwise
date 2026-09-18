@@ -39,7 +39,12 @@ mk() {
 	if [ -e "$path" ]; then return 0; fi
 	dd if=/dev/zero of="$path" bs=1m count="$mb" 2>/dev/null
 	n=$((n + 1))
-	printf '@%07d' "$n" | dd of="$path" bs=1 count=8 conv=notrunc 2>/dev/null
+	# 标记取「路径的校验和」而不是计数器：计数器在重跑时从 0 重新开始，
+	# 补出来的新文件会跟首跑留下的旧文件撞进同一个标记，于是造出一对内容真相同的
+	# 「假重复」（实测撞出一组 2.3GB 的，而重复文件页的截图正是拿这棵树拍的）。
+	local tag
+	tag=$(printf '%s' "${path#"$H"/}" | cksum | awk '{print $1}')
+	printf '@%010d' "$tag" | dd of="$path" bs=1 count=10 conv=notrunc 2>/dev/null
 	echo "    $(du -h "$path" | cut -f1)	${path#"$H"/}"
 }
 

@@ -47,10 +47,14 @@ struct NMView: View {
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在全盘找 node_modules…"))
+                        LoadingRow(text: L("正在翻项目目录找 node_modules…"))
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(model.items.count, "个项目"), human(model.totalBytes)))
                     }
+                    // 这页不吃「整盘」开关（理由见 findNodeModules），那就把范围写在脸上，
+                    // 别让「全盘找 node_modules」这句提示冒充整盘覆盖。
+                    ThemeBadge(text: LF("范围：%@", ScanScope.user.uiName),
+                               tone: .neutral, symbol: "scope")
                 } trailing: {
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })

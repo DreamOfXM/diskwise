@@ -34,6 +34,7 @@ diskwise/
 │   │   ├── HomeAccess.swift       # ★家目录唯一入口：真实家目录、是否沙盒、授权书签（见 4.7）
 │   │   ├── Models.swift           # 知识库解析、路径展开、保护规则、home/applications 锚点、human()
 │   │   ├── Scanner.swift          # 占盘统计、通配展开、移废纸篓 + 撤销、访达清空
+│   │   ├── ScanScope.swift        # ★扫描范围：用户区 / 整盘的根清单、系统白名单、卷号（见 4.8）
 │   │   └── ScanJobs.swift         # 遍历、重复检测、卸载残留、node_modules、Docker
 │   └── SelfTest/main.swift        # 自检程序（没有 XCTest 环境时的替代，见 §3）
 ├── build_app/
@@ -77,8 +78,11 @@ bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
 # DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤页那种长页）
+# DISKWISE_DEMO_USAGE=128:12 把盘容量钉死（仅假家目录生效）——不钉的话总览页环形图的
+#   「已用 / 未覆盖」两块数字来自跑脚本那台机器当天的磁盘，图就不可复现了
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
+  DISKWISE_DEMO_USAGE=128:12 \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner -diskcleaner.language en
 ```
 
@@ -103,13 +107,17 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - 现有 6 套：`dawn` 晨雾（默认）· `graphite` 石墨 · `mint` 薄荷 · `midnight` 极夜黑金 · `aurora` 极光玻璃 · `inkwash` 水墨宣纸。
 - 试穿 `startTrying/stopTrying` 只改 `effective`，不写偏好，切走即还原。
 - `Channel.showsPricing`（`Product.swift`）是编译期常量，两个渠道都是 false：六套皮肤一律可用，不渲染分区标题、试穿横幅和 `PaywallSheet`。此时「这套皮肤能不能用」只由 `ThemeManager.canUse` / `unlock` 两处判定，视图不感知开关。`-DAPPSTORE` 与它是两回事，只决定沙盒、签名身份和产物格式（见 4.7）。
-- `palette.chart` 约定：**下标 4 恒为「其他已用」兜底色**，必须是整套里最弱的一支（灰 / 低饱和）——它常年是环形仪表最大的一段，抢色就把整张图糊了。
+- `palette.chart` 约定：**下标 4 恒为兜底色**，必须是整套里最弱的一支（灰 / 低饱和）——总览环形的
+  「其他已统计」用它，那一段可以很大，抢色就把前三名的柱子糊了。「未覆盖区域」用 `inkTertiary`，
+  因为它不是量出来的东西，不该占一个真实色相。
 - macOS 13 的 `ScrollView` 会把**内容的完整高度**当成自己的理想尺寸上报。页面里再套 `ScrollView`/`List`，detail 列会胀到一千多磅、整页被顶出窗口。规矩：**每页只有一个滚动容器**，列表行用 `LazyVStack` 自绘卡片。
 
 ### 4.3 安全铁律（产品立身之本，任何需求不得违反）
 
 - 全 App 唯一删除路径是 `trashItem()`（`FileManager.trashItem`，只进废纸篓）；
 - `isProtected()` 路径（家目录本体、`~/Library` 等）整体不可删，里面的子项可以；
+- `isDeletable()` 划出能动手的位置（家目录 + 装 App 的目录）。整盘扫描会把系统区摆上列表，
+  但那些行只算账不伸手：勾选框锁死、带「系统区」标记，展开还有一句为什么不动它（见 4.8）；
 - 清空废纸篓必须走访达（`emptyTrashViaFinder`，AppleScript，系统再确认一次）；
 - Docker 页只读不删（镜像/卷活在虚拟盘里，没有独立路径，只指路）。
 
@@ -184,17 +192,45 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 用户改主意或书签失效都能就地重来，不用删 App。`DISKWISE_HOME_SHIM` 的优先级仍高于授权结果
 （见 4.5），截图链路不受沙盒改造影响。
 
+### 4.8 扫描范围：算账的范围和动手的范围是两件事
+
+这产品卖的是「大文件」，那只看 `~/Downloads` 就是虚假承诺：在一台 434 GB 的盘上，以前写死的六个
+家目录子夹只覆盖约 20 GB，用户照着列表清完盘还是满的。所以范围是一等公民，`ScanScope.swift` 一处定义：
+
+- `ScanScope.user` 家目录（含隐藏项）+ 装 App 的目录 —— 沙盒版能稳定拿到的最大范围，也是商店版默认。
+- `ScanScope.disk` 再加 `systemScanRoots()` 白名单：`/Applications`、`/Library`、`/opt`、`/private`、
+  `/Users/Shared`、`/usr/local`。**白名单不是从 `/` 往下爬**：`/System` 是只读密封卷（SIP，扫它等于
+  白跑十几 GB）、`/Volumes` 会挂进外置盘和时间机器备份盘、`/dev` 是设备结点的家。root-only 的目录
+  不用列黑名单——`contentsOfDirectory` 失败就跳过，但**读不到不等于 0**，这类路径只能进「未覆盖」，
+  不能进「已统计」。
+- 开源版默认 `.disk`，商店版默认 `.user`（`AppStore.storedScope()`），存在 `diskwise.scanScope`。
+  `setScope` 在沙盒里把 `.disk` 回落成 `.user`，不给界面留一个扫不动的选项。
+- **改范围要自增 `AppStore.scanEpoch`**，各扫描页 `.onChange(of: store.scanEpoch)` 重跑。少了这一步，
+  切完范围看到的还是旧范围的结果，而页头的范围标签已经换成新的了——那才是真的骗人。
+- 每页页头贴本次范围（`范围：用户区` / `范围：整盘`），总览环形底下常驻一句「未覆盖」的去向。
+  node_modules 与 Docker 两页**不吃**这个开关（理由写在 `findNodeModules` 的注释里）：前者标死
+  「范围：用户区」，后者只对着一个数据目录，没有范围可谈。
+- **跨卷守卫按根算**：`dirSize` 和 `walkFiles` 都先取根的 `st_dev`，遇到卷号不同的目录就停。
+  APFS 上 `/`、`/Applications`、`/Users` 因 firmlink 共享同一个 `st_dev`，所以这条守卫不会把
+  整盘切成一堆碎片，只挡住真正挂载在别处的卷。
+- **根套根要剪掉**：`walkFiles` 开走前算好「哪些别的根就在我底下」，走到就跳过，那块由它自己
+  当根去扫。演示树把整盘根全挪进假家目录，不剪的话同一份文件走两遍：列表按 path 作 `ForEach`
+  的 id，第二条只占行高不画字，重复文件页还会把一份内容算成两组（实测一次整盘扫描多报 29 条）。
+- **算到 ≠ 删得动**：`isDeletable()` 只认家目录与装 App 的目录。整盘扫出来的系统区条目照样列
+  （那是账），但勾选框锁死 + 「系统区」标记 + 展开说明。重复文件页更硬：候选先 `filter(\.deletable)`，
+  因为对 root 文件做一次全量哈希再告诉用户「删不了」是纯浪费。
+
 ---
 
 ## 5. 功能清单（侧边栏 10 + 1 页）
 
 | 页 | 后端 | 说明 |
 |---|---|---|
-| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中）；只读定位，每行「访达显示 / 深挖」。再进来只刷余量，热点体积用缓存（见 4.6） |
-| 大文件 | `walkFiles(top: 200)` | 可跳开发目录，支持总览定向范围；「前 N」只在候选集上重切，不重扫 |
-| 很久没动 | `walkFiles(olderThan:)` | 只看下载 + 桌面，天数可调；日期过滤在遍历里做，不收全量数组 |
-| 重复文件 | 大小 → 部分哈希 → 全量哈希 | 每组最早一份锁定保留 |
-| node_modules | 全盘两段式 | 按项目聚合；大盘很慢，无流式快照（见 §7） |
+| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中，各段加起来正好等于整块盘）；页头有「用户区 / 整盘」范围开关，环形下方常驻一句覆盖范围说明；只读定位，每行「访达显示 / 深挖」。再进来只刷余量，热点体积用缓存（见 4.6） |
+| 大文件 | `walkFiles(top: 200)` | 按范围根遍历（见 4.8），可跳开发目录，支持总览定向范围；「前 N」只在候选集上重切，不重扫 |
+| 很久没动 | `walkFiles(olderThan:)` | 与大文件同一批范围根，天数可调；日期过滤在遍历里做，不收全量数组 |
+| 重复文件 | 大小 → 部分哈希 → 全量哈希 | 每组最早一份锁定保留；候选先过 `isDeletable`，系统区的重复不进这一页 |
+| node_modules | 用户区两段式 | 按项目聚合；刻意不吃「整盘」开关（见 4.8）；大盘很慢，无流式快照（见 §7） |
 | Docker | 只读 CLI / 目录回退 | 无删除键 |
 | 缓存清理 | `safety_db.json` + glob | 每项四元组解释（这是什么 / 删了会怎样 / 怎么恢复 / 风险等级）；**条目重叠不可加总**，UI 已不加总 |
 | 卸载残留 | Info.plist 基准 + denylist | 以已装 App 为基准找孤儿，宁可漏报 |

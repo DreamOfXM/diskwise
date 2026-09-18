@@ -78,14 +78,21 @@ permission, and it runs against a synthetic home folder so no real files appear:
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
 defaults write com.dreamofxm.diskcleaner diskcleaner.language en
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
+  DISKWISE_DEMO_USAGE=128:12 \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 ```
 
-Two knobs narrow a run so you're not re-rendering 13 pages to look at one:
+Four knobs narrow a run so you're not re-rendering 13 pages to look at one:
 
 - `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
 - `DISKWISE_WIN=1280x1543` — window size, default `1280x820`. Raise the height for long
   scrolling pages, otherwise the shot just cuts off mid-card.
+- `DISKWISE_DEMO_USAGE=128:12` — pin the reported volume as `<total GiB>:<free GiB>`. Only
+  honoured with a demo home. Without it the Overview ring reads your real disk, so the
+  headline numbers differ per machine and the shots aren't reproducible.
+- `DISKWISE_SCOPE=user|disk` — which scan scope the run starts on. A demo home never reads or
+  writes your saved preference (otherwise the README would depend on what the author last
+  clicked), and without this it just takes the channel default.
 
 English copy runs ~30% wider than Chinese, so check **both** languages — a lot of layout bugs are
 only visible in one of them.
