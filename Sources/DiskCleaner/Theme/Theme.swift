@@ -186,6 +186,9 @@ extension Theme {
         }
     }
 
+    /// 浅底图标块的底色浓度：深色皮肤要给得多一点，否则同色 glyph 浮不出来
+    func tileWash(dark: Bool) -> Double { dark ? 0.22 : 0.14 }
+
     /// 品牌光谱：顺序与侧边栏条目一一对应，深浅两版保证深色皮肤上不发闷
     static let spectrumLight: [Color] = [
         Color(hex: 0x2A62D6), Color(hex: 0xE0762A), Color(hex: 0x7B4FC9),

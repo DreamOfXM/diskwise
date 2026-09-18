@@ -50,6 +50,14 @@ func trashedNotice(_ ok: Int, _ unit: String, failed: Int) -> String {
     return s
 }
 
+/// 行内路径：家目录缩成 ~。整条 /Users/名字/… 又长又把人用户名印在每行上，
+/// 而认一个条目靠的从来是尾段（~/Library/Caches/Google）。展开行里仍给全路径。
+func displayPath(_ url: URL) -> String {
+    let p = url.path
+    let home = homePath()
+    return p.hasPrefix(home + "/") ? "~" + p.dropFirst(home.count) : p
+}
+
 // MARK: - 徽章数据
 
 struct ItemBadge {
@@ -305,13 +313,24 @@ struct ControlStrip<Content: View, Trailing: View>: View {
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
-        HStack(spacing: 10) {
-            content()
-            Spacer(minLength: 0)
-            trailing()
+        // 一行装得下就一行；装不下让状态文字换到上一行，而不是把英文句子截成
+        // 「Found 5 duplicate gro…」。状态文字必须 fixedSize 才能报出真实宽度，
+        // 否则 HStack 永远「装得下」（Text 会自己截断），第二档永远轮不到。
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                content().fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
+                trailing()
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) { content() }
+                HStack(spacing: 10) { Spacer(minLength: 0); trailing() }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .font(theme.bodyFont(.callout))
         .foregroundStyle(theme.palette.inkSecondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -346,6 +365,7 @@ struct ScanControl: View {
 struct ThemeStepper: View {
     @Environment(\.theme) private var theme
     var label: String
+    var unit: String? = nil
     var value: Binding<Int>
     var range: ClosedRange<Int>
     var step: Int = 1
@@ -372,6 +392,16 @@ struct ThemeStepper: View {
             stepButton("plus", enabled: value.wrappedValue < range.upperBound) {
                 value.wrappedValue = min(range.upperBound, value.wrappedValue + step)
                 onCommit?()
+            }
+            // 单位放进框里：挂在框外面的「天 / MB」小胶囊会被读成另一个控件，
+            // 而且它是文案不是徽章，英文下还会把整行顶到窗口边。
+            if let unit {
+                hairline
+                Text(unit)
+                    .font(theme.bodyFont(.callout))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .padding(.horizontal, 10)
+                    .fixedSize()
             }
         }
         .frame(height: 30)

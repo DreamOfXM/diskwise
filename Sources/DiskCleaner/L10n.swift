@@ -67,7 +67,7 @@ enum L10n {
 
     /// 当前实际生效的语言。切换由 AppStore.setLanguage 走 apply，
     /// 改完还要发布一次状态让界面重画——所以它不是常量。
-    static var active: AppLanguage = resolve(choice)
+    static var active: AppLanguage = resolve(SnapshotMode.requestedLang ?? choice)
 
     /// 换词表：下一次取文案就生效
     static func apply(_ lang: AppLanguage) { active = resolve(lang) }

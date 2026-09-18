@@ -14,9 +14,8 @@ import SwiftUI
 // 默认（false）则全部可用。
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
-//   defaults write com.dreamofxm.diskcleaner diskcleaner.language en
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
-//     DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
+//     DISKWISE_SKIN=dawn DISKWISE_LANG=en ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
 // 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
 // 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
@@ -27,6 +26,39 @@ enum SnapshotMode {
         let raw = ProcessInfo.processInfo.environment["DISKWISE_SHOTS"] ?? ""
         guard !raw.isEmpty else { return nil }
         return (raw as NSString).expandingTildeInPath
+    }
+
+    /// DISKWISE_PANEL=<页名>：正常启动（不是截图模式）时直接落在某一页。
+    /// 验窗口外框必须走这个——截图模式自己开窗口只拍 contentView，
+    /// 红绿灯压住导航、标题栏重影这类缺陷在截图里结构性地看不见。
+    static var requestedPanel: AppPanel? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_PANEL"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        guard !raw.isEmpty else { return nil }
+        return AppPanel.allCases.first { String(describing: $0).lowercased() == raw }
+    }
+
+    /// DISKWISE_SKIN=<皮肤 id>：正常启动时也用这套皮肤。
+    /// 同 DISKWISE_PANEL：验外框/对比度要真窗口，而浅皮看不出「内容有没有顶到窗口边」。
+    static var requestedSkinID: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_SKIN"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        guard !raw.isEmpty, requestedDir == nil else { return nil }
+        return raw
+    }
+
+    /// DISKWISE_LANG=en|zh|auto：覆盖已存的语言选择，截图模式和正常启动都认。
+    /// 不走 `defaults write`：沙盒包里 App 读的是容器里那份 plist，命令行写进去的那份
+    /// 它看不见——批量截双语图时这条才是确定的。
+    static var requestedLang: AppLanguage? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_LANG"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        switch raw {
+        case "en", "english": return .en
+        case "zh", "zh-hans", "chinese": return .zhHans
+        case "auto", "system": return .system
+        default: return nil
+        }
     }
 
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
@@ -51,15 +83,19 @@ enum SnapshotMode {
         AppLanguage(rawValue: ProcessInfo.processInfo.environment["DISKWISE_LANG_FLIP"] ?? "")
     }
 
-    /// 截图窗口尺寸：默认 1280x820。皮肤页那种长页用 DISKWISE_WIN=1280x1543 拉高。
-    /// 数值不合理就整体退回默认，别打错一个字符就拍出一张没法用的图。
-    private static var windowSize: NSSize {
-        let fallback = NSSize(width: 1280, height: 820)
+    /// DISKWISE_WIN=1280x820：正常启动时也用这个尺寸开窗。真窗口截图要固定画幅，
+    /// 而皮肤页那种长页一屏装不下。数值不合理就当没写，别打错一个字符拍出一张没用的图。
+    static var requestedWindowSize: NSSize? {
         let raw = ProcessInfo.processInfo.environment["DISKWISE_WIN"] ?? ""
         let parts = raw.lowercased().split(separator: "x").compactMap { Int($0) }
         guard parts.count == 2, (900...2400).contains(parts[0]), (500...2600).contains(parts[1])
-        else { return fallback }
+        else { return nil }
         return NSSize(width: parts[0], height: parts[1])
+    }
+
+    /// 截图窗口尺寸：默认 1280x820，DISKWISE_WIN 覆盖。
+    private static var windowSize: NSSize {
+        requestedWindowSize ?? NSSize(width: 1280, height: 820)
     }
 
     @MainActor

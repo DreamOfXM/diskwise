@@ -70,16 +70,9 @@ struct DupView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "square.on.square", title: L("双胞胎，只留一个"),
-                           subtitle: L("每组最早的那份永远保留，动其余的")) {
-                    ThemeStepper(label: "≥", value: $model.minMB, range: 5...500, step: 5) {
-                        model.scan()
-                    }
-                    ThemeBadge(text: "MB", tone: .neutral)
-                    ThemeButton(kind: .secondary, symbol: "checkmark.rectangle.stack",
-                                title: L("全选多余"),
-                                isDisabled: model.groups.isEmpty) { model.selectAllButFirst() }
-                }
+                PageHeader(symbol: "square.on.square", title: L("重复文件"),
+                           subtitle: L("每组最早的那份永远保留，动其余的"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: model.progress.isEmpty ? L("正在比对…") : model.progress)
@@ -88,17 +81,23 @@ struct DupView: View {
                                 cnt(model.groups.count, "组重复"), human(model.waste)))
                     }
                 } trailing: {
+                    ThemeStepper(label: "≥", unit: "MB", value: $model.minMB,
+                                 range: 5...500, step: 5) { model.scan() }
+                    ThemeButton(kind: .secondary, symbol: "checkmark.rectangle.stack",
+                                title: L("全选多余"),
+                                isDisabled: model.groups.isEmpty) { model.selectAllButFirst() }
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.groups.isEmpty {
                 EmptyState(symbol: "checklist", title: L("没有重复文件"),
-                           hint: L("阈值调低会更严格，但也更慢"))
+                           hint: LF("%1$@以上的都查过了，调低还能再找些小的，但更慢",
+                                    "\(model.minMB) MB"))
                     .frame(maxHeight: .infinity)
             } else {
                 List(model.groups) { g in
@@ -112,7 +111,6 @@ struct DupView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("重复文件"))
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
@@ -296,8 +294,9 @@ struct OrphansView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "app.badge", title: L("走了，还留东西"),
-                           subtitle: L("App 卸载了，数据没带走——按已装应用逐一对过"))
+                PageHeader(symbol: "app.badge", title: L("卸载残留"),
+                           subtitle: L("App 卸载了，数据没带走——按已装应用逐一对过"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在盘点已装应用、对孤儿…"))
@@ -314,7 +313,7 @@ struct OrphansView: View {
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.items.isEmpty {
@@ -344,7 +343,6 @@ struct OrphansView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("卸载残留"))
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",

@@ -44,6 +44,11 @@ final class ThemeManager: ObservableObject {
         let unlocked = Set(defaults.stringArray(forKey: Keys.unlocked) ?? [])
         unlockedPremiumIDs = unlocked
         current = Self.usable(candidate, unlocked: unlocked) ? candidate : .dawn
+        // 逐屏实拍要用深色/玻璃皮验外框，但偏好里存的是浅皮：给个环境变量入口，
+        // 只在正常启动时生效（截图模式自己注入 Theme，走不到这里）。
+        if let forced = SnapshotMode.requestedSkinID, let skin = Theme.byID(forced) {
+            current = skin
+        }
         if let raw = defaults.string(forKey: Keys.forcedScheme) {
             forcedScheme = raw == "dark" ? .dark : (raw == "light" ? .light : nil)
         }

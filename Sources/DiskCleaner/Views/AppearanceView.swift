@@ -24,7 +24,7 @@ struct AppearanceView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
-                PageHeader(symbol: "paintpalette", title: L("换件衣服"),
+                PageHeader(symbol: "paintpalette", title: L("外观皮肤"),
                            subtitle: Channel.showsPricing
                              ? L("免费三套随便穿；付费三套连骨架都不一样")
                              : L("六套皮肤，连骨架都不一样"),
@@ -53,10 +53,9 @@ struct AppearanceView: View {
                 .themedList()
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("外观皮肤"))
         .sheet(item: $paywallSkin) { skin in
             PaywallSheet(skin: skin)
                 .themed(theme)   // 付费墙跟随当前皮肤，别在切过去那一刻跳色
@@ -217,9 +216,10 @@ private struct SkinCard: View {
                                 title: L("试穿"), action: onTry)
                     ThemeButton(kind: .primary, symbol: "lock.open",
                                 title: L("解锁"), action: onTap)
-                } else {
-                    ThemeButton(kind: .compact, title: isSelected ? L("当前") : L("使用"),
-                                isDisabled: isSelected) { onTap() }
+                } else if !isSelected {
+                    // 正在用的那张卡不给按钮：上一屏同时挂着「使用中」徽章和一颗禁用的「当前」，
+                    // 同一个状态说两遍，而禁用按钮看起来像坏了。状态归徽章，动作归按钮。
+                    ThemeButton(kind: .compact, title: L("使用"), action: onTap)
                 }
             }
             .padding(.top, 10)
@@ -237,9 +237,9 @@ private struct SkinCard: View {
         .scaleEffect(hovering ? 1.008 : 1)
         .animation(theme.animation, value: hovering)
         .onHover { hovering = $0 }
-        .contentShape(theme.cardShape())
-        .onTapGesture { if !locked { onTap() } }
-        .accessibilityElement(children: .combine)
+        // contain，不是 combine：combine 会把卡里的「使用/试穿/解锁」并成一个元素，
+        // 旁白就只剩一张读得出来、点不动的卡。
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(a11yLabel)
     }
 }

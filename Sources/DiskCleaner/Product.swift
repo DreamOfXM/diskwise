@@ -35,9 +35,8 @@ enum Contact {
 // `CHANNEL=appstore bash build_app/build.sh` 会带上 `-DAPPSTORE`：Mac App Store 必须进沙盒，
 // 证书和产物格式也跟直链分发不同（两张证书不能互换，见 docs/RELEASE.md）。
 //
-// `showsPricing` 是另一回事，它只决定「皮肤按可用性分组 + 付费墙」是否渲染：为 false 时六套
-// 皮肤一律可用，`Theme.tier` 不参与判定，付费墙不会渲染。两个渠道当前都是 false
-// ——挂着「解锁」按钮却直接放行是审核指南 2.1 的明确拒点，所以要等内购真的接上才能翻。
+// `showsPricing` 是另一回事，它只决定「皮肤按可用性分组 + 解锁入口」是否渲染：当前两个渠道都是
+// false，六套皮肤一律可用，`Theme.tier` 不参与判定，也不渲染任何解锁入口。
 
 enum Channel {
     #if APPSTORE

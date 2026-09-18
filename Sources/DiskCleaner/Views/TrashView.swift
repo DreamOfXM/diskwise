@@ -14,102 +14,107 @@ struct TrashView: View {
     @State private var message: String? = nil
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                PageHeader(symbol: "trash", title: L("最后一道门"),
-                           subtitle: L("东西都在这躺着，后悔药管够——清空才真没"),
-                           variant: .display)
+        VStack(spacing: 0) {
+            PageHeader(symbol: "trash", title: L("废纸篓"),
+                       subtitle: L("东西都在这躺着，后悔药管够——清空才真没"),
+                       variant: .display)
+                .pagePadding()
+                .padding(.top, 14)
+                .padding(.bottom, 2)
 
-                HStack(alignment: .top, spacing: 14) {
-                    ThemedCard {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(L("废纸篓现在"))
-                                .font(theme.bodyFont(.caption))
-                                .foregroundStyle(theme.palette.inkSecondary)
-                            Text(sizeText)
-                                .font(theme.numeric(.largeTitle))
-                                .monospacedDigit()
-                                .foregroundStyle(theme.palette.ink)
-                            if measuring {
-                                Text(L("正在数过每一个条目…"))
-                                    .font(theme.bodyFont(.caption2))
-                                    .foregroundStyle(theme.palette.inkTertiary)
-                            } else if let info {
-                                Text(cnt(info.items, "项"))
-                                    .font(theme.bodyFont(.caption2))
-                                    .foregroundStyle(theme.palette.inkTertiary)
-                            } else {
-                                Text(L("这里读不到，以访达为准"))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 14) {
+                        ThemedCard {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L("废纸篓现在"))
+                                    .font(theme.bodyFont(.caption))
+                                    .foregroundStyle(theme.palette.inkSecondary)
+                                Text(sizeText)
+                                    .font(theme.numeric(.largeTitle))
+                                    .monospacedDigit()
+                                    .foregroundStyle(theme.palette.ink)
+                                if measuring {
+                                    Text(L("正在数过每一个条目…"))
+                                        .font(theme.bodyFont(.caption2))
+                                        .foregroundStyle(theme.palette.inkTertiary)
+                                } else if let info {
+                                    Text(cnt(info.items, "项"))
+                                        .font(theme.bodyFont(.caption2))
+                                        .foregroundStyle(theme.palette.inkTertiary)
+                                } else {
+                                    Text(L("这里读不到，以访达为准"))
+                                        .font(theme.bodyFont(.caption2))
+                                        .foregroundStyle(theme.palette.inkTertiary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        ThemedCard {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L("本次移入"))
+                                    .font(theme.bodyFont(.caption))
+                                    .foregroundStyle(theme.palette.inkSecondary)
+                                Text(human(store.trashedBytes))
+                                    .font(theme.numeric(.largeTitle))
+                                    .monospacedDigit()
+                                    .foregroundStyle(theme.palette.ink)
+                                Text(LF("%@可撤销", cnt(store.trashHistory.count, "项")))
                                     .font(theme.bodyFont(.caption2))
                                     .foregroundStyle(theme.palette.inkTertiary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    ThemedCard {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(L("本次移入"))
-                                .font(theme.bodyFont(.caption))
-                                .foregroundStyle(theme.palette.inkSecondary)
-                            Text(human(store.trashedBytes))
-                                .font(theme.numeric(.largeTitle))
-                                .monospacedDigit()
-                                .foregroundStyle(theme.palette.ink)
-                            Text(LF("%@可撤销", cnt(store.trashHistory.count, "项")))
-                                .font(theme.bodyFont(.caption2))
-                                .foregroundStyle(theme.palette.inkTertiary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
 
-                ThemedCard {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "shield.checkerboard")
-                            .font(.system(size: 14))
-                            .foregroundStyle(theme.palette.tint)
-                        Text(L("本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——那一步交给访达，系统会再拦你一次。"))
+                    ThemedCard {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "shield.checkerboard")
+                                .font(.system(size: 14))
+                                .foregroundStyle(theme.palette.tint)
+                            Text(L("本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——那一步交给访达，系统会再拦你一次。"))
+                                .font(theme.bodyFont(.callout))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    HStack(spacing: 10) {
+                        ThemeButton(kind: .secondary, symbol: "folder",
+                                    title: L("访达中打开")) { openTrashInFinder() }
+                        ThemeButton(kind: .secondary, symbol: "arrow.clockwise",
+                                    title: L("重新统计")) { refresh() }
+                        ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward",
+                                    title: L("撤销上次"),
+                                    isDisabled: store.trashHistory.isEmpty) {
+                            message = store.undoLast()
+                            refresh()
+                        }
+                        Spacer()
+                        ThemeButton(kind: .danger, symbol: "flame",
+                                    title: L("清空废纸篓"),
+                                    isDisabled: info?.items == 0) { confirmEmpty = true }
+                    }
+
+                    if let m = message {
+                        Text(m)
                             .font(theme.bodyFont(.callout))
                             .foregroundStyle(theme.palette.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
-                HStack(spacing: 10) {
-                    ThemeButton(kind: .secondary, symbol: "folder",
-                                title: L("访达中打开")) { openTrashInFinder() }
-                    ThemeButton(kind: .secondary, symbol: "arrow.clockwise",
-                                title: L("重新统计")) { refresh() }
-                    ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward",
-                                title: L("撤销上次"),
-                                isDisabled: store.trashHistory.isEmpty) {
-                        message = store.undoLast()
-                        refresh()
+                    if !store.trashHistory.isEmpty {
+                        SectionLabel(text: L("本次操作记录"), detail: L("从新到旧"))
+                        historyList
                     }
-                    Spacer()
-                    ThemeButton(kind: .danger, symbol: "flame",
-                                title: L("清空废纸篓"),
-                                isDisabled: info?.items == 0) { confirmEmpty = true }
                 }
-
-                if let m = message {
-                    Text(m)
-                        .font(theme.bodyFont(.callout))
-                        .foregroundStyle(theme.palette.inkSecondary)
-                }
-
-                if !store.trashHistory.isEmpty {
-                    SectionLabel(text: L("本次操作记录"), detail: L("从新到旧"))
-                    historyList
-                }
+                .pagePadding()
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .pagePadding()
-            .padding(.top, 18)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle(L("废纸篓"))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { refresh() }
         .onDisappear { measureTask?.cancel() }
         .alert(L("清空废纸篓？"), isPresented: $confirmEmpty) {

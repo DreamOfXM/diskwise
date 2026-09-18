@@ -42,8 +42,9 @@ struct NMView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "shippingbox", title: L("依赖能重装，空间先拿回"),
-                           subtitle: L("删了跑不起来？npm install 一把梭"))
+                PageHeader(symbol: "shippingbox", title: L("node_modules"),
+                           subtitle: L("依赖能重装，空间先拿回"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在全盘找 node_modules…"))
@@ -56,7 +57,7 @@ struct NMView: View {
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.items.isEmpty {
@@ -85,7 +86,6 @@ struct NMView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle("node_modules")
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@的依赖（%2$@）移入废纸篓。",
@@ -205,8 +205,9 @@ struct DockerView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "cube", title: L("鲸鱼肚子里看看"),
-                           subtitle: L("只看不删——照指路去 Docker Desktop 里动手"))
+                PageHeader(symbol: "cube", title: L("Docker 占用"),
+                           subtitle: L("只看不删——照指路去 Docker Desktop 里动手"),
+                           variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在问 Docker 都吃了啥…"))
@@ -220,7 +221,7 @@ struct DockerView: View {
                 }
             }
             .pagePadding()
-            .padding(.top, 18)
+            .padding(.top, 14)
             .padding(.bottom, 12)
 
             if !model.scanning && model.items.isEmpty {
@@ -236,7 +237,6 @@ struct DockerView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .navigationTitle(L("Docker 占用"))
         .onAppear { if !model.started { model.scan() } }
     }
 
