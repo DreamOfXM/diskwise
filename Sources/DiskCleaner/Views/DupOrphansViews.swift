@@ -11,23 +11,30 @@ final class DupModel: ObservableObject {
     @Published var progress = ""
     @Published var minMB = 20
     @Published var selection: Set<String> = []   // 选中待删的文件 path
+    /// 本轮实际用的范围，页头贴标签用
+    @Published private(set) var scope: ScanScope = .user
     @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var waste: Int64 { groups.reduce(0) { $0 + $1.waste } }
     var selectedCount: Int { selection.count }
 
-    func scan() {
+    func scan(scope: ScanScope) {
         task?.cancel()
         scanning = true
         started = true
+        self.scope = scope
         groups = []
         selection = []
         let minB = Int64(minMB) * 1024 * 1024
+        let targets = defaultScanDirs(scope: scope)
         task = Task {
             self.progress = L("遍历文件…")
-            let files = await walkFiles(dirs: defaultScanDirs(), minSize: minB,
-                                        skipNames: ["node_modules", ".git", "Caches"]).rows
+            // 只留下我们删得动的：整盘扫描会走进 /Library、/opt 这些 root 地盘，
+            // 那些重复归包管理器管，列出来只会让用户去点一个注定失败的勾选框。
+            let files = await walkFiles(dirs: targets, minSize: minB,
+                                        skipNames: ["node_modules", ".git", "Caches"])
+                .rows.filter(\.deletable)
             if Task.isCancelled { return }
             self.progress = LF("比对内容（%@ 个候选）…", String(files.count))
             // 哈希是同步重活，扔后台线程做
@@ -80,21 +87,25 @@ struct DupView: View {
                         Text(LF("发现 %1$@，可收回约 %2$@",
                                 cnt(model.groups.count, "组重复"), human(model.waste)))
                     }
+                    ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                               tone: .neutral, symbol: "scope")
                 } trailing: {
                     ThemeStepper(label: "≥", unit: "MB", value: $model.minMB,
-                                 range: 5...500, step: 5) { model.scan() }
+                                 range: 5...500, step: 5) { model.scan(scope: store.scope) }
                     ThemeButton(kind: .secondary, symbol: "checkmark.rectangle.stack",
                                 title: L("全选多余"),
                                 isDisabled: model.groups.isEmpty) { model.selectAllButFirst() }
                     ScanControl(scanning: model.scanning,
-                                rescan: { model.scan() }, stop: { model.stop() })
+                                rescan: { model.scan(scope: store.scope) }, stop: { model.stop() })
                 }
             }
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            if !model.scanning && model.groups.isEmpty {
+            if model.scanning && model.groups.isEmpty {
+                scanningState(scope: model.scope)
+            } else if !model.scanning && model.groups.isEmpty {
                 EmptyState(symbol: "checklist", title: L("没有重复文件"),
                            hint: LF("%1$@以上的都查过了，调低还能再找些小的，但更慢",
                                     "\(model.minMB) MB"))
@@ -111,7 +122,8 @@ struct DupView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .onAppear { if !model.started { model.scan() } }
+        .onAppear { if !model.started { model.scan(scope: store.scope) } }
+        .onChange(of: store.scanEpoch) { _ in model.scan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
                                cnt(model.selectedCount, "个多余副本"))) {

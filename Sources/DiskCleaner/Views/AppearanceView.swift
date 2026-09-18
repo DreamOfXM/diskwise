@@ -397,8 +397,8 @@ private struct LanguagePicker: View {
     }
 }
 
-/// 图标 + 文字的分段选择条（明暗和语言共用一个长相）
-private struct SegmentedStrip: View {
+/// 图标 + 文字的分段选择条（明暗、语言、扫描范围共用一个长相）
+struct SegmentedStrip: View {
     @Environment(\.theme) private var theme
     var symbols: [String]
     var labels: [String]

@@ -123,9 +123,14 @@ public func isProtected(_ url: URL) -> Bool {
     return protectedPaths().contains(p)
 }
 
-public func inAllowedRoot(_ url: URL) -> Bool {
+/// 我们能动手的范围：家目录与 /Applications（演示模式下后者在假树里）。
+///
+/// 整盘扫描会把系统区的大文件也摆上列表——那是账，不是活儿：那些位置要么只有管理员写得动，
+/// 要么是 Homebrew / Xcode 自己的地盘，它们的清理命令比这个按钮靠谱。所以这类行只展示、
+/// 勾选框锁死；删除路径仍然只有 trashItem 这一条。
+public func isDeletable(_ url: URL) -> Bool {
     let p = url.standardizedFileURL.path
     let home = homePath()
-    return p == home || p.hasPrefix(home + "/") || p == "/Applications"
-        || p.hasPrefix("/Applications/")
+    let apps = applicationsDir()
+    return p == home || p.hasPrefix(home + "/") || p == apps || p.hasPrefix(apps + "/")
 }

@@ -54,13 +54,14 @@ It is built for machines that have been used by a developer for a few years — 
 ## What you get
 
 **See the space**
-- **Overview** — a segmented ring gauge of what actually occupies the volume, plus the fattest folders, each with *Reveal* and *Dig in*.
-- **Large Files** — top N across any folder, dev directories skippable.
-- **Long Untouched** — files in Downloads and Desktop you haven't opened in N days.
+- **Overview** — a segmented ring gauge whose slices add up to the whole volume (top folders + everything else counted + not covered + free), plus the fattest folders, each with *Reveal* and *Dig in*.
+- **Scan scope** — *User area* or *Whole disk*, one switch on the overview. The sweep covers the volume, not just the tidy corners of your home folder.
+- **Large Files** — top N across whatever scope you picked, dev directories skippable.
+- **Long Untouched** — files you haven't opened in N days, across the same roots.
 - **Duplicates** — size → partial hash → full hash, grouped, oldest copy locked so you can't nuke the only one.
 
 **Dev machine specials**
-- **node_modules** — whole-disk sweep grouped per project, so you see "these 3 checkouts cost 4.7 GB".
+- **node_modules** — project sweep grouped per project, so you see "these 3 checkouts cost 4.7 GB".
 - **Docker Usage** — read-only breakdown of the Docker Desktop data store, with the pointer on where to prune.
 
 **Clean up**
@@ -204,6 +205,9 @@ Honest list, because a cleanup tool earns trust by admitting what it can't do:
 - **No auto-update.** You get new versions from the Releases page or `brew upgrade`.
 - **Direct downloads are ad-hoc signed so far**, so the first launch needs right-click → Open.
   The Developer ID + notarization path is in `build.sh` and CI, waiting on a certificate.
+- **Whole-disk scope counts the system area, it does not clean it.** Rows under `/Library`, `/opt` or
+  `/private` come up with a *System area* badge and a locked checkbox: either only an admin can write
+  there, or the files belong to Homebrew / Xcode, whose own cleanup commands do a better job.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
@@ -269,13 +273,14 @@ DiskWise 押的是反面：
 ## 功能
 
 **看清空间**
-- **空间总览**：分段环形仪表 + 最占地方的文件夹，每行「访达显示 / 深挖」
-- **大文件**：TOP 可调，可跳过开发目录
-- **很久没动**：下载 + 桌面里 N 天没打开的文件
+- **空间总览**：分段环形仪表，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 未覆盖 + 可用）；下面列最占地方的文件夹，每行「访达显示 / 深挖」
+- **扫描范围**：总览页一个开关，「用户区 / 整盘」。扫描覆盖的是整块盘，不是家目录里那几处整洁的角落
+- **大文件**：按选定范围遍历，TOP 可调，可跳过开发目录
+- **很久没动**：同样这些根里，N 天没打开的文件
 - **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组最早一份锁定保留
 
 **开发机专项**
-- **node_modules**：全盘扫描按项目聚合，直接告诉你「这几个仓库共 4.7 GB」
+- **node_modules**：按项目聚合，直接告诉你「这几个仓库共 4.7 GB」
 - **Docker 占用**：Docker Desktop 数据目录只读明细 + 清理指路
 
 **清理**
@@ -398,6 +403,9 @@ GitHub、邮箱或 QQ 群的原因。
 - **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
 - **直链包目前都是 ad-hoc 签名**，首次打开要右键 → 打开一次；Developer ID + 公证那条链路
   已经在 `build.sh` 和 CI 里，缺一张证书
+- **「整盘」只负责把系统区算进账，不负责删它**：`/Library`、`/opt`、`/private` 里的行会带
+  「系统区」标记、勾选框锁死——那些位置要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，
+  用它们各自的清理命令比这个按钮安全
 - **node_modules 大盘扫描慢**，且还没有流式快照
 - **卸载残留刻意保守**，会漏报
 

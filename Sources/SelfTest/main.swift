@@ -79,6 +79,32 @@ do {
     check(false, "整体删 Documents 被拦：\(error.localizedDescription)")
 }
 
+// 4b. 可删范围：整盘扫描会把系统区摆上列表，但那些位置不是这个按钮的活儿
+check(isDeletable(homeDir().appendingPathComponent("Documents/x.iso")), "家目录里的文件可删")
+check(isDeletable(URL(fileURLWithPath: applicationsDir()).appendingPathComponent("Foo.app")),
+      "装 App 的目录可删")
+check(!isDeletable(URL(fileURLWithPath: "/Library/Developer/Xcode/DerivedData")), "系统区不可删")
+check(!isDeletable(URL(fileURLWithPath: "/opt/homebrew/lib/libfoo.dylib")), "Homebrew 目录不可删")
+do {
+    _ = try trashItem(URL(fileURLWithPath: "/Library/Caches"))
+    check(false, "删系统区应被拦")
+} catch let e as TrashError {
+    check(e.reasonKey == "超出允许范围（仅限家目录与 /Applications）",
+          "系统区被拦：\(e.reasonKey)")
+}
+
+// 4c. 扫描范围根：用户区 = 家目录 + /Applications；整盘再加系统白名单，且永远不碰 /System 和 /Volumes
+let userRoots = scanRoots(scope: .user)
+check(userRoots.contains(homeDir()), "用户区根含家目录")
+check(userRoots.contains(URL(fileURLWithPath: applicationsDir(), isDirectory: true)),
+      "用户区根含 /Applications（总览页算它，扫描页不能漏）")
+let diskRoots = scanRoots(scope: .disk)
+check(diskRoots.first == homeDir(), "整盘根的第一项仍是家目录")
+check(diskRoots.count > userRoots.count, "整盘根比用户区多（实得 \(diskRoots.count) 项）")
+check(!diskRoots.contains { $0.path.contains("/System") || $0.path.contains("/Volumes") },
+      "整盘根不含 /System 与 /Volumes")
+check(Set(diskRoots.map { $0.path }).count == diskRoots.count, "整盘根没有重复项")
+
 // 5. 移废纸篓 + 撤销（/tmp 文件，来回一遍再清掉）
 let src = fm.temporaryDirectory.appendingPathComponent("trashme-\(UUID().uuidString).txt")
 try! "hello".write(to: src, atomically: true, encoding: .utf8)
@@ -111,14 +137,20 @@ try! fm.createDirectory(at: dbase, withIntermediateDirectories: true)
 try! Data("same-content".utf8).write(to: dbase.appendingPathComponent("a.txt"))
 try! Data("same-content".utf8).write(to: dbase.appendingPathComponent("b.txt"))
 try! Data("different!!".utf8).write(to: dbase.appendingPathComponent("c.txt"))
+try! fm.createDirectory(at: dbase.appendingPathComponent("sub"), withIntermediateDirectories: true)
+try! Data("nested-file!".utf8).write(to: dbase.appendingPathComponent("sub/d.txt"))
 let sem2 = DispatchSemaphore(value: 0)
 Task {
     let r = await walkFiles(dirs: [dbase])
-    check(r.rows.count == 3 && r.matched == 3, "遍历到 3 个文件")
+    check(r.rows.count == 4 && r.matched == 4, "遍历到 4 个文件")
     let gs = findDupGroups(r.rows)
-    check(gs.count == 1 && gs[0].files.count == 2, "检出 1 组重复（a/b），c 不在其中")
+    check(gs.count == 1 && gs[0].files.count == 2, "检出 1 组重复（a/b），c、d 不在其中")
     let capped = await walkFiles(dirs: [dbase], top: 2)
-    check(capped.rows.count == 2 && capped.matched == 3, "top 2 只留两条，命中总数仍是 3")
+    check(capped.rows.count == 2 && capped.matched == 4, "top 2 只留两条，命中总数仍是 4")
+    // 根套根（演示树里整盘根全落在假家目录底下）：同一份文件只能算一次
+    let nested = await walkFiles(dirs: [dbase, dbase.appendingPathComponent("sub")])
+    check(nested.rows.count == 4, "嵌套根不重复计数（实得 \(nested.rows.count) 条）")
+    check(Set(nested.rows.map { $0.url.path }).count == nested.rows.count, "嵌套根交出来的路径不重复")
     try? fm.removeItem(at: dbase)
     sem2.signal()
 }

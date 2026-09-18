@@ -42,7 +42,20 @@
 "可用" = "Free";
 "可用不足 20GB，该动手了。先从下面最大的几块下手。" = "Under 20 GB free — time to act. Start with the biggest rows below.";
 "空间还算宽裕，看看下面谁最占地方。" = "Plenty of room left — see what's hogging it below.";
-"其他已用" = "Other used";
+"其他已统计" = "Other counted";
+"未覆盖区域" = "Not covered";
+"已量完 %1$d / %2$d" = "Measured %1$d / %2$d";
+"覆盖范围：你授权过的目录。系统区在沙盒里读不到，所以单列为「未覆盖」。" = "Scope: the folders you granted access to. The system area can't be read inside the sandbox, so it shows up as “not covered”.";
+"覆盖范围：家目录（含隐藏项）与 /Applications。剩下的「未覆盖」在系统区，切到「整盘」能多覆盖一块。" = "Scope: your home folder (hidden items included) and /Applications. The remaining “not covered” slice lives in the system area — switch to “Whole disk” to count more of it.";
+"覆盖范围：整块盘上普通用户可读的位置。剩下的「未覆盖」是系统卷和只有管理员能读的目录，不在清理范围内。" = "Scope: every location a regular user can read. The remaining “not covered” slice is system volumes and admin-only folders, which are off-limits for cleaning.";
+"扫描范围" = "Scan scope";
+"用户区" = "User area";
+"整盘" = "Whole disk";
+"范围：%@" = "Scope: %@";
+"系统区" = "System area";
+"这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。" = "We don't touch this spot: either only an admin can write to it, or it belongs to Homebrew / Xcode — their own cleanup command is the safer tool.";
+"正在扫描" = "Scanning";
+"范围「%@」，要把每个目录走一遍才出列表。" = "Scope “%@” — every folder has to be walked before the list appears.";
 "磁盘占用环形图：%@" = "Disk usage ring: %@";
 "访达显示" = "Reveal";
 "深挖" = "Dig in";
@@ -58,12 +71,12 @@
 "恢复默认" = "Reset scope";
 "还没扫到大文件" = "No large files yet";
 "点右上角重新扫描，或回总览换个目录深挖" = "Hit Rescan in the top right, or dig into another folder from the overview";
-"下载和桌面里，好久没碰的东西" = "Things in Downloads and Desktop you haven't touched in ages";
 "超过" = "Older than";
 "天" = "days";
+"扫过的地方里，好久没碰的东西" = "Long-untouched files, wherever the scan reached";
 "正在看哪些文件落灰…" = "Looking for files that gathered dust…";
+"扫过的地方很干净，保持住" = "Nothing dusty where we looked — keep it up";
 "没有落灰的文件" = "Nothing gathering dust";
-"下载和桌面很干净，保持住" = "Downloads and Desktop are tidy — keep it up";
 
 // ── 重复文件 ────────────────────────────────────────────────────────────────
 "每组最早的那份永远保留，动其余的" = "The oldest copy in each group is always kept";
@@ -81,7 +94,7 @@
 "保留" = "Kept";
 
 // ── node_modules ────────────────────────────────────────────────────────────
-"正在全盘找 node_modules…" = "Searching the whole disk for node_modules…";
+"正在翻项目目录找 node_modules…" = "Looking through your projects for node_modules…";
 "%1$@，共 %2$@" = "%1$@, %2$@ in total";
 "没找到 node_modules" = "No node_modules found";
 "这台机器大概不写前端" = "This machine probably doesn't do frontend";

@@ -12,6 +12,8 @@ final class BigFilesModel: ObservableObject {
     @Published var limit = 30
     @Published var skipDev = true
     @Published var scopeNote: String? = nil
+    /// 本轮实际用的范围，页头拿它贴标签：范围变了但没重扫时不能继续顶着旧标签说真话
+    @Published private(set) var scope: ScanScope = .user
     /// 本次会话里扫过没有——区分「还没扫」和「扫了但没有」
     @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
@@ -23,7 +25,7 @@ final class BigFilesModel: ObservableObject {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
 
     /// 总览跳过来的定向扫描；dirs == nil 回到默认范围
-    func scan(dirs: [URL]? = nil, note: String? = nil) {
+    func scan(scope: ScanScope, dirs: [URL]? = nil, note: String? = nil) {
         task?.cancel()
         scanning = true
         started = true
@@ -31,8 +33,9 @@ final class BigFilesModel: ObservableObject {
         all = []
         customDirs = dirs
         scopeNote = note
+        self.scope = scope
         let skip: Set<String> = skipDev ? ["node_modules", ".git", "Caches"] : []
-        let targets = dirs ?? defaultScanDirs()
+        let targets = dirs ?? defaultScanDirs(scope: scope)
         task = Task {
             let r = await walkFiles(dirs: targets, top: 200, skipNames: skip)
             if !Task.isCancelled {
@@ -44,7 +47,7 @@ final class BigFilesModel: ObservableObject {
         }
     }
 
-    func rescan() { scan(dirs: customDirs, note: scopeNote) }
+    func rescan(scope: ScanScope) { scan(scope: scope, dirs: customDirs, note: scopeNote) }
 
     func stop() { task?.cancel(); scanning = false }
 
@@ -88,24 +91,34 @@ struct BigFilesView: View {
                     }
                     if let note = model.scopeNote {
                         ThemeBadge(text: LF("只看 %@", note), tone: .tint, symbol: "scope")
-                        ThemeButton(kind: .compact, title: L("恢复默认")) { model.scan() }
+                        ThemeButton(kind: .compact, title: L("恢复默认")) {
+                            model.scan(scope: store.scope)
+                        }
+                    } else {
+                        ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                                   tone: .neutral, symbol: "scope")
                     }
                 } trailing: {
                     // 筛选控件放工具条右侧，不放页头：页头那一条要留给标题和副标题，
                     // 英文副标题一长就被控件挤到换行，控件自己也会顶出窗口边。
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.rescan() }
+                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) {
+                        model.rescan(scope: store.scope)
+                    }
                     ThemeStepper(label: L("前"), value: $model.limit, range: 10...200, step: 10) {
                         model.applyLimit()
                     }
                     ScanControl(scanning: model.scanning,
-                                rescan: { model.rescan() }, stop: { model.stop() })
+                                rescan: { model.rescan(scope: store.scope) },
+                                stop: { model.stop() })
                 }
             }
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            if !model.scanning && model.rows.isEmpty {
+            if model.scanning && model.rows.isEmpty {
+                scanningState(scope: model.scope)
+            } else if !model.scanning && model.rows.isEmpty {
                 EmptyState(symbol: "doc", title: L("还没扫到大文件"),
                            hint: L("点右上角重新扫描，或回总览换个目录深挖"))
                     .frame(maxHeight: .infinity)
@@ -115,7 +128,10 @@ struct BigFilesView: View {
                             name: r.name,
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
                             sizeText: human(r.size),
-                            fraction: Double(r.size) / Double(maxSize)) {
+                            fraction: Double(r.size) / Double(maxSize),
+                            badge: r.deletable ? nil : ItemBadge(text: L("系统区"), tone: .neutral),
+                            selectable: r.deletable,
+                            lockedHint: r.deletable ? nil : outsideScopeHint) {
                         PathLine(path: r.url.path)
                     }
                     .themedRow()
@@ -131,11 +147,12 @@ struct BigFilesView: View {
             // 总览跳过来的定向扫描只消费一次
             if let dir = store.bigScanDir {
                 store.bigScanDir = nil
-                model.scan(dirs: [dir], note: dir.lastPathComponent)
+                model.scan(scope: store.scope, dirs: [dir], note: dir.lastPathComponent)
             } else if !model.started {
-                model.scan()
+                model.scan(scope: store.scope)
             }
         }
+        .onChange(of: store.scanEpoch) { _ in model.rescan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),
@@ -175,6 +192,8 @@ final class OldFilesModel: ObservableObject {
     @Published var scanning = false
     @Published var days = 90
     @Published var skipDev = true
+    /// 本轮实际用的范围，页头贴标签用；范围变了没重扫时不能顶着旧标签说真话
+    @Published private(set) var scope: ScanScope = .user
     @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
@@ -182,23 +201,18 @@ final class OldFilesModel: ObservableObject {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
     var totalBytes: Int64 { rows.reduce(0) { $0 + $1.size } }
 
-    func scan() {
+    func scan(scope: ScanScope) {
         task?.cancel()
         scanning = true
         started = true
         rows = []
+        self.scope = scope
         let d = days
         let skip: Set<String> = skipDev ? ["node_modules", ".git", "Caches"] : []
+        let targets = defaultScanDirs(scope: scope)
         task = Task {
-            let home = homePath()
-            let dirs = ["Downloads", "Desktop"].compactMap { n -> URL? in
-                let u = URL(fileURLWithPath: home).appendingPathComponent(n)
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir), isDir.boolValue else { return nil }
-                return u
-            }
             let cutoff = Date().addingTimeInterval(Double(-d) * 86400)
-            let r = await walkFiles(dirs: dirs, olderThan: cutoff, top: 300, skipNames: skip)
+            let r = await walkFiles(dirs: targets, olderThan: cutoff, top: 300, skipNames: skip)
             if !Task.isCancelled {
                 self.rows = r.rows
                 self.scanning = false
@@ -220,7 +234,7 @@ struct OldFilesView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "clock", title: L("很久没动"),
-                           subtitle: L("下载和桌面里，好久没碰的东西"),
+                           subtitle: L("扫过的地方里，好久没碰的东西"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
@@ -228,23 +242,30 @@ struct OldFilesView: View {
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"), human(model.totalBytes)))
                     }
+                    ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                               tone: .neutral, symbol: "scope")
                 } trailing: {
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.scan() }
+                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) {
+                        model.scan(scope: store.scope)
+                    }
                     ThemeStepper(label: L("超过"), unit: L("天"),
                                  value: $model.days, range: 30...365, step: 30) {
-                        model.scan()
+                        model.scan(scope: store.scope)
                     }
                     ScanControl(scanning: model.scanning,
-                                rescan: { model.scan() }, stop: { model.stop() })
+                                rescan: { model.scan(scope: store.scope) },
+                                stop: { model.stop() })
                 }
             }
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            if !model.scanning && model.rows.isEmpty {
+            if model.scanning && model.rows.isEmpty {
+                scanningState(scope: model.scope)
+            } else if !model.scanning && model.rows.isEmpty {
                 EmptyState(symbol: "sparkle", title: L("没有落灰的文件"),
-                           hint: L("下载和桌面很干净，保持住"))
+                           hint: L("扫过的地方很干净，保持住"))
                     .frame(maxHeight: .infinity)
             } else {
                 List($model.rows) { $r in
@@ -252,7 +273,10 @@ struct OldFilesView: View {
                             name: r.name,
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
                             sizeText: human(r.size),
-                            fraction: Double(r.size) / Double(maxSize)) {
+                            fraction: Double(r.size) / Double(maxSize),
+                            badge: r.deletable ? nil : ItemBadge(text: L("系统区"), tone: .neutral),
+                            selectable: r.deletable,
+                            lockedHint: r.deletable ? nil : outsideScopeHint) {
                         PathLine(path: r.url.path)
                     }
                     .themedRow()
@@ -264,7 +288,8 @@ struct OldFilesView: View {
                      errorText: err) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .onAppear { if !model.started { model.scan() } }
+        .onAppear { if !model.started { model.scan(scope: store.scope) } }
+        .onChange(of: store.scanEpoch) { _ in model.scan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),

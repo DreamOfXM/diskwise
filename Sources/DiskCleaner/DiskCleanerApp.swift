@@ -55,6 +55,33 @@ final class AppStore: ObservableObject {
     @Published var notice: String? = nil
     @Published var jumpTo: AppPanel? = nil
     @Published var bigScanDir: URL? = nil   // 总览跳过来的定向扫描目录
+    /// 扫描范围。开源版默认整盘——沙盒版给 `.disk` 只会扫一堆读不到的路径，
+    /// 首屏空转还显示成「你的盘很干净」，那是最坏的错法。
+    @Published private(set) var scope: ScanScope = AppStore.storedScope()
+    /// 改范围时自增。各扫描页监听它重跑，否则切完范围看到的还是旧范围的结果。
+    @Published private(set) var scanEpoch = 0
+    private static let scopeKey = "diskwise.scanScope"
+
+    private static func storedScope() -> ScanScope {
+        // 截图链路要能钉住范围：README 那几张图里页头的范围标签每次都得一样。
+        if let raw = ProcessInfo.processInfo.environment["DISKWISE_SCOPE"],
+           let s = ScanScope(rawValue: raw) { return s }
+        // 演示树不读存盘值：不然作者机器上点过一下「用户区」，README 的图就跟着变，
+        // 而看图的人根本不知道这个开关存在。
+        if homeIsDemo { return Channel.isAppStore ? .user : .disk }
+        if let raw = UserDefaults.standard.string(forKey: scopeKey),
+           let s = ScanScope(rawValue: raw) { return s }
+        return Channel.isAppStore ? .user : .disk
+    }
+
+    /// 沙盒版拿不到的范围直接回落到用户区，不让界面留一个扫不动的选项。
+    func setScope(_ s: ScanScope) {
+        let want = (s == .disk && HomeAccess.runsSandboxed) ? ScanScope.user : s
+        guard want != scope else { return }
+        scope = want
+        if !homeIsDemo { UserDefaults.standard.set(want.rawValue, forKey: Self.scopeKey) }
+        scanEpoch += 1
+    }
     /// 用户选的界面语言。改它 = 让整棵树重画，所以切语言不用重启（商店版也不能自己重启）。
     /// 初值要把 `DISKWISE_LANG` 那次覆盖折进来，否则截图模式下词表被环境变量换掉了、
     /// 选择器还指着存盘那一格，图里就是「界面英文、选中中文」。跟随系统的 Auto 不参与这条覆盖。

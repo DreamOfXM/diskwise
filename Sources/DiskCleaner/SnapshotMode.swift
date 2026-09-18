@@ -15,7 +15,8 @@ import SwiftUI
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
-//     DISKWISE_SKIN=dawn DISKWISE_LANG=en ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
+//     DISKWISE_DEMO_USAGE=128:12 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
+//     ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
 // 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
 // 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
