@@ -50,6 +50,18 @@ final class CachesModel: ObservableObject {
     var selected: [CacheItem] { items.filter { $0.selected && $0.size != nil } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
 
+    /// 体积还没统计出来的行不给全选：选了也不知道能腾出多少，确认框里会写成一个假数。
+    var selectAll: SelectAll? {
+        let open = items.filter { ($0.size ?? 0) > 0 }
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy(\.selected),
+                         unselectable: items.count - open.count) { on in
+            for i in self.items.indices where (self.items[i].size ?? 0) > 0 {
+                self.items[i].selected = on
+            }
+        }
+    }
+
     func load(force: Bool = false) {
         if started && !force { return }
         task?.cancel()
@@ -161,7 +173,7 @@ struct CachesView: View {
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: errorText) { confirmClean = true }
+                     errorText: errorText, selection: model.selectAll) { confirmClean = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { model.load() }

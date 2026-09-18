@@ -269,6 +269,10 @@
 "已选 %1$d 项" = "%1$d selected";
 "只进废纸篓，可撤销" = "Trash only, reversible";
 "把选中的 %1$d 项移入废纸篓，随时可撤销" = "Move %1$d selected items to the Trash — you can undo any time";
+"全选" = "Select all";
+"取消全选" = "Deselect all";
+"选中本页列出的全部" = "Selects every row listed here";
+"选中本页列出的全部，另有 %d 项不在全选范围内" = "Selects every row listed here; %d more stay out of the bulk pick";
 "移入废纸篓" = "Move to Trash";
 "确认清理？" = "Confirm cleanup?";
 "取消" = "Cancel";

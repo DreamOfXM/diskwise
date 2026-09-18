@@ -15,6 +15,13 @@ final class NMModel: ObservableObject {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.size } }
 
+    var selectAll: SelectAll? {
+        guard !items.isEmpty else { return nil }
+        return SelectAll(allSelected: items.allSatisfy(\.selected), unselectable: 0) { on in
+            for i in self.items.indices { self.items[i].selected = on }
+        }
+    }
+
     func scan() {
         task?.cancel()
         scanning = true
@@ -87,7 +94,7 @@ struct NMView: View {
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: err) { confirm = true }
+                     errorText: err, selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan() } }

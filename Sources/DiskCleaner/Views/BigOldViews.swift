@@ -24,6 +24,20 @@ final class BigFilesModel: ObservableObject {
     var selected: [FileRow] { rows.filter { $0.selected } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
 
+    /// 「全选」只管勾得动的那几行：系统区的行选上也删不掉，全选后按清理只会换一屏报错。
+    /// 一行都勾不动时返回 nil，按钮不画——画一颗点了没反应的按钮比没有更糟。
+    var selectAll: SelectAll? {
+        let open = rows.filter(\.deletable)
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy(\.selected),
+                         unselectable: rows.count - open.count) { on in
+            for i in self.rows.indices where self.rows[i].deletable {
+                self.rows[i].selected = on
+            }
+            self.syncBack()
+        }
+    }
+
     /// 总览跳过来的定向扫描；dirs == nil 回到默认范围
     func scan(scope: ScanScope, dirs: [URL]? = nil, note: String? = nil) {
         task?.cancel()
@@ -140,7 +154,7 @@ struct BigFilesView: View {
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: err) { confirm = true }
+                     errorText: err, selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear {
@@ -200,6 +214,17 @@ final class OldFilesModel: ObservableObject {
     var selected: [FileRow] { rows.filter { $0.selected } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
     var totalBytes: Int64 { rows.reduce(0) { $0 + $1.size } }
+
+    var selectAll: SelectAll? {
+        let open = rows.filter(\.deletable)
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy(\.selected),
+                         unselectable: rows.count - open.count) { on in
+            for i in self.rows.indices where self.rows[i].deletable {
+                self.rows[i].selected = on
+            }
+        }
+    }
 
     func scan(scope: ScanScope) {
         task?.cancel()
@@ -285,7 +310,7 @@ struct OldFilesView: View {
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: err) { confirm = true }
+                     errorText: err, selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }

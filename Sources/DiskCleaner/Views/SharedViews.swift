@@ -259,12 +259,22 @@ struct PathLine: View {
 
 // MARK: - 底部清理条
 
+/// CleanBar 上那颗「全选」要知道的三件事。
+struct SelectAll {
+    var allSelected: Bool
+    /// 这颗按钮不碰的行数（勾不了的、或刻意不批量碰的）。不报这个数，列表 30 行、
+    /// 按完只选上 20 项，用户只会以为漏了 10 项。
+    var unselectable: Int
+    var toggle: (Bool) -> Void
+}
+
 struct CleanBar: View {
     @Environment(\.theme) private var theme
     var count: Int
     var bytes: Int64
     var errorText: String? = nil
     var actionTitle: String = L("移入废纸篓")
+    var selection: SelectAll? = nil
     var onClean: () -> Void
 
     var body: some View {
@@ -296,6 +306,15 @@ struct CleanBar: View {
                         .font(theme.numeric(.title3))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.ink)
+                }
+                if let s = selection {
+                    ThemeButton(kind: .compact, symbol: s.allSelected ? "circle.dashed" : "checklist",
+                                title: s.allSelected ? L("取消全选") : L("全选")) {
+                        s.toggle(!s.allSelected)
+                    }
+                    .help(s.unselectable == 0
+                          ? L("选中本页列出的全部")
+                          : LF("选中本页列出的全部，另有 %d 项不在全选范围内", s.unselectable))
                 }
                 Spacer()
                 Text(L("只进废纸篓，可撤销"))
