@@ -151,11 +151,15 @@ struct OverviewView: View {
                        subtitle: L("先看清，再下手——下面每块地方都能一键深挖"),
                        variant: .display) {
                 HStack(spacing: 12) {
-                    SegmentedStrip(symbols: ["house", "internaldrive"],
-                                   labels: ScanScope.allCases.map(\.uiName),
-                                   isOn: { store.scope == ScanScope.allCases[$0] },
-                                   select: { i in store.setScope(ScanScope.allCases[i]) },
-                                   a11yPrefix: L("扫描范围"))
+                    // 只剩一个可达范围时不摆选择器（沙盒版就是这种）：一个点不动的
+                    // 开关比没有开关更糟，范围由下面的 scopeNote 交代。
+                    if ScanScope.reachable.count > 1 {
+                        SegmentedStrip(symbols: ["house", "internaldrive"],
+                                       labels: ScanScope.reachable.map(\.uiName),
+                                       isOn: { store.scope == ScanScope.reachable[$0] },
+                                       select: { i in store.setScope(ScanScope.reachable[i]) },
+                                       a11yPrefix: L("扫描范围"))
+                    }
                     ScanControl(scanning: model.scanning, kind: .primary,
                                 rescan: { model.refresh(scope: store.scope) },
                                 stop: { model.stop() })
@@ -266,7 +270,11 @@ struct OverviewView: View {
             VStack(alignment: .trailing, spacing: 6) {
                 if !model.needFDA.isEmpty {
                     HStack(spacing: 8) {
-                        Text(LF("%d 处目录缺「完全磁盘访问权限」", model.needFDA.count))
+                        // 沙盒版只报数量、不摆「去授权」：那颗按钮是给非沙盒渠道的出路，
+                        // 在容器里按下去看不到可核对的效果，就别许诺。
+                        Text(HomeAccess.runsSandboxed
+                             ? LF("沙盒读不到的目录 %d 处", model.needFDA.count)
+                             : LF("%d 处目录缺「完全磁盘访问权限」", model.needFDA.count))
                             .font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkTertiary)
                         if !HomeAccess.runsSandboxed {

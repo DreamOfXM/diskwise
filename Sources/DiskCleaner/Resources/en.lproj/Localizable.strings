@@ -50,6 +50,7 @@
 "覆盖范围：整块盘上普通用户可读的位置。剩下的「未覆盖」是系统卷和只有管理员能读的目录，不在清理范围内。" = "Scope: every location a regular user can read. The remaining “not covered” slice is system volumes and admin-only folders, which are off-limits for cleaning.";
 "已量到 %1$@，占已用的 %2$@" = "Measured %1$@ so far — %2$@ of what's used";
 "%d 处目录缺「完全磁盘访问权限」" = "Folders that need Full Disk Access: %d";
+"沙盒读不到的目录 %d 处" = "Folders the sandbox can't read: %d";
 "去授权" = "Grant access";
 "打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾上后要重启 DiskWise 才生效" = "Opens System Settings › Privacy & Security › Full Disk Access; restart DiskWise once you've ticked it";
 "另有 %d 处只有管理员能读（系统私有目录），不在这把尺子里" = "Outside this ruler — admin-only system folders: %d";

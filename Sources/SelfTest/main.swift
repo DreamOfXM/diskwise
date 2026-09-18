@@ -40,6 +40,10 @@ check(!HomeAccess.runsSandboxed, "自检跑在非沙盒环境")
 check(!HomeAccess.needsGrant, "非沙盒不该拦授权")
 check(!realHomeDir().path.contains("/Library/Containers/"), "真实家目录没被改写成容器路径")
 check(homeDir() == realHomeDir(), "未授权时 homeDir 落回真实家目录，不是容器")
+// 范围选择器只列可达的那几个：沙盒里「整盘」点了会被降级，留着一格就是死按钮
+check(ScanScope.reachable.contains(.user), "用户区永远在可达范围里")
+check(!HomeAccess.runsSandboxed || !ScanScope.reachable.contains(.disk),
+      "沙盒下不把「整盘」摆成可选项")
 setenv("DISKWISE_HOME_SHIM", "/tmp/diskwise-selftest-home", 1)
 check(homeDir().path == "/tmp/diskwise-selftest-home", "假家目录开关仍然优先")
 unsetenv("DISKWISE_HOME_SHIM")
