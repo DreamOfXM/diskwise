@@ -67,7 +67,7 @@ diskwise/
 
 ```bash
 swift build                  # debug 编译
-swift run SelfTest           # ★27 项自检，全绿是打包前提
+swift run SelfTest           # ★全量逻辑自检，全绿是打包前提
 swift run DiskCleaner        # 直跑 App（调试用）
 
 swift build_app/l10n_tool.swift check      # 双语覆盖率对账（build.sh 会自动跑）
@@ -227,7 +227,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 
 ## 8. 接手第一步
 
-1. `swift run SelfTest` —— 27 项 ALL PASS 是红线；
+1. `swift run SelfTest` —— ALL PASS 是红线；
 2. `bash build_app/build.sh` —— 三道闸门（双语覆盖、自检、资源断言）任一失败不出包，记下 DMG 的 SHA256；
 3. `bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome` 造演示数据，开截图模式逐页点一遍「勾选 → 删除 → 撤销 → 文件回来」（尤其重复文件和卸载残留）；
 4. 再碰皮肤和新功能。改 token 前先读 §7 的两条铁律，并用两种语言各看一遍图——英文比中文长 30%，很多宽度问题只有拍出来才看得见。
