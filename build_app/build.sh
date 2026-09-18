@@ -288,6 +288,16 @@ if [ "$CHANNEL" = "appstore" ]; then
 	fi
 fi
 
+# 描述文件这类素材是用浏览器从门户下载的，自带 com.apple.quarantine；上面的 cp 会原样
+# 把它带进 payload，productbuild 再烘进 pkg，App Store 处理阶段以 91109 判整包无效
+# （"This attribute isn't permitted in macOS apps distributed on TestFlight or the App Store"）。
+# 只删这一个属性——com.apple.provenance 是系统记的，不该也清不掉。
+QFILES="$(find "$APP_DIR" -exec sh -c 'xattr "$1" 2>/dev/null | grep -qx com.apple.quarantine && echo q' _ {} \; | wc -l | tr -d ' ')"
+if [ "$QFILES" != "0" ]; then
+	echo "    清 quarantine 属性：$QFILES 个文件"
+	xattr -r -d com.apple.quarantine "$APP_DIR" 2>/dev/null || true
+fi
+
 SIGNED=0
 if [ -n "$IDENTITY" ]; then
 	SIGNED=1
