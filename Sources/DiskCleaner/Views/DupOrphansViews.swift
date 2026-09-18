@@ -26,7 +26,7 @@ final class DupModel: ObservableObject {
         self.scope = scope
         groups = []
         selection = []
-        let minB = Int64(minMB) * 1024 * 1024
+        let minB = Int64(minMB) * MB
         let targets = defaultScanDirs(scope: scope)
         task = Task {
             self.progress = L("遍历文件…")

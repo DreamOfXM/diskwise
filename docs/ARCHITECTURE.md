@@ -77,12 +77,13 @@ bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .
                              # 商店版（进沙盒 + 出 .pkg）：CHANNEL=appstore ARCH=universal bash build_app/build.sh
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
-# DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x1543 换画幅（皮肤页那种长页）
-# DISKWISE_DEMO_USAGE=128:12 把盘容量钉死（仅假家目录生效）——不钉的话总览页环形图的
-#   「已用 / 未覆盖」两块数字来自跑脚本那台机器当天的磁盘，图就不可复现了
+# DISKWISE_ONLY=overview,dup 只拍某几页；DISKWISE_WIN=1280x920 换画幅（皮肤页那种长页，
+#   窗口得整扇放得下屏幕，超出屏幕的那一截拍不到）
+# DISKWISE_DEMO_USAGE=96:16 把盘容量钉死（仅假家目录生效）。不带也行——假家目录一定自带
+#   兜底容量，绝不读真盘；这组数就是跟 make_demo_home.sh 那棵树相配的那一档
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
-  DISKWISE_DEMO_USAGE=128:12 \
+  DISKWISE_DEMO_USAGE=96:16 \
   DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner -diskcleaner.language en
 ```
 
@@ -137,7 +138,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `homeDir()` 是家目录的唯一入口。设了 `DISKWISE_HOME_SHIM` 就整棵树换到演示目录（`applicationsDir()` 跟着搬进演示树），扫描、统计、废纸篓全在假树里跑。
 - 为什么不用真家目录截图：总览页会把 `~/Desktop`、`~/Documents` 连同体积原样晒出去，那是隐私不是演示。
 - `make_demo_home.sh` 只写零 + 给每个文件首字节盖唯一标记（块分配是真的，内容哈希又是唯一的，不会被误判成一整组重复）；`dup()` 才用 `cp` 造真正的逐字节副本。脚本从不删任何东西，重跑幂等。
-- `SnapshotMode.swift` 开一个真窗口逐页渲染成 PNG。注意：SwiftUI 的内容在 layer 树里，得用 `layer.render(in:)`；系统材质（`NSVisualEffectView` 那一类）离屏渲染会成一条黑带，拍之前先摘掉；侧边栏必须是自绘滚动列表，`List(.sidebar)` 的 vibrant 内容离屏拍出来是一片白。
+- `SnapshotMode.swift` 开一扇真窗口逐页出图。主路径是问窗口服务器要这一扇窗的合成像素（`CGWindowListCreateImage` 配 `optionIncludingWindow`，只取自己那一张，别的窗口压上来也混不进去，所以不需要录屏权限）。**侧边栏非走这条路不可**：它的列表由 `_NSCoreHostingView` 画，像素只存在于服务器端那份合成里，离线 `layer.render(in:)` 拍出来是一片纯白（导航项全丢，还不报错）。问不到才退回离线画 layer 树，那条路径下系统材质（`NSVisualEffectView` 那一类）会成一条黑带，拍之前得先摘掉。
 
 ### 4.6 页面状态与跨页跳转
 
@@ -201,8 +202,8 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `ScanScope.disk` 再加 `systemScanRoots()` 白名单：`/Applications`、`/Library`、`/opt`、`/private`、
   `/Users/Shared`、`/usr/local`。**白名单不是从 `/` 往下爬**：`/System` 是只读密封卷（SIP，扫它等于
   白跑十几 GB）、`/Volumes` 会挂进外置盘和时间机器备份盘、`/dev` 是设备结点的家。root-only 的目录
-  不用列黑名单——`contentsOfDirectory` 失败就跳过，但**读不到不等于 0**，这类路径只能进「未覆盖」，
-  不能进「已统计」。
+  不用列黑名单——`dirSizeReport()` 打不开目录时按 errno 分类记下来（见 4.9），**读不到不等于 0**，
+  这类路径只能进「未覆盖」，不能进「已统计」。
 - 开源版默认 `.disk`，商店版默认 `.user`（`AppStore.storedScope()`），存在 `diskwise.scanScope`。
   `setScope` 在沙盒里把 `.disk` 回落成 `.user`，不给界面留一个扫不动的选项。
 - **改范围要自增 `AppStore.scanEpoch`**，各扫描页 `.onChange(of: store.scanEpoch)` 重跑。少了这一步，
@@ -222,6 +223,34 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - **全选不越权**：底部清理条的「全选」只勾这一页勾得动的行——系统区的、体积还没统计出来的、
   卸载残留里标「留意」的都不在内（那页的立脚点是宁可漏报不可误删，一键带走「留意」等于把这页
   存在的理由按掉）。差额写在按钮提示里；一行都勾不动时按钮不画，画一颗点了没反应的比没有更糟。
+
+### 4.9 容量数字的口径：单位、差额、演示数据
+
+这屏上每一个数字都会被拿去跟「关于本机」对。对不上，用户就认定工具算错了账——数字小一点没人管，
+单位错一次这产品就不值得信了。
+
+- **单位一律十进制**（1 GB = 10⁹ B），跟访达「显示简介」、「关于本机」、`diskutil` 同口径。
+  以前 `human()` 按 1024 算数却标 GB：同一块 494.4 GB 的盘报成 460.4 GB，比系统界面少 7%，
+  而且列表里所有体积一起缩水。界面上出现的阈值（`sizeFloor`、「可用不足 20GB」、重复文件的
+  `≥ N MB`）统一用 `Models.swift` 里的 `kB/MB/GB/TB` 常量，不再手写 `1024 * 1024 * 1024`。
+  唯一例外：`parseDockerSize` 解的是 Docker CLI 自己的输出，按它的单位读。
+- **盘容量取 `attributesOfFileSystem(forPath: "/")` 的 `.systemSize/.systemFreeSize`**，也就是整个
+  APFS 容器（含系统卷、Preboot、VM 卷）。所以「已用 − 已扫到的」天然包含用户读不到的那一块，
+  差额不是 bug，但必须交代清楚，见下条。
+- **差额必须点名，不能只是一块灰**：`dirSizeReport()` 在目录打不开时按 errno 分类返回
+  （`EPERM` = 缺「完全磁盘访问权限」，界面上给一颗跳 `系统设置 › 隐私与安全性 › 完全磁盘访问权限`
+  的按钮，沙盒版不画；`EACCES` = 只有管理员能读，只能说明）。总览环形下面常驻一行
+  「已量到 X，占已用的 Y%」——用户区和整盘的差别、这块灰到底多大，全看这个数字。
+  实测一台 500 GB 的机器：用户区 62%，整盘 75%，剩下的是系统卷 + root-only 目录。
+- **演示树一定自带盘容量**：`DISKWISE_HOME_SHIM` 生效时 `volumeUsage()` 只走 `demoVolume()`，
+  没给 `DISKWISE_DEMO_USAGE` 就用兜底数（96:16，跟 `make_demo_home.sh` 那棵树相配），绝不回落到
+  真盘。曾经少带一个变量，界面上就画出了「一棵几十 G 的假树 + 一台真机的已用总量」，未覆盖 81%
+  ——那不是扫描失败，是两本账混在了一张图上。现在覆盖范围那句尾巴带「（演示数据）」，
+  谁看都知道这屏不是真机。演示树里还固定造了一个 `chmod 000` 的目录，否则「另有 N 处只有
+  管理员能读」那半句在截图里永远拍不到（假家目录整棵都属于当前用户）。
+- **演示树拍不出两个范围的差别**，这是已知限制别当 bug 查：`systemScanRoots()` 在演示模式下整段
+  挪进假家目录底下，于是「整盘」多出来的那几根跟家目录一级列的是同一批路径，去重之后两个开关
+  算出同一个数。真机上它们差得很远（见上条实测），要验这条只能上真机。
 
 ---
 

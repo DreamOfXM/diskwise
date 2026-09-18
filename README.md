@@ -7,14 +7,14 @@
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription. 1.8 MB.
+server, no telemetry, no subscription. 4.0 MB DMG.
 
 [English](#english) · [中文](#中文)
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-1.8%20MB-blue)
+![size](https://img.shields.io/badge/DMG-4.0%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 </div>
@@ -56,6 +56,7 @@ It is built for machines that have been used by a developer for a few years — 
 **See the space**
 - **Overview** — a segmented ring gauge whose slices add up to the whole volume (top folders + everything else counted + not covered + free), plus the fattest folders, each with *Reveal* and *Dig in*.
 - **Scan scope** — *User area* or *Whole disk*, one switch on the overview. The sweep covers the volume, not just the tidy corners of your home folder.
+- **An honest coverage line** — the overview states how much of your used space it actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on Full Disk Access (with a button straight to that settings pane). Every number is decimal, so it matches Finder and About This Mac byte for byte.
 - **Large Files** — top N across whatever scope you picked, dev directories skippable.
 - **Long Untouched** — files you haven't opened in N days, across the same roots.
 - **Duplicates** — size → partial hash → full hash, grouped, oldest copy locked so you can't nuke the only one.
@@ -249,7 +250,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具，CleanMyMac 的免费开源替代。所有删除只进废纸篓，
 本次会话内随时可撤销；专治开发者机器上的 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、
 微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅。安装包 1.8 MB。
+没有端口、不联网、无遥测、无订阅。安装包 4.0 MB。
 
 ## 它凭什么值得信任
 
@@ -275,6 +276,7 @@ DiskWise 押的是反面：
 **看清空间**
 - **空间总览**：分段环形仪表，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 未覆盖 + 可用）；下面列最占地方的文件夹，每行「访达显示 / 深挖」
 - **扫描范围**：总览页一个开关，「用户区 / 整盘」。扫描覆盖的是整块盘，不是家目录里那几处整洁的角落
+- **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及缺「完全磁盘访问权限」的那几处（后者直接给一颗跳设置的按钮）。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
 - **大文件**：按选定范围遍历，TOP 可调，可跳过开发目录
 - **很久没动**：同样这些根里，N 天没打开的文件
 - **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组最早一份锁定保留

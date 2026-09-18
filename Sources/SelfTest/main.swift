@@ -48,11 +48,25 @@ check(!HomeAccess.grant(URL(fileURLWithPath: "/tmp/diskwise-没有这个目录-\
 // 注：「没经授权面板就不该拿到访问权」这条在非沙盒里量不出来——
 // startAccessingSecurityScopedResource() 对没进沙盒的进程永远返回 true。
 
-// 2.5 容量格式化（回归：单位错位曾把 6GB 显示成 6TB）
+// 2.5 容量格式化：十进制，跟访达「显示简介」和「关于本机」同口径
+// （回归：以前按 1024 算数却标 GB，同一块盘比系统界面少报 7%，494.4 GB 显示成 460.4 GB）
 check(human(500) == "500 B", "500 B")
 check(human(1500) == "1.5 KB", "1500 → 1.5 KB")
-check(human(6_200_000_000) == "5.8 GB", "6.2e9 → 5.8 GB 而不是 TB")
-check(human(2 * 1024 * 1024) == "2.0 MB", "2MiB → 2.0 MB")
+check(human(6_200_000_000) == "6.2 GB", "6.2e9 → 6.2 GB 而不是 TB")
+check(human(2 * 1024 * 1024) == "2.1 MB", "2MiB → 2.1 MB（十进制）")
+check(human(494_384_795_648) == "494.4 GB", "500GB 盘按系统口径显示 494.4 GB")
+
+// 2.6 演示盘容量：假家目录一定自带容量。少带 DISKWISE_DEMO_USAGE 时读真盘，
+// 会把「一棵演示树 + 一台真机的已用」画进同一个环形——那数字看着就是工具扫不动盘。
+// 兜底数还必须跟 make_demo_home.sh 那棵树相配：已用 80 GB，量得到约 64 GB。
+setenv("DISKWISE_HOME_SHIM", "/tmp/diskwise-selftest-home", 1)
+unsetenv("DISKWISE_DEMO_USAGE")
+check(volumeUsage()?.total == 96 * GB, "假家目录没带钉容量时用兜底数，不读真盘")
+check(volumeUsage()?.used == 80 * GB, "兜底容量的已用只有 80 GB：演示树撑得起，未覆盖不会虚高成几百 G")
+setenv("DISKWISE_DEMO_USAGE", "128:12", 1)
+check(volumeUsage()?.free == 12 * GB, "DISKWISE_DEMO_USAGE 按十进制生效")
+unsetenv("DISKWISE_HOME_SHIM")
+unsetenv("DISKWISE_DEMO_USAGE")
 
 // 3. 通配展开（临时目录里建两个账号目录）
 let fm = FileManager.default
@@ -116,16 +130,24 @@ try! untrash(rec)
 check(fm.fileExists(atPath: src.path), "撤销后文件回来")
 try? fm.removeItem(at: src)
 
-// 6. 占盘统计：2MB 文件 + 1 个符号链接（链接不重复计）
+// 6. 占盘统计：2MB 文件 + 1 个符号链接（链接不重复计）+ 一个进不去的目录要交代
 let sbase = fm.temporaryDirectory.appendingPathComponent("sizetest-\(UUID().uuidString)")
 try! fm.createDirectory(at: sbase, withIntermediateDirectories: true)
 let big = sbase.appendingPathComponent("big.bin")
 try! Data(count: 2 * 1024 * 1024).write(to: big)
 try! fm.createSymbolicLink(at: sbase.appendingPathComponent("link.bin"), withDestinationURL: big)
+let locked = sbase.appendingPathComponent("locked")
+try! fm.createDirectory(at: locked, withIntermediateDirectories: true)
+chmod(locked.path, mode_t(0))
 let sem = DispatchSemaphore(value: 0)
 Task {
-    let sz = await dirSize(sbase)
-    check(sz >= 2 * 1024 * 1024 && sz < 3 * 1024 * 1024, "占盘约 2MB（得 \(sz)，链接未重复计）")
+    let r = await dirSizeReport(sbase)
+    check(r.bytes >= 2 * 1024 * 1024 && r.bytes < 3 * 1024 * 1024,
+          "占盘约 2MB（得 \(r.bytes)，链接未重复计）")
+    check(r.needAdmin.contains(locked.path),
+          "读不动的目录按 EACCES 记成「只有管理员能读」，不是悄悄算成 0")
+    check(r.needFullDiskAccess.isEmpty, "没缺 FDA 时不该报缺权限")
+    chmod(locked.path, mode_t(0o755))
     try? fm.removeItem(at: sbase)
     sem.signal()
 }

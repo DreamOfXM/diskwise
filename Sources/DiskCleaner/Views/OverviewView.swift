@@ -17,6 +17,9 @@ final class OverviewModel: ObservableObject {
     @Published private(set) var pending = 0
     /// 扫过的目录合计占多少。环形的「未扫描」= 已用 − 这个数，整张图的口径全靠它。
     @Published private(set) var covered: Int64 = 0
+    /// 这趟扫描里打不开的目录，按「缺哪种权限」分开。合并进一块就说不清哪块能要回来。
+    @Published private(set) var needFDA: [String] = []
+    @Published private(set) var needAdmin: [String] = []
     @Published private(set) var started = false
     /// 本轮扫描用的范围。显示的是「扫的时候是什么范围」，不是当前选择——
     /// 切了范围但还没重扫时，界面得说真话。
@@ -24,9 +27,11 @@ final class OverviewModel: ObservableObject {
     private var task: Task<Void, Never>? = nil
 
     /// 小于这个数不进列表：家目录一级有上百个点目录，绝大多数是几 KB 的配置夹。
-    static let sizeFloor: Int64 = 100 * 1024 * 1024
+    static let sizeFloor: Int64 = 100 * MB
     /// 列表封顶。再长就没人逐行扫了，多出来的体积并进环形的「其他已统计」。
     static let listCap = 20
+    /// 读不到的目录只留这么多条给界面看：一趟整盘扫描能撞上一百多个，全列出来没人读。
+    static let blameCap = 60
 
     /// 只刷磁盘余量——可用空间随时在变，进页面就该是新的；
     /// 热点体积要遍历整棵家目录，不能跟着一起重跑。
@@ -41,25 +46,37 @@ final class OverviewModel: ObservableObject {
         hotspots = []
         covered = 0
         done = 0
+        needFDA = []
+        needAdmin = []
         task = Task {
             let targets = hotspotTargets(scope)
             pending = targets.count
             var sized: [(name: String, path: String, size: Int64)] = []
             var total: Int64 = 0
-            await withTaskGroup(of: (Int, Int64).self) { group in
+            var blame = DirScan()
+            await withTaskGroup(of: (Int, DirScan).self) { group in
                 for (i, t) in targets.enumerated() {
-                    group.addTask { (i, await dirSize(URL(fileURLWithPath: t.path))) }
+                    group.addTask { (i, await dirSizeReport(URL(fileURLWithPath: t.path))) }
                 }
                 // 组按完成顺序回，不是提交顺序——所以子任务必须把下标带回来。
-                for await (i, sz) in group {
+                for await (i, r) in group {
                     if Task.isCancelled { break }
                     let t = targets[i]
                     pending -= 1
                     done += 1
-                    total += sz
+                    total += r.bytes
                     covered = total
-                    if sz > Self.sizeFloor {
-                        sized.append((t.name, t.path, sz))
+                    blame.merge(r)
+                    if blame.needFullDiskAccess.count > Self.blameCap {
+                        blame.needFullDiskAccess = Array(blame.needFullDiskAccess.prefix(Self.blameCap))
+                    }
+                    if blame.needAdmin.count > Self.blameCap {
+                        blame.needAdmin = Array(blame.needAdmin.prefix(Self.blameCap))
+                    }
+                    needFDA = blame.needFullDiskAccess
+                    needAdmin = blame.needAdmin
+                    if r.bytes > Self.sizeFloor {
+                        sized.append((t.name, t.path, r.bytes))
                         sized.sort { $0.size > $1.size }
                         hotspots = Array(sized.prefix(Self.listCap))
                     }
@@ -208,7 +225,7 @@ struct OverviewView: View {
                             metric(L("总容量"), human(u.total))
                             metric(L("可用"), human(u.free))
                         }
-                        if u.free < 20 * 1024 * 1024 * 1024 {
+                        if u.free < 20 * GB {
                             callout(text: L("可用不足 20GB，该动手了。先从下面最大的几块下手。"))
                         } else {
                             Text(L("空间还算宽裕，看看下面谁最占地方。"))
@@ -227,7 +244,54 @@ struct OverviewView: View {
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if model.started && model.done > 0 {
+                    coverageLine(u)
+                }
             }
+        }
+    }
+
+    /// 「量到了多少」得是个能核对的数字，不能是一句「覆盖了大部分」：
+    /// 用户区和整盘的差别、环形那块灰的分量，全押在这一行上。
+    /// 读不到的目录也在这里交代——缺权限的给一颗按钮，只有管理员能读的说明是谁的地盘。
+    private func coverageLine(_ u: VolumeUsage) -> some View {
+        let pct = Int((Double(model.covered) / Double(max(1, u.used)) * 100).rounded())
+        return HStack(alignment: .top, spacing: 10) {
+            Text(LF("已量到 %1$@，占已用的 %2$@", human(model.covered), "\(pct)%"))
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 6) {
+                if !model.needFDA.isEmpty {
+                    HStack(spacing: 8) {
+                        Text(LF("%d 处目录缺「完全磁盘访问权限」", model.needFDA.count))
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                        if !HomeAccess.runsSandboxed {
+                            ThemeButton(kind: .compact, symbol: "lock.open", title: L("去授权")) {
+                                openFullDiskAccessPane()
+                            }
+                            .help(L("打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾上后要重启 DiskWise 才生效"))
+                        }
+                    }
+                }
+                if !model.needAdmin.isEmpty {
+                    Text(LF("另有 %d 处只有管理员能读（系统私有目录），不在这把尺子里",
+                            model.needAdmin.count))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func openFullDiskAccessPane() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -235,9 +299,12 @@ struct OverviewView: View {
         if HomeAccess.runsSandboxed {
             return L("覆盖范围：你授权过的目录。系统区在沙盒里读不到，所以单列为「未覆盖」。")
         }
-        return model.scope == .disk
+        let base = model.scope == .disk
             ? L("覆盖范围：整块盘上普通用户可读的位置。剩下的「未覆盖」是系统卷和只有管理员能读的目录，不在清理范围内。")
             : L("覆盖范围：家目录（含隐藏项）与 /Applications。剩下的「未覆盖」在系统区，切到「整盘」能多覆盖一块。")
+        // 假家目录必须自报身份：一棵演示树配着真盘的容量画环形，出来的「未覆盖 81%」
+        // 会被当成工具扫不动真机——两本账混在一张图上，谁看了都得出错误结论。
+        return homeIsDemo ? base + L("（演示数据）") : base
     }
 
     private func metric(_ label: String, _ value: String) -> some View {

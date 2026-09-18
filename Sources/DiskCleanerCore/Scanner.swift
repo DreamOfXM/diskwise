@@ -2,10 +2,42 @@ import Foundation
 import AppKit
 import Darwin
 
-// ── 目录占盘统计：st_blocks*512 实际占盘（删掉后真能拿回的空间），与 Python 版同口径 ──
+// ── 目录占盘统计：st_blocks*512 实际占盘（删掉后真能拿回的空间）──
+//
+// 读不动的目录不能悄悄算成 0：一趟整盘扫描里有上百个目录是普通用户进不去的，
+// 把它们吞掉之后剩下的差额会在界面上变成一块灰色「未覆盖」，用户既不知道是谁，
+// 也不知道能不能要回来。所以目录打不开时按 errno 分两类记下来——EPERM 是缺
+// 「完全磁盘访问权限」（给个按钮就能要回来），EACCES 是只有管理员能读（给不了）。
 
-public func dirSize(_ url: URL) async -> Int64 {
-    var total: Int64 = 0
+public struct DirScan {
+    public var bytes: Int64
+    /// 缺「完全磁盘访问权限」的目录（errno=EPERM）
+    public var needFullDiskAccess: [String]
+    /// 只有管理员能读的目录（errno=EACCES）
+    public var needAdmin: [String]
+
+    public init(bytes: Int64 = 0, needFullDiskAccess: [String] = [], needAdmin: [String] = []) {
+        self.bytes = bytes
+        self.needFullDiskAccess = needFullDiskAccess
+        self.needAdmin = needAdmin
+    }
+
+    public mutating func merge(_ other: DirScan) {
+        bytes += other.bytes
+        needFullDiskAccess.append(contentsOf: other.needFullDiskAccess)
+        needAdmin.append(contentsOf: other.needAdmin)
+    }
+}
+
+/// 目录能打开却读不出条目时返回 0；打不开时返回 errno。
+private func probeErrno(_ path: String) -> Int32 {
+    guard let d = opendir(path) else { return errno }
+    closedir(d)
+    return 0
+}
+
+public func dirSizeReport(_ url: URL) async -> DirScan {
+    var out = DirScan()
     var seen = Set<String>()   // 硬链接去重（dev+ino）
     var stack = [url.path]
     let fm = FileManager.default
@@ -13,7 +45,14 @@ public func dirSize(_ url: URL) async -> Int64 {
     var ticks = 0
     while let dir = stack.popLast() {
         if Task.isCancelled { break }
-        guard let items = try? fm.contentsOfDirectory(atPath: dir) else { continue }
+        guard let items = try? fm.contentsOfDirectory(atPath: dir) else {
+            switch probeErrno(dir) {
+            case EPERM: out.needFullDiskAccess.append(dir)
+            case EACCES: out.needAdmin.append(dir)
+            default: break        // 不存在/正在消失：不是权限问题，别报
+            }
+            continue
+        }
         for name in items {
             if name == ".Trash" { continue }
             let p = (dir as NSString).appendingPathComponent(name)
@@ -32,12 +71,16 @@ public func dirSize(_ url: URL) async -> Int64 {
                 if seen.contains(key) { continue }
                 seen.insert(key)
             }
-            total += Int64(st.st_blocks) * 512
+            out.bytes += Int64(st.st_blocks) * 512
             ticks += 1
             if ticks % 5000 == 0 && Task.isCancelled { break }
         }
     }
-    return total
+    return out
+}
+
+public func dirSize(_ url: URL) async -> Int64 {
+    await dirSizeReport(url).bytes
 }
 
 /// 单个文件占盘
@@ -104,20 +147,25 @@ public struct VolumeUsage {
     public var used: Int64 { total - free }
 }
 
-/// 演示盘容量：`DISKWISE_DEMO_USAGE=<总GB>:<可用GB>`。
+/// 演示盘容量：`DISKWISE_DEMO_USAGE=<总GB>:<可用GB>`（十进制，跟界面显示同口径）。
 ///
-/// 只在假家目录生效。环形图的「未覆盖」是拿整盘已用减去扫到的量，
-/// 不钉住盘容量的话，README 那几张图的主角数字就取决于跑脚本的人那天盘里剩多少——
-/// 说好的可复现就没了。
+/// 只在假家目录生效，而且**假家目录一定有值**：没给就用兜底数。
+/// 早先没给就直接读真盘，于是截图脚本少带一个变量时，界面上会画出
+/// 「一棵几十 G 的假树 + 一台真机的已用总量」，未覆盖区虚高到几百 G——
+/// 看着像工具扫不到，其实是两本不同的账被记在了一张图上。
 private func demoVolume() -> VolumeUsage? {
-    guard homeIsDemo,
-          let raw = ProcessInfo.processInfo.environment["DISKWISE_DEMO_USAGE"],
-          !raw.isEmpty else { return nil }
-    let parts = raw.split(separator: ":")
-    guard parts.count == 2,
-          let t = Double(parts[0]), let f = Double(parts[1]), t > f, f >= 0 else { return nil }
-    let gib = Int64(1024 * 1024 * 1024)
-    return VolumeUsage(total: Int64(t * Double(gib)), free: Int64(f * Double(gib)))
+    guard homeIsDemo else { return nil }
+    // 兜底数就是 make_demo_home.sh 那棵树配套的那一档：可量到约 64 GB、已用 80 GB，
+    // 覆盖八成，跟真机上整盘范围的实测同一量级。故意不取大容量——演示树只有几十 G，
+    // 配一块 500G 的假盘，环形上「未覆盖」会占掉八成，那是把演示拍成事故现场。
+    var total = 96.0, free = 16.0
+    let parts = (ProcessInfo.processInfo.environment["DISKWISE_DEMO_USAGE"] ?? "")
+        .split(separator: ":")
+    if parts.count == 2, let t = Double(parts[0]), let f = Double(parts[1]), t > f, f >= 0 {
+        total = t
+        free = f
+    }
+    return VolumeUsage(total: Int64(total * Double(GB)), free: Int64(free * Double(GB)))
 }
 
 public func volumeUsage() -> VolumeUsage? {

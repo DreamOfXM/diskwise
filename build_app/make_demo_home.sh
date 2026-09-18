@@ -177,6 +177,17 @@ mk "$H/.Trash/old-build-artifacts.zip" 620
 mk "$H/.Trash/2023-invoices-scan.pdf" 340
 mk "$H/.Trash/duplicate-exports" 260
 
-echo "---- 完成：$(du -sh "$H" | cut -f1)，共 $n 个文件 ----"
-echo "跑起来看："
-echo "    DISKWISE_HOME_SHIM=\"$H\" swift run DiskCleaner"
+# ── 读不动的目录（总览页「只有管理员能读」那一行）──
+# 环形图旁边那行「没量到的是谁的地盘」只在真撞上 EACCES 时才出现，而假家目录
+# 整棵都属于当前用户——不造这一格，这条说明在截图里就是结构性拍不到的。
+# 权限只收在目录本身：里面的体积因此不进统计，跟真机上的行为一致。
+locked="$H/Desktop/locked-admin-only"
+mkdir -p "$locked"
+chmod 700 "$locked"          # 重跑时先开回来，否则 mk 看不见里面那个文件会再写一遍
+mk "$locked/system-data.bin" 512
+chmod 000 "$locked"
+
+# 末尾那格读不动的目录会让 du 报一句 Permission denied——正是要的效果，别说成脚本坏了
+echo "---- 完成：$(du -sh "$H" 2>/dev/null | cut -f1)，共 $n 个文件 ----"
+echo "跑起来看（不带 DISKWISE_DEMO_USAGE 也行，假家目录自带 96:16 这档容量）："
+echo "    DISKWISE_HOME_SHIM=\"$H\" DISKWISE_DEMO_USAGE=96:16 swift run DiskCleaner"

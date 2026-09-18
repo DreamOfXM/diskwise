@@ -93,6 +93,14 @@ final class ThemeManager: ObservableObject {
         tryingID = nil
     }
 
+    /// 截图模式专用：把皮肤直接穿上身，但不碰偏好。
+    /// 皮肤页那张「使用中」徽章读的是 `current`，只往渲染器注入 Theme 的话，
+    /// 图里画着晨雾、徽章却指着作者上次选的那套——徽章会撒谎。
+    func useForSnapshot(_ theme: Theme) {
+        tryingID = nil
+        current = theme
+    }
+
     /// 记为已解锁：当前实现是直接放行
     func unlock(_ theme: Theme) {
         unlockedPremiumIDs.insert(theme.id)
