@@ -267,6 +267,19 @@ final class OrphansModel: ObservableObject {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
     var totalBytes: Int64 { items.reduce(0) { $0 + ($1.size ?? 0) } }
 
+    /// 全选只扫「安全」那批：这页的立脚点是宁可漏报不可误删，标「留意」的意思是
+    /// 「得你自己判」，一键把它带走等于把这页存在的理由按掉了。
+    var selectAll: SelectAll? {
+        let open = items.filter { $0.level != "warn" }
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy(\.selected),
+                         unselectable: items.count - open.count) { on in
+            for i in self.items.indices where self.items[i].level != "warn" {
+                self.items[i].selected = on
+            }
+        }
+    }
+
     func scan() {
         task?.cancel()
         scanning = true
@@ -352,7 +365,7 @@ struct OrphansView: View {
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: err) { confirm = true }
+                     errorText: err, selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan() } }
