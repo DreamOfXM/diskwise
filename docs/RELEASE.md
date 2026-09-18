@@ -147,8 +147,16 @@ CHANNEL=appstore ARCH=universal bash build_app/build.sh
 
 `build.sh` 在签名前把描述文件拷成 `Contents/embedded.provisionprofile`，再用
 `productbuild --component … /Applications --sign "Mac Installer Distribution: …"` 打成 `.pkg`。
-上传用 **Transporter**（把 `.pkg` 拖进去，勾「上传后校验」）；`altool --upload-app` 那条命令行
-Apple 已经停更，别再写进脚本。
+
+上传有两条路，都能走通：
+- **Transporter**（把 `.pkg` 拖进去，勾「上传后校验」）——注意它是 Mac App Store 上单独免费的
+  图形程序，**不随 Xcode 装**；Xcode 里那个 `iTMSTransporter` 只会打印一句让你去装 Transporter 的提示。
+- **Xcode 自带的 `altool`**（`/Applications/Xcode.app/Contents/Developer/usr/bin/altool`）命令行，
+  用 App Store Connect 的 API 密钥（Issuer ID + Key ID + `.p8`，`.p8` 只能放仓库外）认证：
+  先 `--validate-app` 再 `--upload-app`，`-t macos` 只认 `.pkg`；上传回的 `Delivery UUID`
+  可以用 `--build-status --delivery-id` 轮询。校验阶段不消耗构建号，白拿一次「Apple 收不收」的答案。
+
+两条路的判读都一样：**上传成功不等于构建可用**，ASC 还要处理 5–15 分钟，之后才是 VALID 或 FAILED。
 
 商店包的 entitlements 是**构建期从描述文件里派生**出来的，不是仓库里那份：
 `com.apple.application-identifier` 和 `com.apple.developer.team-identifier` 得由 `.app` 自己声明
@@ -170,10 +178,15 @@ pkgutil --expand-full dist/DiskWise-*-appstore.pkg /tmp/chk
 A="$(find /tmp/chk -name DiskWise.app -print -quit)"     # 在 <bundle id>.pkg/Payload/ 下面
 codesign --verify --strict --verbose=2 "$A"
 codesign -d --entitlements :- "$A"                       # 三条沙盒键 + 两条 App ID 标识都在
+find "$A" -exec sh -c 'xattr "$1" | grep -qx com.apple.quarantine && echo "残留 quarantine: $1"' _ {} \;
 ```
 
 要核对的是「entitlement 里的 App ID ↔ 描述文件授权的 App ID ↔ `CFBundleIdentifier`」三者一致，
 不一致时签名依然有效，只有上传或运行才暴露。
+最后那条查扩展属性也是同一类问题：描述文件是浏览器下载的，自带 `com.apple.quarantine`，
+`cp` 会原样保留、`productbuild` 再烘进 payload，ASC 处理阶段以 **91109** 判整包无效——
+签名、`--verify --strict`、连 `altool --validate-app` 全都过得去，只在十几分钟之后才暴露。
+`build.sh` 现在签名前统一清掉这个属性（只清它，`com.apple.provenance` 是系统记的清不掉）。
 注意 `spctl -a` 对商店 pkg 必然 rejected——Gatekeeper 只认 Developer ID，判 pkg 只能看
 `pkgutil --check-signature` 的输出。
 
@@ -206,6 +219,8 @@ codesign -d --entitlements :- "$A"                       # 三条沙盒键 + 两
 | 年龄分级 | 「不受限的网页访问」选**否** | 那格问的是能不能打开任意 URL / 内嵌浏览器。本 App 只有 `NSWorkspace.open` 开自家固定链接和在访达里定位 `~/.Trash`，不算。选成「是」会把分级拉高，而且不会报错 |
 | 字段都在哪儿 | 名称/副标题/类别/年龄分级在 **App 信息**；隐私政策 URL 和数据收集问卷在 **App 隐私**；描述/关键词/技术支持与营销 URL/版权/截图/构建版本在**版本页** | 隐私政策 URL 不在 App 信息页，页内搜「隐私」搜到的那格也不是要填的字段 |
 | 权限用途文案 | `NSAppleEventsUsageDescription`（`Info.plist` 已有） | 控制访达清空废纸篓要用 |
+| 初始定价 | 「价格与销售范围」→ 价格时间表，**默认是空的** | 只有一个「添加定价」按钮时等于没设初始价格，三步向导走完才算落库；这一格不在版本页上，逐格复查版本页永远查不出来 |
+| 供应情况 + 欧盟 DSA | 同一页的「App 供应情况」，以及「商务」页的合规问答 | 两处是一对：供应情况默认勾全部地区（含欧盟商店），勾了就必须答 DSA 交易者问卷，而那份问卷的答案会公开显示在产品页上。反过来只答不解绑也没用，两步配套才行 |
 | 付费墙 | `Channel.showsPricing = false`，不渲染 | 挂着「解锁」按钮却直接放行是审核指南 2.1 的明确拒点 |
 
 ---
@@ -227,9 +242,9 @@ codesign -d --entitlements :- "$A"                       # 三条沙盒键 + 两
 tag 名必须等于 `build_app/build.sh` 里的 `VERSION`，否则第一步就对账失败——发出去的包版本号
 写错是最难查的那种错。
 
-CI 只跑直链这条线（`CHANNEL` 保持默认 `oss`）。商店包不进 CI：描述文件不入库，上传又是
-Transporter 的手动一步，自动化了等于把账号侧的东西搬进公开仓库的流水线。本地要复现同一条
-链路就直接 `CHANNEL=appstore bash build_app/build.sh`。
+CI 只跑直链这条线（`CHANNEL` 保持默认 `oss`）。商店包不进 CI：描述文件不入库，而且上传那条
+`altool` + API 密钥的路**恰恰是能自动化的**——真自动化了，就等于把账号侧的凭证搬进公开仓库的流水线。
+本地要复现同一条链路就直接 `CHANNEL=appstore bash build_app/build.sh`。
 
 ---
 
@@ -251,9 +266,11 @@ Transporter 的手动一步，自动化了等于把账号侧的东西搬进公�
 5. 提交身份用 GitHub 的 noreply 邮箱，别把个人邮箱写进公开历史。
 6. 推 tag → CI 出包 → Release 挂 DMG → 把 `DreamOfXM/homebrew-diskwise` 的 cask 版本和
    SHA256 钉成同一个值。
-7. 走商店那条线时额外三项：`VERSION` / `BUILD_NUMBER` 这一对比上次上传的更大；**在本机真点一次
-   授权面板**，确认授权页解开后总览页有数字、重启一次仍能读到（书签恢复那条路径只能真点验证）；
-   第 4.4 节那张表逐条填完再提审。
+7. 走商店那条线时额外四项：`VERSION` / `BUILD_NUMBER` 这一对比上次上传的更大；上传后**等 ASC 处理完、
+   确认构建是 VALID** 再往版本页上挂（上传成功不等于构建可用）；授权页那条路径要**点两遍**——
+   本机用 ad-hoc 那份点（商店签名的包一 exec 就被 SIGKILL，点不动），确认授权页解开后总览页有数字、
+   重启一次仍能读到（书签恢复只能真点验证），然后再用 **TestFlight 那份**点一遍，
+   因为用户装到的是 Apple 重签过的二进制，只有它算数；最后第 4.4 节那张表逐条填完再提审。
 
 ---
 
