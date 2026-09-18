@@ -343,13 +343,25 @@ if [ "$CHANNEL" = "appstore" ]; then
 			| awk -F'"' 'index($2, "Mac Installer Distribution:") == 1 ||
 					index($2, "3rd Party Mac Developer Installer:") == 1 {print $2; exit}')" || true
 	fi
+	# productbuild 会把组件交给系统里的打包助手去读，而 ~/Desktop 是 TCC 保护目录：仓库放在
+	# 桌面上时，同一份 .app 从桌面打包报「not a valid bundle component」，搬到别处就正常。
+	# 所以先原样搬一份到临时目录再打——签名跟着目录走，产物里不含这个路径。
+	PKG_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/diskwise-pkg.XXXXXX")"
+	ditto "$APP_DIR" "$PKG_STAGE/$APP_NAME.app"
+	COMPONENT="$PKG_STAGE/$APP_NAME.app"
 	PKG_LOG="$BUILD_DIR/productbuild.log"
-	if [ -n "$INSTALLER_IDENT" ] && productbuild --component "$APP_DIR" /Applications \
+	if [ -n "$INSTALLER_IDENT" ] && productbuild --component "$COMPONENT" /Applications \
 			--sign "$INSTALLER_IDENT" "$ARTIFACT" >"$PKG_LOG" 2>&1; then
 		echo "    pkg 已签名：$INSTALLER_IDENT"
 	else
 		rm -f "$ARTIFACT"
-		productbuild --component "$APP_DIR" /Applications "$ARTIFACT" >>"$PKG_LOG" 2>&1
+		if ! productbuild --component "$COMPONENT" /Applications "$ARTIFACT" >>"$PKG_LOG" 2>&1; then
+			# 不接住这一条，set -e 会让脚本在这里静悄悄退出，只剩一行「[6/7]」可看
+			echo "    pkg 打包失败，productbuild 原话："
+			sed 's/^/      /' "$PKG_LOG" | tail -6
+			rm -rf "$PKG_STAGE"
+			exit 1
+		fi
 		if [ "$SIGNED" != 1 ]; then
 			echo "    pkg 未签名：App 本身是 ad-hoc 的，这份只能本地验授权流"
 		elif [ -z "$INSTALLER_IDENT" ]; then
@@ -360,6 +372,7 @@ if [ "$CHANNEL" = "appstore" ]; then
 			sed 's/^/      /' "$PKG_LOG" | tail -6
 		fi
 	fi
+	rm -rf "$PKG_STAGE"
 	echo "    $PKG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
 else
 rm -rf "$STAGING"
