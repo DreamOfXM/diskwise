@@ -90,19 +90,28 @@ public struct CacheItem: Identifiable {
     public var isSafe: Bool { entry.level != "warn" }
 }
 
-// ── 容量格式化（与 Python 版 human() 同口径，保留 1 位小数）──
+// ── 容量格式化：十进制（1 GB = 10⁹ B），与访达「显示简介」、「关于本机」、diskutil 同口径 ──
+//
+// 曾经按 1024 进制算数却写着 GB：同一块 494.4 GB 的盘报成 460.4 GB，比系统界面少 7%。
+// 用户拿我们的数跟「关于本机」对，对不上就是工具的错——数字可以小，单位不能错。
 
 public func human(_ bytes: Int64) -> String {
-    if bytes < 1024 { return "\(bytes) B" }
+    if bytes < 1000 { return "\(bytes) B" }
     let units = ["KB", "MB", "GB", "TB", "PB"]
-    var v = Double(bytes) / 1024.0
+    var v = Double(bytes) / 1000.0
     var u = 0
-    while v >= 1024 && u < units.count - 1 {
-        v /= 1024
+    while v >= 1000 && u < units.count - 1 {
+        v /= 1000
         u += 1
     }
     return String(format: "%.1f %@", v, units[u])
 }
+
+/// 十进制单位常量：界面上所有「多少 GB」的阈值都用它，别再手写 1024 的三次方。
+public let kB: Int64 = 1_000
+public let MB: Int64 = 1_000 * kB
+public let GB: Int64 = 1_000 * MB
+public let TB: Int64 = 1_000 * GB
 
 // ── 受保护路径：整体不允许移入废纸篓（里面的子项可以）──
 

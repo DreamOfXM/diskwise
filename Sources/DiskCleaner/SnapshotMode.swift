@@ -3,8 +3,9 @@ import SwiftUI
 
 // ── 截图模式：DISKWISE_SHOTS=<目录> 时启用，渲染完就退出 ─────────────────────
 //
-// 为什么不用系统截图：README 的图要能复现，而录屏权限一掉就只拍到黑屏。
-// 这里自己画——开一个真窗口，把每一页的 layer 树拍成 PNG。
+// 为什么不用系统截图：README 的图要能复现，而整屏截图会把别的窗口拍进来。
+// 这里只拍自己这一扇窗：先问窗口服务器要它的合成像素（侧边栏的列表只有服务器端
+// 那份，离线画 layer 树会拍成一片空白），问不到再退回自己画。
 //
 // 必须配 DISKWISE_HOME_SHIM（见 build_app/make_demo_home.sh）：
 // 总览页会把 ~/Desktop、~/Documents 连同体积原样晒出去，那是隐私不是演示。
@@ -15,10 +16,11 @@ import SwiftUI
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
-//     DISKWISE_DEMO_USAGE=128:12 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
+//     DISKWISE_DEMO_USAGE=96:16 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
 //     ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
-// 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
+// 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x920（默认 1280x820）。
+// 注意走合成路径时窗口必须放得下屏幕，超出屏幕的那一截拍不到。
 // 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
 // 当场换一次语言，把皮肤页再拍成 90-skins-after-flip-<码>.png。
 
@@ -63,15 +65,19 @@ enum SnapshotMode {
     }
 
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
+    ///
+    /// 哈希大文件的那几页要给足预算：一趟 640 MB 的全量哈希能安静好几秒，
+    /// 画面在这段时间里一动不动，光靠「连续 N 帧一致」会在扫描中途收工。
+    /// 实测过一张少算一份副本的重复文件页（3 份报成 2 份）。
     private static let pages: [(AppPanel, String, Double, Double)] = [
-        (.overview, "01-overview", 12, 40),
-        (.big, "02-big-files", 10, 40),
-        (.old, "03-old-files", 10, 40),
-        (.dup, "04-duplicates", 12, 60),
-        (.nodemodules, "05-node-modules", 12, 60),
+        (.overview, "01-overview", 12, 60),
+        (.big, "02-big-files", 10, 45),
+        (.old, "03-old-files", 10, 45),
+        (.dup, "04-duplicates", 20, 120),
+        (.nodemodules, "05-node-modules", 15, 90),
         (.docker, "06-docker", 8, 30),
-        (.caches, "07-caches", 12, 60),
-        (.orphans, "08-leftovers", 12, 60),
+        (.caches, "07-caches", 15, 90),
+        (.orphans, "08-leftovers", 15, 90),
         (.trash, "09-trash", 6, 20),
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),
@@ -108,6 +114,9 @@ enum SnapshotMode {
         let manager = ThemeManager.shared
         let skinID = ProcessInfo.processInfo.environment["DISKWISE_SKIN"] ?? ""
         let skin = Theme.byID(skinID) ?? manager.effective
+        // 连 `current` 一起换掉：皮肤页的「使用中」徽章读的是它，只注入渲染器会拍出一张
+        // 画着晨雾、徽章却指着作者上次那套的图。不写偏好，退出后一切照旧。
+        manager.useForSnapshot(skin)
         let paper = NSColor(skin.palette.paper)
 
         let content = ContentView()
@@ -135,7 +144,10 @@ enum SnapshotMode {
         // 否则一趟跑完就是五张不同尺寸的图，README 的表格直接散架。
         // 皮肤页一屏装不下，用 DISKWISE_WIN 把画幅拉高，别硬截。
         let canvas = host.bounds.size
-        hideWindowServerLayers(in: window.contentView)
+        // 先探一次窗口服务器有没有这张窗的像素：有就走合成路径，那就没必要再摘材质层了
+        // ——那些层是窗口自己合成进去的，摘掉就是真洞。问不到才退回离线画 layer 树。
+        compositedCapture = windowServerImage(window) != nil
+        if !compositedCapture { hideWindowServerLayers(in: window.contentView) }
         let only = Set((ProcessInfo.processInfo.environment["DISKWISE_ONLY"] ?? "")
             .split(separator: ",").map { $0.lowercased() })
         func shoot(_ name: String) {
@@ -162,7 +174,11 @@ enum SnapshotMode {
         exit(0)
     }
 
-    /// 窗口服务器专属的那几层：材质背景离屏渲染就是一条黑带，拍之前摘掉。
+    /// 走不走窗口服务器的合成路径，由 `run` 开头探一次决定。
+    private static var compositedCapture = false
+
+    /// 兜底路径专用：材质背景离线画就是一条黑带，拍之前摘掉。
+    /// 走合成路径时不能摘——那些层是窗口自己合成进去的，摘了就是真洞。
     /// 侧边栏背景由主题自己铺，不靠这层。
     private static func hideWindowServerLayers(in view: NSView?) {
         guard let view = view else { return }
@@ -190,7 +206,8 @@ enum SnapshotMode {
             let current = pngData(window, paper: paper, canvas: canvas)
             if current != nil && current == previous {
                 stable += 1
-                if stable >= 3 { return }
+                // 九秒一动不动才算静下来：三帧（4.5 秒）正好落在一趟大文件哈希的中间。
+                if stable >= 6 { return }
             } else {
                 stable = 0
             }
@@ -198,13 +215,39 @@ enum SnapshotMode {
         }
     }
 
-    /// 只拍内容区：窗口边框视图会在圆角外留一圈黑。
-    /// 走 layer 树——SwiftUI 的内容层是 Core Animation 画的，
-    /// 视图自己的 drawRect 路径里什么都没有。
+    /// 优先问窗口服务器要这张窗口的合成像素，拿不到才退回离线画 layer 树。
+    ///
+    /// 为什么不能只用 layer.render：侧边栏的列表由 `_NSCoreHostingView` 画，
+    /// 内容只存在于服务器端的合成层里，离线渲染拍出来是一片纯白（导航项全丢）。
+    /// 这条路径只要自己这一扇窗，不碰别的 App，所以录屏权限掉不掉都拍得到。
     private static func pngData(_ window: NSWindow, paper: NSColor, canvas: NSSize) -> Data? {
         guard let view = window.contentView, view.bounds.width > 1 else { return nil }
         view.layoutSubtreeIfNeeded()
         let scale = window.backingScaleFactor
+        let full = (compositedCapture ? windowServerImage(window) : nil)
+            ?? offscreenImage(view: view, paper: paper, scale: scale)
+        guard let full, full.width > 0 else { return nil }
+        // 整张拍完再按画幅裁顶。窗口只会因为内容变高、不会变矮，所以整张永远是页面顶部对齐的，
+        // 多出来的是底部那段空白或滚出画面的行——裁掉它就等于用户把窗口缩到画幅大小时看到的样子。
+        let cropH = Int(canvas.height * scale)
+        let out = full.height > cropH
+            ? full.cropping(to: CGRect(x: 0, y: 0, width: full.width, height: cropH)) ?? full
+            : full
+        let cropped = NSBitmapImageRep(cgImage: out)
+        cropped.size = NSSize(width: CGFloat(out.width) / scale, height: CGFloat(out.height) / scale)
+        return cropped.representation(using: .png, properties: [:])
+    }
+
+    /// 窗口服务器里这一扇窗的合成结果。`optionIncludingWindow` 只取自己这一张，
+    /// 别的窗口压在上方也不会混进来。
+    private static func windowServerImage(_ window: NSWindow) -> CGImage? {
+        CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(window.windowNumber),
+                                [.boundsIgnoreFraming, .bestResolution])
+    }
+
+    /// 兜底：自己把 layer 树画进位图。SwiftUI 的内容层由 Core Animation 画，
+    /// 视图自己的 drawRect 路径里什么都没有，所以走 layer 树而不是 draw。
+    private static func offscreenImage(view: NSView, paper: NSColor, scale: CGFloat) -> CGImage? {
         let px = NSSize(width: view.bounds.width * scale, height: view.bounds.height * scale)
         guard let (ctx, rep) = bitmapContext(for: view, pixels: px) else { return nil }
         NSGraphicsContext.saveGraphicsState()
@@ -222,16 +265,7 @@ enum SnapshotMode {
             view.displayIgnoringOpacity(view.bounds, in: ctx)
         }
         NSGraphicsContext.restoreGraphicsState()
-        guard rep.pixelsWide > 0, let full = rep.cgImage else { return nil }
-        // 整张拍完再按画幅裁顶。窗口只会因为内容变高、不会变矮，所以整张永远是页面顶部对齐的，
-        // 多出来的是底部那段空白或滚出画面的行——裁掉它就等于用户把窗口缩到画幅大小时看到的样子。
-        let cropH = Int(canvas.height * scale)
-        let out = full.height > cropH
-            ? full.cropping(to: CGRect(x: 0, y: 0, width: full.width, height: cropH)) ?? full
-            : full
-        let cropped = NSBitmapImageRep(cgImage: out)
-        cropped.size = NSSize(width: CGFloat(out.width) / scale, height: CGFloat(out.height) / scale)
-        return cropped.representation(using: .png, properties: [:])
+        return rep.cgImage
     }
 
     private static func bitmapContext(for view: NSView, pixels: NSSize)
