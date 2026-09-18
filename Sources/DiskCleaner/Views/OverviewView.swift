@@ -237,13 +237,13 @@ private struct HotspotRow: View {
             IconTile(symbol: glyph, side: 26,
                      fill: theme.tileColor(index: tileIndex, dark: isDark),
                      muted: true)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(name)
                     .font(theme.bodyFont(.callout))
                     .foregroundStyle(theme.palette.ink)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                ProportionBar(fraction: fraction, height: 3)
+                ProportionBar(fraction: fraction)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -253,19 +253,21 @@ private struct HotspotRow: View {
                 .foregroundStyle(size == nil ? theme.palette.inkTertiary : theme.palette.ink)
                 .fixedSize()
 
+            // 「访达显示」常驻占位、只在悬停时显形：它一插进来就会把右边的数值从
+            // 自己那一列顶走，而数值列是这张表唯一的对齐轴。
             HStack(spacing: 6) {
-                if hovering || size == nil {
-                    ThemeButton(kind: .compact, title: L("访达显示")) {
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-                    }
+                ThemeButton(kind: .compact, title: L("访达显示")) {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                 }
+                .opacity(hovering || size == nil ? 1 : 0)
+                .allowsHitTesting(hovering || size == nil)
+
                 ThemeButton(kind: .compact, title: L("深挖")) {
                     store.bigScanDir = URL(fileURLWithPath: path)
                     store.jumpTo = .big
                 }
                 .accessibilityLabel(LF("去大文件页只扫%@", name))
             }
-            .opacity(hovering ? 1 : 0.99)
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 11)

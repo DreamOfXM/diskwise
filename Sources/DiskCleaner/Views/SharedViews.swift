@@ -137,7 +137,7 @@ struct ItemRow<Detail: View>: View {
                     .fixedSize()
             }
 
-            ProportionBar(fraction: fraction, color: barColor, height: 3)
+            ProportionBar(fraction: fraction, color: barColor)
                 .padding(.leading, 29)
 
             if expanded {
