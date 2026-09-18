@@ -71,7 +71,8 @@
 的自动化授权走 `Info.plist` 的 `NSAppleEventsUsageDescription` + TCC 弹窗。「将来要加键，
 先在这里写清为什么非加不可。」
 
-`build_app/entitlements-appstore.plist`（商店版）三条，是实测出来的最小集：
+`build_app/entitlements-appstore.plist`（商店版）三条，是实测出来的最小集
+（另外两条 App ID 标识键不在仓库这份里，是构建期从描述文件里读出来追加的，见 4.2）：
 
 | 键 | 少了会怎样 |
 | --- | --- |
@@ -149,6 +150,33 @@ CHANNEL=appstore ARCH=universal bash build_app/build.sh
 上传用 **Transporter**（把 `.pkg` 拖进去，勾「上传后校验」）；`altool --upload-app` 那条命令行
 Apple 已经停更，别再写进脚本。
 
+商店包的 entitlements 是**构建期从描述文件里派生**出来的，不是仓库里那份：
+`com.apple.application-identifier` 和 `com.apple.developer.team-identifier` 得由 `.app` 自己声明
+（TN3125：App Store 重签前先验「签名 + 描述文件是否配对」，macOS 上这条键带 `com.` 前缀，
+iOS 才是不带前缀那个），值从描述文件读、Team ID 不进仓库，派生结果留在 `build_app/derived/`。
+少了它签名照过、`--verify --strict` 照过，只有上传那关才暴露。
+
+**这份包在本机跑不起来，是 Apple 的规则不是包坏了**：商店 profile 签的 App 一 exec 就被
+SIGKILL（TN3125：「you can't run an App Store distribution signed app locally」）。
+对照实验——同一份二进制同一个身份，把 App ID 那条 entitlement 去掉就能跑，所以别为了
+「本机能双击」把它删了再上传。要验沙盒授权流就出 ad-hoc 那份（`SIGN_IDENTITY=none`），
+要验用户真正会装到的那份就走 **TestFlight**（Apple 重签过的才跑得起来）。
+
+上传前把包整个读一遍，别只看构建脚本最后那行「完成」：
+
+```bash
+pkgutil --check-signature dist/DiskWise-*-appstore.pkg   # 签署链是不是商店那张 installer 证书
+pkgutil --expand-full dist/DiskWise-*-appstore.pkg /tmp/chk
+A="$(find /tmp/chk -name DiskWise.app -print -quit)"     # 在 <bundle id>.pkg/Payload/ 下面
+codesign --verify --strict --verbose=2 "$A"
+codesign -d --entitlements :- "$A"                       # 三条沙盒键 + 两条 App ID 标识都在
+```
+
+要核对的是「entitlement 里的 App ID ↔ 描述文件授权的 App ID ↔ `CFBundleIdentifier`」三者一致，
+不一致时签名依然有效，只有上传或运行才暴露。
+注意 `spctl -a` 对商店 pkg 必然 rejected——Gatekeeper 只认 Developer ID，判 pkg 只能看
+`pkgutil --check-signature` 的输出。
+
 上传被拒「重复的 version + build 组合」时用 `BUILD_NUMBER=2` 重出——`CFBundleShortVersionString`
 管对外版本号，`CFBundleVersion` 管这条对账，商店要求后者在同一条版本线上单调递增。
 
@@ -174,7 +202,9 @@ Apple 已经停更，别再写进脚本。
 | 出口合规 | `Info.plist` 已写 `ITSAppUsesNonExemptEncryption=false` | 少了它每次上传都要手答问卷，漏答会卡在「等待出口合规信息」 |
 | 隐私政策 URL | `docs/PRIVACY.md` 的公开页：`https://github.com/DreamOfXM/diskwise/blob/main/docs/PRIVACY.md` | 不能 404，所以这条要等那个提交推上去再填；口径和代码一致——不联网、不收集 |
 | 数据收集声明 | Data Not Collected | App 不联网、不写分析；一旦选了收集就得逐项补标签 |
-| 截图 | 13" 与 16" 各一张，真窗口截图 | 用假家目录截（第 6 节那条命令），别把真实目录晒出去 |
+| 截图 | 16:10 一套通吃全部 Mac（1280×800 / 1440×900 / 2560×1600 / 2880×1800 四选一），真窗口截图 | 商店不要 13"/16" 分开的两套。Retina 下要 2560×1600 就把**内容区**设成 1280×**768**，按 800 设会算上标题栏截出 2560×1664 被判尺寸不符。用假家目录截（第 6 节那条命令），别把真实目录晒出去 |
+| 年龄分级 | 「不受限的网页访问」选**否** | 那格问的是能不能打开任意 URL / 内嵌浏览器。本 App 只有 `NSWorkspace.open` 开自家固定链接和在访达里定位 `~/.Trash`，不算。选成「是」会把分级拉高，而且不会报错 |
+| 字段都在哪儿 | 名称/副标题/类别/年龄分级在 **App 信息**；隐私政策 URL 和数据收集问卷在 **App 隐私**；描述/关键词/技术支持与营销 URL/版权/截图/构建版本在**版本页** | 隐私政策 URL 不在 App 信息页，页内搜「隐私」搜到的那格也不是要填的字段 |
 | 权限用途文案 | `NSAppleEventsUsageDescription`（`Info.plist` 已有） | 控制访达清空废纸篓要用 |
 | 付费墙 | `Channel.showsPricing = false`，不渲染 | 挂着「解锁」按钮却直接放行是审核指南 2.1 的明确拒点 |
 

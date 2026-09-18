@@ -37,6 +37,9 @@ BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$BUILD_DIR/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 STAGING="$BUILD_DIR/staging"
+# 构建期生成的签名输入（派生 entitlements、解开的描述文件）落这里，
+# 和签好的包一起留着，方便事后核对「这个包到底是按哪套 entitlements 签的」。
+DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
@@ -241,6 +244,45 @@ if [ "$CHANNEL" = "appstore" ]; then
 	if [ -f "$PROFILE" ]; then
 		cp "$PROFILE" "$APP_DIR/Contents/embedded.provisionprofile"
 		echo "    描述文件：$(basename "$PROFILE")（$(du -h "$APP_DIR/Contents/embedded.provisionprofile" | cut -f1)）"
+		# 商店包必须自己带上描述文件授权的那条 App ID entitlement。macOS 上这条键
+		# 叫 com.apple.application-identifier（TN3125：iOS 才是不带前缀的
+		# application-identifier），Keynote / GarageBand / Notion 这些上架包都有。
+		# 少了它签名照样过，但 App Store 的「签名 + 描述文件是否配对」那关是它判的。
+		mkdir -p "$DERIVED_DIR"
+		DEC_PROFILE="$DERIVED_DIR/provisionprofile.plist"
+		security cms -D -i "$PROFILE" -o "$DEC_PROFILE"
+		PROFILE_APPID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$DEC_PROFILE" 2>/dev/null || true)"
+		PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$DEC_PROFILE" 2>/dev/null || true)"
+		if [ -z "$PROFILE_APPID" ] || [ -z "$PROFILE_TEAM" ]; then
+			echo "    错误：从描述文件里读不到 App ID / Team ID，这份包不能签" >&2
+			exit 1
+		fi
+		case "$PROFILE_APPID" in
+			*.*) ;;
+			*)
+				echo "    错误：描述文件里的 App ID 长得不像 TEAM.bundleid：$PROFILE_APPID" >&2
+				exit 1
+				;;
+		esac
+		# 描述文件可以绑精确 App ID，也可以绑通配的（TEAM com.foo.*）
+		PROFILE_BUNDLE="${PROFILE_APPID#*.}"
+		if [ "$PROFILE_BUNDLE" = "$BUNDLE_ID" ]; then
+			:
+		elif [[ "$PROFILE_BUNDLE" == *.\* && "$BUNDLE_ID" == "${PROFILE_BUNDLE%?}"* ]]; then
+			:
+		else
+			echo "    错误：描述文件绑的 App ID 是 $PROFILE_APPID，不是本包的 $BUNDLE_ID" >&2
+			echo "    换一份对应这个 bundle id 的描述文件（门户 Profiles → 编辑 → 选对 App ID）" >&2
+			exit 1
+		fi
+		ENTITLEMENTS="$DERIVED_DIR/entitlements-appstore.plist"
+		cp "$BUILD_DIR/entitlements-appstore.plist" "$ENTITLEMENTS"
+		for k in "com.apple.application-identifier=$PROFILE_APPID" "com.apple.developer.team-identifier=$PROFILE_TEAM"; do
+			/usr/libexec/PlistBuddy -c "Set :${k%%=*} ${k#*=}" "$ENTITLEMENTS" 2>/dev/null \
+				|| /usr/libexec/PlistBuddy -c "Add :${k%%=*} string ${k#*=}" "$ENTITLEMENTS" >/dev/null
+		done
+		plutil -lint "$ENTITLEMENTS" >/dev/null
+		echo "    App ID entitlement：$PROFILE_APPID（team $PROFILE_TEAM）"
 	else
 		echo "    没有描述文件（$PROFILE 不存在）——本地能跑，但这份包传不上 App Store Connect"
 	fi
@@ -265,7 +307,7 @@ else
 fi
 codesign --verify --strict --verbose=2 "$APP_DIR" 2>&1 | tail -n 1 | sed 's/^/    /'
 # 直链版的 entitlements 是空 dict，grep 不中会带着 set -e 把整个构建掀了，所以先落变量。
-ENT_SUMMARY="$(plutil -p "$ENTITLEMENTS" | grep -E 'app-sandbox|user-selected|apple-events' || true)"
+ENT_SUMMARY="$(plutil -p "$ENTITLEMENTS" | grep -E 'app-sandbox|user-selected|apple-events|application-identifier|team-identifier' || true)"
 if [ -n "$ENT_SUMMARY" ]; then
 	echo "$ENT_SUMMARY" | sed 's/^/    /'
 else
