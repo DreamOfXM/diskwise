@@ -205,7 +205,9 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   不用列黑名单——`dirSizeReport()` 打不开目录时按 errno 分类记下来（见 4.9），**读不到不等于 0**，
   这类路径只能进「未覆盖」，不能进「已统计」。
 - 开源版默认 `.disk`，商店版默认 `.user`（`AppStore.storedScope()`），存在 `diskwise.scanScope`。
-  `setScope` 在沙盒里把 `.disk` 回落成 `.user`，不给界面留一个扫不动的选项。
+  `ScanScope.reachable` 是选择器唯一的来源：沙盒里它只剩 `[.user]`，`setScope` 也就没有降级可做了。
+  总览那个 `SegmentedStrip` 在 `reachable.count < 2` 时整条不画——留一格点了没反应的开关，比不摆开关
+  更让人觉得工具坏了；同一句「沙盒只扫你授权过的目录」由 `scopeNote` 说清楚。
 - **改范围要自增 `AppStore.scanEpoch`**，各扫描页 `.onChange(of: store.scanEpoch)` 重跑。少了这一步，
   切完范围看到的还是旧范围的结果，而页头的范围标签已经换成新的了——那才是真的骗人。
 - 每页页头贴本次范围（`范围：用户区` / `范围：整盘`），总览环形底下常驻一句「未覆盖」的去向。
@@ -239,7 +241,9 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   差额不是 bug，但必须交代清楚，见下条。
 - **差额必须点名，不能只是一块灰**：`dirSizeReport()` 在目录打不开时按 errno 分类返回
   （`EPERM` = 缺「完全磁盘访问权限」，界面上给一颗跳 `系统设置 › 隐私与安全性 › 完全磁盘访问权限`
-  的按钮，沙盒版不画；`EACCES` = 只有管理员能读，只能说明）。总览环形下面常驻一行
+  的按钮；`EACCES` = 只有管理员能读，只能说明）。沙盒版两样都换：那条出路是给非沙盒渠道的，
+  在容器里按下去没有可核对的效果，所以只报「沙盒读不到的目录 N 处」，不指门也不摆按钮。
+  总览环形下面常驻一行
   「已量到 X，占已用的 Y%」——用户区和整盘的差别、这块灰到底多大，全看这个数字。
   实测一台 500 GB 的机器：用户区 62%，整盘 75%，剩下的是系统卷 + root-only 目录。
 - **演示树一定自带盘容量**：`DISKWISE_HOME_SHIM` 生效时 `volumeUsage()` 只走 `demoVolume()`，
@@ -258,7 +262,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 
 | 页 | 后端 | 说明 |
 |---|---|---|
-| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中，各段加起来正好等于整块盘）；页头有「用户区 / 整盘」范围开关，环形下方常驻一句覆盖范围说明；只读定位，每行「访达显示 / 深挖」。再进来只刷余量，热点体积用缓存（见 4.6） |
+| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中，各段加起来正好等于整块盘）；页头有「用户区 / 整盘」范围开关（只列这一版真能扫的范围，沙盒版剩一个就整条不显示，见 4.8），环形下方常驻一句覆盖范围说明；只读定位，每行「访达显示 / 深挖」。再进来只刷余量，热点体积用缓存（见 4.6） |
 | 大文件 | `walkFiles(top: 200)` | 按范围根遍历（见 4.8），可跳开发目录，支持总览定向范围；「前 N」只在候选集上重切，不重扫 |
 | 很久没动 | `walkFiles(olderThan:)` | 与大文件同一批范围根，天数可调；日期过滤在遍历里做，不收全量数组 |
 | 重复文件 | 大小 → 部分哈希 → 全量哈希 | 每组最早一份锁定保留；候选先过 `isDeletable`，系统区的重复不进这一页 |
