@@ -50,19 +50,41 @@ enum L10n {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: choiceKey) }
     }
 
-    /// 本次启动实际生效的语言。切换要重启，所以这是个只读快照。
-    static let active: AppLanguage = {
-        switch choice {
-        case .en: return .en
-        case .zhHans: return .zhHans
-        case .system:
-            let pref = Locale.preferredLanguages.first ?? "en"
-            return pref.hasPrefix("zh") ? .zhHans : .en
-        }
+    /// 启动时系统给的语言。选「自动」时一直用它——本会话写进 AppleLanguages 的
+    /// 覆盖不该反过来让「自动」在运行中变卦。
+    private static let systemResolved: AppLanguage = {
+        let pref = Locale.preferredLanguages.first ?? "en"
+        return pref.hasPrefix("zh") ? .zhHans : .en
     }()
 
-    private static let resolved: Bundle = {
+    private static func resolve(_ c: AppLanguage) -> AppLanguage {
+        switch c {
+        case .en: return .en
+        case .zhHans: return .zhHans
+        case .system: return systemResolved
+        }
+    }
+
+    /// 当前实际生效的语言。切换由 AppStore.setLanguage 走 apply，
+    /// 改完还要发布一次状态让界面重画——所以它不是常量。
+    static var active: AppLanguage = resolve(choice)
+
+    /// 换词表：下一次取文案就生效
+    static func apply(_ lang: AppLanguage) { active = resolve(lang) }
+
+    private static var tableCode: String?
+    private static var table: Bundle = .main
+
+    private static var resolved: Bundle {
         let code = active.code
+        if code != tableCode {
+            tableCode = code
+            table = bundle(for: code)
+        }
+        return table
+    }
+
+    private static func bundle(for code: String) -> Bundle {
         if let u = Bundle.main.url(forResource: code, withExtension: "lproj"),
            let b = Bundle(url: u) {
             return b
@@ -74,7 +96,7 @@ enum L10n {
             return b
         }
         return .main
-    }()
+    }
 
     static var isChinese: Bool { active == .zhHans }
 
@@ -85,30 +107,14 @@ enum L10n {
         return zh
     }
 
-    /// 切语言：写 AppleLanguages 覆盖系统偏好，然后重启才生效（SwiftUI 树不重建就会留半屏旧文案）
+    /// 切语言：记住选择，并写 AppleLanguages 让下次启动时系统级一致。
+    /// 本次会话的生效走 apply，不靠重启。
     static func setChoice(_ lang: AppLanguage) {
         choice = lang
         switch lang {
         case .system: UserDefaults.standard.removeObject(forKey: "AppleLanguages")
         case .en, .zhHans: UserDefaults.standard.set([lang.code], forKey: "AppleLanguages")
         }
-    }
-
-    /// 自己带壳（.app）才敢自动重启；`swift run` 的裸二进制、以及不能随便起子进程的
-    /// 商店版，都只提示手动重启。商店版这条路本来就有，别为了它引入新的重启机制。
-    static var canRelaunch: Bool {
-        !Channel.isAppStore && Bundle.main.bundleURL.pathExtension == "app" && NSApp != nil
-    }
-
-    static func relaunch() {
-        guard canRelaunch else { return }
-        let path = Bundle.main.bundlePath
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // 路径走位置参数传进去，不拼进脚本文本，省得被空格和引号咬
-        p.arguments = ["-c", "sleep 1; /usr/bin/open -n \"$1\"", "l10n-relaunch", path]
-        try? p.run()
-        NSApp.terminate(nil)
     }
 }
 

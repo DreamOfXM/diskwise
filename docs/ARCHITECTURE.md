@@ -119,7 +119,9 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `LF()` 带 `%@` / `%1$@` 参数；`cnt(n, "个文件")` 处理英文单复数；`errList()` 拼多条失败原因。
 - ⚠️ `String(format:)` 的 `%@` 只接受对象：直接把 `Int` 喂给 `%@` 是 `EXC_BAD_ACCESS`，debug 跑不崩、英文界面一点就崩。`l10n_tool.swift` 会把这种写法拦成构建失败。
 - 位置参数两侧的 `%1$@` / `%2$@` 集合必须一致，工具同样会查。
-- 切语言写 `AppleLanguages` + 重启生效（SwiftUI 树不重建会留半屏旧文案）。
+- 切语言**当次生效**：`L10n.apply()` 换掉 `active` 与词表，`AppStore.setLanguage` 再发布一次选择状态让整棵树重画。
+  只写 `AppleLanguages` 是不够的——那只影响下次启动，而商店版不允许自己起子进程重启。
+  选「自动」用的是启动那一刻的系统语言快照（`systemResolved`），本会话写进的覆盖不会让「自动」在运行中变卦。
 - 品牌名不进词表：`Product.name` 在两种语言里都写作 DiskWise。bundle id 保持 `com.dreamofxm.diskcleaner`——它是钥匙串、自动化授权、UserDefaults 的锚点，改名等于让老用户的授权和购买记录作废。
 
 ### 4.5 演示数据与截图
@@ -129,9 +131,19 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `make_demo_home.sh` 只写零 + 给每个文件首字节盖唯一标记（块分配是真的，内容哈希又是唯一的，不会被误判成一整组重复）；`dup()` 才用 `cp` 造真正的逐字节副本。脚本从不删任何东西，重跑幂等。
 - `SnapshotMode.swift` 开一个真窗口逐页渲染成 PNG。注意：SwiftUI 的内容在 layer 树里，得用 `layer.render(in:)`；系统材质（`NSVisualEffectView` 那一类）离屏渲染会成一条黑带，拍之前先摘掉；侧边栏必须是自绘滚动列表，`List(.sidebar)` 的 vibrant 内容离屏拍出来是一片白。
 
-### 4.6 跨页跳转
+### 4.6 页面状态与跨页跳转
 
-`AppStore.jumpTo` + `bigScanDir`：总览点「深挖」→ 大文件页带定向范围扫描，一次性消费。
+- **扫描结果是 App 级状态，不是视图状态**。侧边栏是 `switch` 切分支，页面视图随导航销毁——所以模型
+  一旦写成 `@StateObject`，每切一次 tab 就把全盘遍历重跑一遍（切来切去卡的就是这个）。八个扫描页的
+  模型现在统归 `ScanStore`（`DiskCleanerApp.swift`，由 `ContentView` 持有）所有，页面只接 `@ObservedObject var model`。
+- 因此每页的规矩是：**首次进入自动扫一次**（`if !model.started`），结果留下；之后再进来直接用缓存；
+  要新结果由用户点工具条右侧的 `ScanControl`（扫描中是「停止」，扫完是「重新扫描」）。
+  **离开页面不再取消任务**——取消了结果就作废，下次进来还是重跑，等于白折腾。
+- 遍历的内存上界在 `walkFiles`：`top` 只保留最大的前 N 条（攒到 4N 收缩一次），`olderThan` 把日期过滤
+  下推进遍历。命中总数走 `WalkResult.matched`，所以「共扫到 N 个文件」的口径不因为截断而变。
+  大文件页的「前 N」因此不重扫：候选集（≤200）留着，`applyLimit()` 只重切显示，勾选按下标写回。
+- 删完不重扫：大文件 / 重复 / node_modules 三页改为就地剔除已消失的条目。整库重哈希留给用户主动点。
+- `AppStore.jumpTo` + `bigScanDir`：总览点「深挖」→ 大文件页带定向范围扫描，一次性消费。
 
 ### 4.7 沙盒与家目录授权（商店版）
 
@@ -161,6 +173,11 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - `/Applications` 在沙盒里可枚举 → 卸载残留页一行没改。
 - `com.apple.security.temporary-exception.files.home-relative-path.read-write` 能把真实家目录整条
   放开（实测可用），但**商店包不能用**：temporary exception 是审核红线，写了等于给自己找拒。
+- **沙盒读不到 `~/.Trash`**，而且有了家目录书签也读不到（废纸篓在沙盒的禁读名单里）。真值实测：同一段
+  统计代码在沙盒外枚举到 65 项 / 368 MB，在商店包里 `contentsOfDirectory` 直接抛错。所以
+  `trashInfo()` 返回 `nil` 表示「读不到」，界面把「未知」和「0」分开——把 `try?` 吞掉的错误当成
+  「废纸篓是空的」，后果是清空按钮永久禁用。按钮只在**确知条目数为 0** 时才禁，读不到照样可点：
+  清空一个空废纸篓本来就没后果，而那一步本来就必须经过访达。
 
 约束：Core 不许 `import AppKit`，所以弹面板、按钮、状态提示全在 `DiskWise` 那层的 `HomeGrant`
 （`@MainActor` 单例，UI 只读它的 `needsGrant` / `failure`）；反馈页留了「重新授权」出口，
@@ -173,16 +190,16 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 
 | 页 | 后端 | 说明 |
 |---|---|---|
-| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中）；只读定位，每行「访达显示 / 深挖」 |
-| 大文件 | `walkFiles` | TOP 可调，可跳开发目录，支持总览定向范围 |
-| 很久没动 | `walkFiles` + mtime | 只看下载 + 桌面，天数可调 |
+| 空间总览 | `volumeUsage` + TaskGroup 并行 | 英雄卡是 `RingGauge` 环形仪表（分段 + 图例 + 已用量居中）；只读定位，每行「访达显示 / 深挖」。再进来只刷余量，热点体积用缓存（见 4.6） |
+| 大文件 | `walkFiles(top: 200)` | 可跳开发目录，支持总览定向范围；「前 N」只在候选集上重切，不重扫 |
+| 很久没动 | `walkFiles(olderThan:)` | 只看下载 + 桌面，天数可调；日期过滤在遍历里做，不收全量数组 |
 | 重复文件 | 大小 → 部分哈希 → 全量哈希 | 每组最早一份锁定保留 |
 | node_modules | 全盘两段式 | 按项目聚合；大盘很慢，无流式快照（见 §7） |
 | Docker | 只读 CLI / 目录回退 | 无删除键 |
 | 缓存清理 | `safety_db.json` + glob | 每项四元组解释（这是什么 / 删了会怎样 / 怎么恢复 / 风险等级）；**条目重叠不可加总**，UI 已不加总 |
 | 卸载残留 | Info.plist 基准 + denylist | 以已装 App 为基准找孤儿，宁可漏报 |
-| 废纸篓 | trashSize / undo / empty | 撤销栈在 `AppStore` |
-| 外观皮肤 | `ThemeManager` | 六套皮肤全部可选：每张卡带实时缩略微组件；进阶组靠结构差异不靠配色；明暗三选 |
+| 废纸篓 | `trashInfo` / undo / empty | 撤销栈在 `AppStore`；读不到体积时不判空（见 4.7） |
+| 外观皮肤 | `ThemeManager` | 六套皮肤全部可选：每张卡带实时缩略微组件；进阶组靠结构差异不靠配色；明暗三选；界面语言当次生效（见 4.4） |
 | 问题反馈 | 无（纯静态） | 邮箱 / QQ 群 / GitHub 三条渠道，地址只在 `Product.swift` 的 `Contact` 定义一处；二维码走 `Contents/Resources` + 源码树兜底，同 `safety_db.json` 套路 |
 
 ---
@@ -190,7 +207,8 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 ## 6. 已知缺口（按建议顺序修）
 
 1. **node_modules 无流式快照**：大盘要等几分钟才出结果。修法：`findNodeModules` 改 `AsyncStream`。
-2. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）；低端机可做并发限流。
+2. 扫描期内存会冲高后回落到 ~115MB idle（不是泄漏）。列表页的候选集已封顶（`walkFiles(top:)`），
+   剩下的冲高来自并行 `dirSize`/哈希；低端机可做并发限流（`withTaskGroup` 目前全部无上限）。
 3. DMG 卷图标仍是系统默认：`Icon\r` + `SetFile -a C` 的标志位在 `hdiutil create` 后会丢，未解。
 4. **商店包的授权闭环只能真点一次验证**：`NSOpenPanel` 选中目录这个动作本身才是 powerbox 交出访问权
    的时机，无头环境里造不出来说「用户选过了」的东西。已用探针量清的部分见 4.7（容器改写、书签解析、

@@ -3,6 +3,7 @@ import DiskCleanerCore
 
 // ── 重复文件：每组保留最早的一个，其余可删 ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class DupModel: ObservableObject {
     @Published var groups: [DupGroup] = []
@@ -10,6 +11,7 @@ final class DupModel: ObservableObject {
     @Published var progress = ""
     @Published var minMB = 20
     @Published var selection: Set<String> = []   // 选中待删的文件 path
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var waste: Int64 { groups.reduce(0) { $0 + $1.waste } }
@@ -18,13 +20,14 @@ final class DupModel: ObservableObject {
     func scan() {
         task?.cancel()
         scanning = true
+        started = true
         groups = []
         selection = []
         let minB = Int64(minMB) * 1024 * 1024
         task = Task {
             self.progress = L("遍历文件…")
             let files = await walkFiles(dirs: defaultScanDirs(), minSize: minB,
-                                        skipNames: ["node_modules", ".git", "Caches"])
+                                        skipNames: ["node_modules", ".git", "Caches"]).rows
             if Task.isCancelled { return }
             self.progress = LF("比对内容（%@ 个候选）…", String(files.count))
             // 哈希是同步重活，扔后台线程做
@@ -49,7 +52,7 @@ final class DupModel: ObservableObject {
 struct DupView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = DupModel()
+    @ObservedObject var model: DupModel
     @State private var confirm = false
     @State private var err: String? = nil
 
@@ -84,6 +87,9 @@ struct DupView: View {
                         Text(LF("发现 %1$@，可收回约 %2$@",
                                 cnt(model.groups.count, "组重复"), human(model.waste)))
                     }
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -107,8 +113,7 @@ struct DupView: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle(L("重复文件"))
-        .onAppear { if model.groups.isEmpty { model.scan() } }
-        .onDisappear { model.stop() }
+        .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
                                cnt(model.selectedCount, "个多余副本"))) {
@@ -130,7 +135,10 @@ struct DupView: View {
             } catch { errs.append(failLine(u.lastPathComponent, error)) }
         }
         model.selection = []
-        model.scan()  // 重扫，组结构变了
+        // 副本删完的组就地消失；要新结果点重新扫描，不必每次删除都重扫整库
+        model.groups.removeAll { $0.files.dropFirst().allSatisfy { u in
+            !FileManager.default.fileExists(atPath: u.path)
+        } }
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "个副本", failed: errs.count)
     }
@@ -236,11 +244,13 @@ private struct DupGroupRow: View {
 
 // ── 卸载残留：App 没了、数据还在 ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class OrphansModel: ObservableObject {
     @Published var items: [OrphanItem] = []
     @Published var scanning = false
     @Published var appCount = 0
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var selected: [OrphanItem] { items.filter { $0.selected } }
@@ -250,6 +260,7 @@ final class OrphansModel: ObservableObject {
     func scan() {
         task?.cancel()
         scanning = true
+        started = true
         items = []
         task = Task {
             let (list, apps) = await scanOrphans()
@@ -278,7 +289,7 @@ private func orphanRisk(_ it: OrphanItem) -> String {
 struct OrphansView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = OrphansModel()
+    @ObservedObject var model: OrphansModel
     @State private var confirm = false
     @State private var err: String? = nil
 
@@ -297,6 +308,9 @@ struct OrphansView: View {
                                 human(model.totalBytes)))
                     }
                     ThemeBadge(text: L("宁可漏报，不可误删"), tone: .neutral)
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -331,8 +345,7 @@ struct OrphansView: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle(L("卸载残留"))
-        .onAppear { if model.items.isEmpty { model.scan() } }
-        .onDisappear { model.stop() }
+        .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "处残留"),

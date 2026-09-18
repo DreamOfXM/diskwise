@@ -25,19 +25,21 @@ func cacheGroupLabel(_ key: String) -> String {
     }
 }
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class CachesModel: ObservableObject {
     @Published var items: [CacheItem] = []
     @Published var scanning = false
-    @Published var loaded = false
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var selected: [CacheItem] { items.filter { $0.selected && $0.size != nil } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
 
-    func load() {
-        guard !loaded else { return }
-        loaded = true
+    func load(force: Bool = false) {
+        if started && !force { return }
+        task?.cancel()
+        started = true
         scanning = true
         task = Task {
             let entries = loadSafetyEntries(from: safetyDBURL())
@@ -92,7 +94,7 @@ final class CachesModel: ObservableObject {
 struct CachesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = CachesModel()
+    @ObservedObject var model: CachesModel
     @State private var confirmClean = false
     @State private var errorText: String? = nil
 
@@ -108,6 +110,9 @@ struct CachesView: View {
                         Text(LF("%d 项可查", model.items.count))
                     }
                     ThemeBadge(text: L("条目路径有重叠，未勾选不做加总"), tone: .neutral)
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.load(force: true) }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -116,7 +121,7 @@ struct CachesView: View {
 
             if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "tray", title: L("知识库没加载出来"),
-                           hint: L("重启 App 试试，还不行就提个 Issue"))
+                           hint: L("点右上角重新扫描，还不行就提个 Issue"))
                     .frame(maxHeight: .infinity)
             } else {
                 List($model.items) { $item in
@@ -146,7 +151,6 @@ struct CachesView: View {
         .frame(maxWidth: .infinity)
         .navigationTitle(L("缓存清理"))
         .onAppear { model.load() }
-        .onDisappear { model.stop() }
         .alert(L("确认清理？"), isPresented: $confirmClean) {
             Button(L("取消"), role: .cancel) {}
             Button(L("移入废纸篓"), role: .destructive) { clean() }

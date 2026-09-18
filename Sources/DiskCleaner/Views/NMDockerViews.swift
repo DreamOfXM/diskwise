@@ -3,10 +3,12 @@ import DiskCleanerCore
 
 // ── node_modules：按项目聚合，删了重装回来就行 ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class NMModel: ObservableObject {
     @Published var items: [NMProject] = []
     @Published var scanning = false
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var selected: [NMProject] { items.filter { $0.selected } }
@@ -16,6 +18,7 @@ final class NMModel: ObservableObject {
     func scan() {
         task?.cancel()
         scanning = true
+        started = true
         items = []
         task = Task {
             let list = await findNodeModules()
@@ -32,7 +35,7 @@ final class NMModel: ObservableObject {
 struct NMView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = NMModel()
+    @ObservedObject var model: NMModel
     @State private var confirm = false
     @State private var err: String? = nil
 
@@ -47,6 +50,9 @@ struct NMView: View {
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(model.items.count, "个项目"), human(model.totalBytes)))
                     }
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -80,8 +86,7 @@ struct NMView: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle("node_modules")
-        .onAppear { if model.items.isEmpty { model.scan() } }
-        .onDisappear { model.stop() }
+        .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@的依赖（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个项目"),
@@ -118,7 +123,10 @@ struct NMView: View {
                 } catch { errs.append(failLine(it.project, error)) }
             }
         }
-        model.scan()  // 重扫
+        // 就地收尾：整个依赖目录都没了的项目从列表里消失，不必重扫全盘
+        model.items.removeAll { !FileManager.default.fileExists(
+            atPath: ($0.project as NSString).appendingPathComponent("node_modules")) }
+        for i in model.items.indices { model.items[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "个 node_modules", failed: errs.count)
     }
@@ -126,10 +134,12 @@ struct NMView: View {
 
 // ── Docker：只读明细，不代删，只指路 ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class DockerModel: ObservableObject {
     @Published var items: [DockerItem] = []
     @Published var scanning = false
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.size } }
@@ -137,6 +147,7 @@ final class DockerModel: ObservableObject {
     func scan() {
         task?.cancel()
         scanning = true
+        started = true
         items = []
         task = Task {
             let list = await Task.detached { await scanDocker() }.value
@@ -189,17 +200,13 @@ private func dockerHowTo(_ it: DockerItem) -> String {
 
 struct DockerView: View {
     @Environment(\.theme) private var theme
-    @StateObject private var model = DockerModel()
+    @ObservedObject var model: DockerModel
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "cube", title: L("鲸鱼肚子里看看"),
-                           subtitle: L("只看不删——照指路去 Docker Desktop 里动手")) {
-                    ThemeButton(kind: .secondary, symbol: "arrow.clockwise",
-                                title: L("重新扫描"),
-                                isDisabled: model.scanning) { model.scan() }
-                }
+                           subtitle: L("只看不删——照指路去 Docker Desktop 里动手"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在问 Docker 都吃了啥…"))
@@ -207,6 +214,9 @@ struct DockerView: View {
                         Text(LF("共 %@", human(model.totalBytes)))
                     }
                     ThemeBadge(text: L("本页不设删除键"), tone: .neutral)
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -227,8 +237,7 @@ struct DockerView: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle(L("Docker 占用"))
-        .onAppear { if model.items.isEmpty { model.scan() } }
-        .onDisappear { model.stop() }
+        .onAppear { if !model.started { model.scan() } }
     }
 
     private var maxSize: Int64 { max(1, model.items.map(\.size).max() ?? 1) }

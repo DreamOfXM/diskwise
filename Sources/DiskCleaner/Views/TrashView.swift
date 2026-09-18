@@ -7,7 +7,9 @@ import DiskCleanerCore
 struct TrashView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @State private var size: Int64? = nil
+    @State private var info: (items: Int, bytes: Int64)? = nil
+    @State private var measuring = false
+    @State private var measureTask: Task<Void, Never>? = nil
     @State private var confirmEmpty = false
     @State private var message: String? = nil
 
@@ -24,10 +26,23 @@ struct TrashView: View {
                             Text(L("废纸篓现在"))
                                 .font(theme.bodyFont(.caption))
                                 .foregroundStyle(theme.palette.inkSecondary)
-                            Text(size.map { human($0) } ?? L("统计中…"))
+                            Text(sizeText)
                                 .font(theme.numeric(.largeTitle))
                                 .monospacedDigit()
                                 .foregroundStyle(theme.palette.ink)
+                            if measuring {
+                                Text(L("正在数过每一个条目…"))
+                                    .font(theme.bodyFont(.caption2))
+                                    .foregroundStyle(theme.palette.inkTertiary)
+                            } else if let info {
+                                Text(cnt(info.items, "项"))
+                                    .font(theme.bodyFont(.caption2))
+                                    .foregroundStyle(theme.palette.inkTertiary)
+                            } else {
+                                Text(L("这里读不到，以访达为准"))
+                                    .font(theme.bodyFont(.caption2))
+                                    .foregroundStyle(theme.palette.inkTertiary)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -75,7 +90,7 @@ struct TrashView: View {
                     Spacer()
                     ThemeButton(kind: .danger, symbol: "flame",
                                 title: L("清空废纸篓"),
-                                isDisabled: (size ?? 0) == 0) { confirmEmpty = true }
+                                isDisabled: info?.items == 0) { confirmEmpty = true }
                 }
 
                 if let m = message {
@@ -96,6 +111,7 @@ struct TrashView: View {
         }
         .navigationTitle(L("废纸篓"))
         .onAppear { refresh() }
+        .onDisappear { measureTask?.cancel() }
         .alert(L("清空废纸篓？"), isPresented: $confirmEmpty) {
             Button(L("取消"), role: .cancel) {}
             Button(L("交给访达清空"), role: .destructive) { empty() }
@@ -131,11 +147,23 @@ struct TrashView: View {
         }
     }
 
+    private var sizeText: String {
+        if measuring { return L("统计中…") }
+        guard let info else { return L("未知") }
+        return human(info.bytes)
+    }
+
     private func refresh() {
-        size = nil
-        Task {
-            let s = trashSize()
-            await MainActor.run { size = s }
+        measureTask?.cancel()
+        measuring = true
+        info = nil
+        measureTask = Task {
+            let r = await trashInfo()
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                info = r
+                measuring = false
+            }
         }
     }
 

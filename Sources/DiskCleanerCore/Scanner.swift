@@ -189,19 +189,23 @@ public func untrash(_ record: TrashRecord) throws {
 
 // ── 废纸篓：大小 + 在访达中打开 + 交给访达清空 ──
 
-public func trashSize() -> Int64 {
+/// 废纸篓概况：条目数 + 实际占盘（文件夹连内部一起算，口径同访达）。
+/// `nil` = 读不到（商店沙盒禁止访问 ~/.Trash，与「空的」是两回事）
+public func trashInfo() async -> (items: Int, bytes: Int64)? {
     let trash = homeDir().appendingPathComponent(".Trash")
+    let fm = FileManager.default
+    guard let items = try? fm.contentsOfDirectory(
+        at: trash, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+        return nil
+    }
     var total: Int64 = 0
-    guard let items = try? FileManager.default.contentsOfDirectory(
-        at: trash, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileSizeKey],
-        options: [.skipsHiddenFiles]) else {
-        return 0
-    }
     for u in items {
-        let v = try? u.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileSizeKey])
-        total += Int64(v?.totalFileAllocatedSize ?? v?.fileSize ?? 0)
+        if Task.isCancelled { return nil }
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: u.path, isDirectory: &isDir) else { continue }
+        total += isDir.boolValue ? await dirSize(u) : fileSize(u)
     }
-    return total
+    return (items.count, total)
 }
 
 public func openTrashInFinder() {
