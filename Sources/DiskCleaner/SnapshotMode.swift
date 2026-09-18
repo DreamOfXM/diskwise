@@ -19,6 +19,8 @@ import SwiftUI
 //     DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
 // 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x1543（默认 1280x820）
+// 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
+// 当场换一次语言，把皮肤页再拍成 90-skins-after-flip-<码>.png。
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -41,6 +43,13 @@ enum SnapshotMode {
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),
     ]
+
+    /// DISKWISE_LANG_FLIP=<en|zhHans>：整套拍完后在同一个进程里当场切一次语言，
+    /// 把皮肤页再拍一张。切语言不重启就得当场生效，这件事用户报过两回，
+    /// 而「重启后再截图」验的是另一条路径，照不出重画有没有跟上。
+    private static var languageFlip: AppLanguage? {
+        AppLanguage(rawValue: ProcessInfo.processInfo.environment["DISKWISE_LANG_FLIP"] ?? "")
+    }
 
     /// 截图窗口尺寸：默认 1280x820。皮肤页那种长页用 DISKWISE_WIN=1280x1543 拉高。
     /// 数值不合理就整体退回默认，别打错一个字符就拍出一张没法用的图。
@@ -92,9 +101,7 @@ enum SnapshotMode {
         hideWindowServerLayers(in: window.contentView)
         let only = Set((ProcessInfo.processInfo.environment["DISKWISE_ONLY"] ?? "")
             .split(separator: ",").map { $0.lowercased() })
-        for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
-            store.jumpTo = panel
-            waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
+        func shoot(_ name: String) {
             let path = (outDir as NSString).appendingPathComponent(name + ".png")
             var ok = false
             if let data = pngData(window, paper: paper, canvas: canvas) {
@@ -103,6 +110,17 @@ enum SnapshotMode {
             FileHandle.standardError.write(ok
                 ? "    ✓ \(name).png\n".data(using: .utf8)!
                 : "    ✗ \(name).png render failed\n".data(using: .utf8)!)
+        }
+        for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
+            store.jumpTo = panel
+            waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
+            shoot(name)
+        }
+        if let flip = languageFlip {
+            store.jumpTo = .appearance
+            store.setLanguage(flip)
+            waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 10)
+            shoot("90-skins-after-flip-\(flip.rawValue)")
         }
         exit(0)
     }

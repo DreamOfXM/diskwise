@@ -162,7 +162,11 @@ struct ContentView: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(SidebarMaterial())
+        // 这一列的初始位置本来就在标题栏下面（安全区已经把 unified 标题栏那 52pt 让出来了），
+        // 但 ScrollView 会把内容一路画到窗口顶：滚一下，段标题就钻进红绿灯里。
+        // 夹在布局边界上，滚过头也只是在标题栏那条线处消失。
+        .clipped()
+        .background(SidebarMaterial().ignoresSafeArea())
         .disabled(grant.needsGrant)
         .opacity(grant.needsGrant ? 0.4 : 1)
         .safeAreaInset(edge: .bottom, spacing: 0) { sidebarFooter }
@@ -184,7 +188,7 @@ struct ContentView: View {
         Text(text)
             .font(theme.bodyFont(.caption2).weight(.semibold))
             .tracking(0.6)
-            .foregroundStyle(theme.palette.inkTertiary)
+            .foregroundStyle(theme.palette.inkSecondary)
             .padding(.leading, 8)
             .padding(.top, 10)
     }
@@ -194,13 +198,13 @@ struct ContentView: View {
             Divider().overlay(theme.palette.separator).padding(.horizontal, 12)
             Text("\(Product.name) \(versionString)")
                 .font(theme.bodyFont(.caption2))
-                .foregroundStyle(theme.palette.inkTertiary)
+                .foregroundStyle(theme.palette.inkSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 8)
         }
-        .background(SidebarMaterial())
+        .background(SidebarMaterial().ignoresSafeArea())
     }
 
     private var versionString: String {
@@ -220,6 +224,10 @@ struct ContentView: View {
                     page
                 }
             }
+            // 切语言 = 重建这一页。词表是全局读的，SwiftUI 不知道哪些视图该重画，
+            // 于是站着的那一屏会留着旧文案（标题、页头、分段控件全在内）。
+            // 扫描结果在 ScanStore 里，重建不会重跑扫描。
+            .id(store.languageChoice)
             NoticeBar()
         }
         .animation(theme.animation, value: store.notice)
@@ -315,18 +323,17 @@ private struct SidebarRow: View {
 // MARK: - 侧边栏材质
 
 /// 侧边栏半透明，让 aurora / fiber 背景透出来
+///
+/// 这里不能用 .thinMaterial：材质由窗口服务器合成，采的是**窗口后面**的东西，
+/// 不是本 App 自己画的那层背景。极光那套实测被采成一块灰泥（rgb 154,166,178），
+/// 段标题对比度掉到 1.35:1。透背景用色块透明度就够，且完全可预测。
 private struct SidebarMaterial: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
         ZStack {
             ThemedBackdrop()
-            if theme.elevation == .glass {
-                Rectangle().fill(.thinMaterial)
-                theme.palette.paper.opacity(0.28)
-            } else {
-                theme.palette.paper.opacity(0.55)
-            }
+            theme.palette.paper.opacity(theme.elevation == .glass ? 0.62 : 0.55)
         }
     }
 }
