@@ -18,3 +18,13 @@ build_app/productbuild.log
 plans/
 .DS_Store
 build_app/derived/
+
+# 签名材料一律不入库：私钥、证书、CSR、描述文件（profile 里带着 App ID 前缀和团队名）
+*.p12
+*.py12
+*.cer
+*.der
+*.pem
+*.key
+*.csr
+*.mobileprovision
