@@ -3,6 +3,7 @@ import DiskCleanerCore
 
 // ── 大文件 TOP ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class BigFilesModel: ObservableObject {
     @Published var rows: [FileRow] = []
@@ -10,29 +11,34 @@ final class BigFilesModel: ObservableObject {
     @Published var count = 0
     @Published var limit = 30
     @Published var skipDev = true
+    @Published var scopeNote: String? = nil
+    /// 本次会话里扫过没有——区分「还没扫」和「扫了但没有」
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
+    /// 遍历有界保留的候选集（最多 200 条）；rows 只是它的前 limit 条
+    private var all: [FileRow] = []
+    private var customDirs: [URL]? = nil
 
     var selected: [FileRow] { rows.filter { $0.selected } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
-    @Published var scopeNote: String? = nil
-    private var customDirs: [URL]? = nil
 
     /// 总览跳过来的定向扫描；dirs == nil 回到默认范围
     func scan(dirs: [URL]? = nil, note: String? = nil) {
         task?.cancel()
         scanning = true
+        started = true
         rows = []
+        all = []
         customDirs = dirs
         scopeNote = note
-        let lim = limit
         let skip: Set<String> = skipDev ? ["node_modules", ".git", "Caches"] : []
         let targets = dirs ?? defaultScanDirs()
         task = Task {
-            var files = await walkFiles(dirs: targets, skipNames: skip)
-            files.sort { $0.size > $1.size }
+            let r = await walkFiles(dirs: targets, top: 200, skipNames: skip)
             if !Task.isCancelled {
-                self.count = files.count
-                self.rows = Array(files.prefix(lim))
+                self.count = r.matched
+                self.all = r.rows
+                self.applyLimit()
                 self.scanning = false
             }
         }
@@ -41,12 +47,30 @@ final class BigFilesModel: ObservableObject {
     func rescan() { scan(dirs: customDirs, note: scopeNote) }
 
     func stop() { task?.cancel(); scanning = false }
+
+    /// 改「前 N」不重扫：勾选同步回候选集，再切一刀
+    func applyLimit() {
+        syncBack()
+        rows = Array(all.prefix(limit))
+    }
+
+    /// 删完就地把没了的条目剔掉，不值得为此重走一遍全盘
+    func pruneMissing() {
+        syncBack()
+        all.removeAll { !FileManager.default.fileExists(atPath: $0.url.path) }
+        rows = Array(all.prefix(limit))
+    }
+
+    /// rows 永远是 all 的前缀，按下标对齐写回
+    private func syncBack() {
+        for i in rows.indices where i < all.count { all[i] = rows[i] }
+    }
 }
 
 struct BigFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = BigFilesModel()
+    @ObservedObject var model: BigFilesModel
     @State private var confirm = false
     @State private var err: String? = nil
 
@@ -57,7 +81,7 @@ struct BigFilesView: View {
                            subtitle: L("按个头排好队，大的先杀")) {
                     ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) { model.rescan() }
                     ThemeStepper(label: L("前"), value: $model.limit, range: 10...200, step: 10) {
-                        model.rescan()
+                        model.applyLimit()
                     }
                 }
                 ControlStrip {
@@ -70,6 +94,9 @@ struct BigFilesView: View {
                         ThemeBadge(text: LF("只看 %@", note), tone: .tint, symbol: "scope")
                         ThemeButton(kind: .compact, title: L("恢复默认")) { model.scan() }
                     }
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.rescan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -78,7 +105,7 @@ struct BigFilesView: View {
 
             if !model.scanning && model.rows.isEmpty {
                 EmptyState(symbol: "doc", title: L("还没扫到大文件"),
-                           hint: L("点总览右上角重新扫描，或换个目录深挖"))
+                           hint: L("点右上角重新扫描，或回总览换个目录深挖"))
                     .frame(maxHeight: .infinity)
             } else {
                 List($model.rows) { $r in
@@ -104,11 +131,10 @@ struct BigFilesView: View {
             if let dir = store.bigScanDir {
                 store.bigScanDir = nil
                 model.scan(dirs: [dir], note: dir.lastPathComponent)
-            } else if model.rows.isEmpty {
+            } else if !model.started {
                 model.scan()
             }
         }
-        .onDisappear { model.stop() }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),
@@ -133,7 +159,7 @@ struct BigFilesView: View {
                 model.rows[i].selected = false
             }
         }
-        model.rows.removeAll { !FileManager.default.fileExists(atPath: $0.url.path) }
+        model.pruneMissing()
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "个文件", failed: errs.count)
     }
@@ -141,12 +167,14 @@ struct BigFilesView: View {
 
 // ── 很久没动 ──
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class OldFilesModel: ObservableObject {
     @Published var rows: [FileRow] = []
     @Published var scanning = false
     @Published var days = 90
     @Published var skipDev = true
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
 
     var selected: [FileRow] { rows.filter { $0.selected } }
@@ -156,6 +184,7 @@ final class OldFilesModel: ObservableObject {
     func scan() {
         task?.cancel()
         scanning = true
+        started = true
         rows = []
         let d = days
         let skip: Set<String> = skipDev ? ["node_modules", ".git", "Caches"] : []
@@ -168,11 +197,9 @@ final class OldFilesModel: ObservableObject {
                 return u
             }
             let cutoff = Date().addingTimeInterval(Double(-d) * 86400)
-            var files = await walkFiles(dirs: dirs, skipNames: skip)
-            files = files.filter { $0.mtime < cutoff }
-            files.sort { $0.size > $1.size }
+            let r = await walkFiles(dirs: dirs, olderThan: cutoff, top: 300, skipNames: skip)
             if !Task.isCancelled {
-                self.rows = Array(files.prefix(300))
+                self.rows = r.rows
                 self.scanning = false
             }
         }
@@ -184,7 +211,7 @@ final class OldFilesModel: ObservableObject {
 struct OldFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = OldFilesModel()
+    @ObservedObject var model: OldFilesModel
     @State private var confirm = false
     @State private var err: String? = nil
 
@@ -205,6 +232,9 @@ struct OldFilesView: View {
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"), human(model.totalBytes)))
                     }
+                } trailing: {
+                    ScanControl(scanning: model.scanning,
+                                rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
@@ -234,8 +264,7 @@ struct OldFilesView: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle(L("很久没动"))
-        .onAppear { if model.rows.isEmpty { model.scan() } }
-        .onDisappear { model.stop() }
+        .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),

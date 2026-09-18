@@ -383,41 +383,16 @@ private struct SchemePicker: View {
 // MARK: - 语言
 
 private struct LanguagePicker: View {
-    @Environment(\.theme) private var theme
-    @State private var changed = false
+    @EnvironmentObject private var store: AppStore
 
     private let symbols = ["globe", "a.square", "character"]
     private var labels: [String] { AppLanguage.allCases.map(\.menuLabel) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SegmentedStrip(symbols: symbols, labels: labels,
-                           isOn: { L10n.choice == AppLanguage.allCases[$0] },
-                           select: { pick(AppLanguage.allCases[$0]) },
-                           a11yPrefix: L("界面语言"))
-
-            if changed {
-                HStack(spacing: 8) {
-                    Text(L("语言已切换，重启后整屏生效"))
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(theme.palette.inkSecondary)
-                    if L10n.canRelaunch {
-                        ThemeButton(kind: .primary, symbol: "arrow.clockwise",
-                                    title: L("立即重启")) { L10n.relaunch() }
-                    } else {
-                        Text(L("退出后重新打开即可"))
-                            .font(theme.bodyFont(.caption2))
-                            .foregroundStyle(theme.palette.inkTertiary)
-                    }
-                }
-            }
-        }
-    }
-
-    private func pick(_ lang: AppLanguage) {
-        guard lang != L10n.choice else { return }
-        L10n.setChoice(lang)
-        withAnimation(theme.animation) { changed = true }
+        SegmentedStrip(symbols: symbols, labels: labels,
+                       isOn: { store.languageChoice == AppLanguage.allCases[$0] },
+                       select: { store.setLanguage(AppLanguage.allCases[$0]) },
+                       a11yPrefix: L("界面语言"))
     }
 }
 

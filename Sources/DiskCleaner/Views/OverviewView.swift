@@ -6,17 +6,24 @@ import AppKit
 // 这一屏是磁盘清理类产品的门面，所以给了环形仪表：
 // 一眼看清"整块盘被谁吃了"，比一根进度条有力得多。
 
+/// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class OverviewModel: ObservableObject {
     @Published var usage: VolumeUsage? = nil
     @Published var hotspots: [(name: String, path: String, size: Int64?)] = []
     @Published var scanning = false
+    @Published private(set) var started = false
     private var task: Task<Void, Never>? = nil
+
+    /// 只刷磁盘余量——可用空间随时在变，进页面就该是新的；
+    /// 热点体积要遍历整棵家目录，不能跟着一起重跑。
+    func refreshUsage() { usage = volumeUsage() }
 
     func refresh() {
         task?.cancel()
         usage = volumeUsage()
         scanning = true
+        started = true
         hotspots = []
         task = Task {
             let home = homePath()
@@ -63,7 +70,7 @@ final class OverviewModel: ObservableObject {
 struct OverviewView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @StateObject private var model = OverviewModel()
+    @ObservedObject var model: OverviewModel
 
     var body: some View {
         // 整页只有一个滚动容器：macOS 13 的 ScrollView 会把内容的完整高度
@@ -73,13 +80,8 @@ struct OverviewView: View {
                 PageHeader(symbol: "internaldrive", title: L("空间都去哪了"),
                            subtitle: L("先看清，再下手——下面每块地方都能一键深挖"),
                            variant: .display) {
-                    if model.scanning {
-                        ThemeButton(kind: .secondary, symbol: "stop.fill",
-                                    title: L("停止")) { model.stop() }
-                    } else {
-                        ThemeButton(kind: .primary, symbol: "arrow.clockwise",
-                                    title: L("重新扫描")) { model.refresh() }
-                    }
+                    ScanControl(scanning: model.scanning, kind: .primary,
+                                rescan: { model.refresh() }, stop: { model.stop() })
                 }
                 .pagePadding()
 
@@ -106,8 +108,7 @@ struct OverviewView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(L("空间总览"))
-        .onAppear { if model.hotspots.isEmpty { model.refresh() } }
-        .onDisappear { model.stop() }
+        .onAppear { model.started ? model.refreshUsage() : model.refresh() }
     }
 
     // MARK: 环形仪表 + 三个数

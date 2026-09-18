@@ -61,7 +61,7 @@
 "只看 %@" = "Only %@";
 "恢复默认" = "Reset scope";
 "还没扫到大文件" = "No large files yet";
-"点总览右上角重新扫描，或换个目录深挖" = "Rescan from the overview, or point it at another folder";
+"点右上角重新扫描，或回总览换个目录深挖" = "Hit Rescan in the top right, or dig into another folder from the overview";
 "落灰的，该走了" = "Time for the dusty ones to go";
 "下载和桌面里，好久没碰的东西" = "Things in Downloads and Desktop you haven't touched in ages";
 "超过" = "Older than";
@@ -130,7 +130,7 @@
 "%d 项可查" = "%d entries listed";
 "条目路径有重叠，未勾选不做加总" = "Entry paths overlap; unselected items aren't summed";
 "知识库没加载出来" = "The knowledge base didn't load";
-"重启 App 试试，还不行就提个 Issue" = "Relaunch the app; if it persists, open an Issue";
+"点右上角重新扫描，还不行就提个 Issue" = "Hit Rescan in the top right; if it persists, open an Issue";
 "这是什么" = "What it is";
 "删了会怎样" = "What breaks";
 "怎么恢复" = "How to recover";
@@ -160,6 +160,9 @@
 "最后一道门" = "The last door";
 "东西都在这躺着，后悔药管够——清空才真没" = "Everything waits here, fully reversible — emptying is the point of no return";
 "废纸篓现在" = "Trash right now";
+"未知" = "Unknown";
+"正在数过每一个条目…" = "Counting every item…";
+"这里读不到，以访达为准" = "Not readable here — Finder has the real number";
 "本次移入" = "Moved this session";
 "%@可撤销" = "Undo available for %@";
 "本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——那一步交给访达，系统会再拦你一次。" = "Every “delete” here only moves items to the Trash. Freeing space for real means emptying it — a step handed to Finder, which will stop you once more.";
@@ -233,9 +236,6 @@
 "明暗模式" = "Light or dark";
 "界面语言" = "Language";
 "自动" = "Auto";
-"语言已切换，重启后整屏生效" = "Language changed — it fully applies after a relaunch";
-"立即重启" = "Relaunch now";
-"退出后重新打开即可" = "Quit and reopen to apply";
 
 // ── 问题反馈 ────────────────────────────────────────────────────────────────
 "App 不联网，反馈得由你亲手发出来" = "This app never touches the network, so feedback has to come from you";

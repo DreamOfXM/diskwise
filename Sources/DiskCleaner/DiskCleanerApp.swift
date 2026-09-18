@@ -28,6 +28,20 @@ struct DiskCleanerApp: App {
     }
 }
 
+// 扫描结果是 App 级状态：页面视图随导航销毁，模型不能跟着一起销毁，
+// 否则每切一次 tab 就重走一遍全盘——切来切去卡的就是这个。
+@MainActor
+final class ScanStore: ObservableObject {
+    let overview = OverviewModel()
+    let big = BigFilesModel()
+    let old = OldFilesModel()
+    let dup = DupModel()
+    let nodemodules = NMModel()
+    let docker = DockerModel()
+    let caches = CachesModel()
+    let orphans = OrphansModel()
+}
+
 // 全 App 共享：废纸篓历史（撤销用）+ 顶部提示条 + 跨页跳转
 @MainActor
 final class AppStore: ObservableObject {
@@ -35,6 +49,15 @@ final class AppStore: ObservableObject {
     @Published var notice: String? = nil
     @Published var jumpTo: AppPanel? = nil
     @Published var bigScanDir: URL? = nil   // 总览跳过来的定向扫描目录
+    /// 用户选的界面语言。改它 = 让整棵树重画，所以切语言不用重启（商店版也不能自己重启）。
+    @Published private(set) var languageChoice: AppLanguage = L10n.choice
+
+    func setLanguage(_ lang: AppLanguage) {
+        guard lang != languageChoice else { return }
+        L10n.apply(lang)          // 先换词表，再让视图重画
+        L10n.setChoice(lang)      // 记住选择，下次启动系统级也对得上
+        languageChoice = lang
+    }
 
     var trashedBytes: Int64 { trashHistory.reduce(0) { $0 + $1.size } }
 
@@ -106,6 +129,7 @@ struct ContentView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var grant = HomeGrant.shared
+    @StateObject private var scans = ScanStore()
     @State private var selection: AppPanel? = .overview
 
     var body: some View {
@@ -206,14 +230,14 @@ struct ContentView: View {
 
     @ViewBuilder private var page: some View {
         switch selection ?? .overview {
-        case .overview: OverviewView()
-        case .big: BigFilesView()
-        case .old: OldFilesView()
-        case .dup: DupView()
-        case .nodemodules: NMView()
-        case .docker: DockerView()
-        case .caches: CachesView()
-        case .orphans: OrphansView()
+        case .overview: OverviewView(model: scans.overview)
+        case .big: BigFilesView(model: scans.big)
+        case .old: OldFilesView(model: scans.old)
+        case .dup: DupView(model: scans.dup)
+        case .nodemodules: NMView(model: scans.nodemodules)
+        case .docker: DockerView(model: scans.docker)
+        case .caches: CachesView(model: scans.caches)
+        case .orphans: OrphansView(model: scans.orphans)
         case .trash: TrashView()
         case .appearance: AppearanceView()
         case .feedback: FeedbackView()

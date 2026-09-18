@@ -297,19 +297,48 @@ extension View {
     }
 }
 
-// MARK: - 工具条（筛选/参数）
+// MARK: - 工具条（筛选/参数 + 右侧动作）
 
-struct ControlStrip<Content: View>: View {
+struct ControlStrip<Content: View, Trailing: View>: View {
     @Environment(\.theme) private var theme
     @ViewBuilder var content: () -> Content
+    @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
         HStack(spacing: 10) {
             content()
             Spacer(minLength: 0)
+            trailing()
         }
         .font(theme.bodyFont(.callout))
         .foregroundStyle(theme.palette.inkSecondary)
+    }
+}
+
+extension ControlStrip where Trailing == EmptyView {
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+        self.trailing = { EmptyView() }
+    }
+}
+
+/// 扫描页的共用动作：扫描中给「停止」，扫完给「重新扫描」。
+/// 结果跨 tab 复用之后，进页面不再自动重扫，这颗按钮就是用户唯一的重扫入口。
+struct ScanControl: View {
+    @Environment(\.theme) private var theme
+    var scanning: Bool
+    var kind: ThemeButton.Kind = .secondary
+    var rescan: () -> Void
+    var stop: () -> Void
+
+    var body: some View {
+        if scanning {
+            ThemeButton(kind: .secondary, symbol: "stop.fill",
+                        title: L("停止"), action: stop)
+        } else {
+            ThemeButton(kind: kind, symbol: "arrow.clockwise",
+                        title: L("重新扫描"), action: rescan)
+        }
     }
 }
 

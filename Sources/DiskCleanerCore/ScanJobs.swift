@@ -21,9 +21,21 @@ public struct FileRow: Identifiable {
     }
 }
 
-public func walkFiles(dirs: [URL], minSize: Int64 = 0,
-                      skipNames: Set<String> = []) async -> [FileRow] {
+/// 一次遍历的结果。`rows` 可能被 `top` 截断，`matched` 永远是命中总数。
+public struct WalkResult {
+    public var rows: [FileRow]
+    public var matched: Int
+}
+
+/// 深度优先遍历。
+/// - `olderThan`：日期过滤下推进遍历，别让整棵树的行先落进数组再筛。
+/// - `top`：只留最大的前 N 条，攒到 4N 就收缩一次。不封顶的话一个 Documents 目录
+///   就能往内存里塞几十万个 FileRow。
+public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
+                      top: Int = 0, skipNames: Set<String> = []) async -> WalkResult {
     var out: [FileRow] = []
+    var matched = 0
+    let cutoff = olderThan.map { $0.timeIntervalSince1970 }
     var stack = dirs.map { $0.path }
     var n = 0
     while let dir = stack.popLast() {
@@ -43,13 +55,20 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0,
             n += 1
             if n % 20000 == 0 && Task.isCancelled { break }
             let sz = Int64(st.st_blocks) * 512
-            if sz >= minSize {
-                out.append(FileRow(url: URL(fileURLWithPath: p), size: sz,
-                                   mtime: Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec))))
+            let mt = Double(st.st_mtimespec.tv_sec)
+            guard sz >= minSize, cutoff == nil || mt < cutoff! else { continue }
+            matched += 1
+            out.append(FileRow(url: URL(fileURLWithPath: p), size: sz,
+                               mtime: Date(timeIntervalSince1970: mt)))
+            if top > 0 && out.count >= top * 4 {
+                out.sort { $0.size > $1.size }
+                out = Array(out.prefix(top))
             }
         }
     }
-    return out
+    out.sort { $0.size > $1.size }
+    if top > 0 { out = Array(out.prefix(top)) }
+    return WalkResult(rows: out, matched: matched)
 }
 
 public func defaultScanDirs() -> [URL] {
