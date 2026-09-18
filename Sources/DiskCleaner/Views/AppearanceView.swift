@@ -365,7 +365,8 @@ private struct SchemePicker: View {
     @Environment(\.theme) private var theme
 
     private let symbols = ["circle.lefthalf", "sun.max", "moon"]
-    private let labels = [L("跟随"), L("浅色"), L("深色")]
+    // 存成 let 就等于在初始化那一刻把词表冻住：切语言后这一排还是旧文案
+    private var labels: [String] { [L("跟随"), L("浅色"), L("深色")] }
     private let schemes: [ColorScheme?] = [nil, .light, .dark]
 
     var body: some View {
