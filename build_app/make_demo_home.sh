@@ -23,7 +23,7 @@ MARKER="$H/.diskwise-demo"
 # 只认两种目录：全新的，和这个脚本以前造过的（靠标记文件认领）。
 # 重跑是幂等的：mk 见文件就跳过，dup 只 cp 覆盖自己造的那几份。
 if [ -d "$TARGET" ] && [ -n "$(ls -A "$TARGET" 2>/dev/null)" ] && [ ! -f "$MARKER" ]; then
-	echo "错误：$TARGET 已有别的东西，且不是本脚本造的（缺 $MARKER）。换个空目录。" >&2
+	echo "错误：$TARGET 已有别的东西，且不是本脚本造的（缺 ${MARKER}）。换个空目录。" >&2
 	exit 1
 fi
 
