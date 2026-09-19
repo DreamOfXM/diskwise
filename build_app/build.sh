@@ -12,7 +12,8 @@
 #
 # 签名身份：两个渠道两张证书，钥匙串里有对应那张就自动用——
 # 直链分发找 "Developer ID Application: ..."，商店找 "Apple Distribution: ..."；
-# 探测不到就退回 ad-hoc，产物照出，但用户首次打开要右键 → 打开，且商店包传不上去。
+# 探测不到就退回 ad-hoc，产物照出，但用户首次打开会被 Gatekeeper 拦一次（要在系统设置里放行），
+# 且商店包传不上去。
 # 想强制 ad-hoc 用 SIGN_IDENTITY=none。
 #
 # 公证凭据（三选一，都不落盘进仓库）：
@@ -311,7 +312,7 @@ else
 	if [ "$CHANNEL" = "appstore" ]; then
 		echo "    沙盒照样生效（能本地验授权流），但这份包不能上传，只用于测试。"
 	else
-		echo "    产物照出，但用户首次打开要右键 → 打开；不能送公证。"
+		echo "    产物照出，但用户首次打开会被 Gatekeeper 拦一次；不能送公证。"
 	fi
 	codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_DIR"
 fi
@@ -399,12 +400,13 @@ else
 		HEADER_ZH="未签名"
 	fi
 	LAUNCH_EN="[ First launch ($HEADER_EN) ]
-Right-click (or Control-click) the app in Applications -> Open -> Open.
-Or: after double-click is blocked, go to
-System Settings -> Privacy & Security -> \"Open Anyway\"."
+Double-click is blocked the first time. Then open
+System Settings -> Privacy & Security -> \"Open Anyway\" -> Open.
+(On macOS 13-14 the older right-click -> Open works too;
+Sequoia removed that shortcut.)"
 	LAUNCH_ZH="【首次打开（${HEADER_ZH}，只需一次）】
-在「应用程序」里按住 Control 点按 App → 选「打开」→ 再点「打开」。
-或：双击被拦后，到 系统设置 → 隐私与安全性 → 点「仍要打开」。"
+双击会被拦下，然后到 系统设置 → 隐私与安全性 → 点「仍要打开」→ 再点「打开」。
+（macOS 13–14 上还可以按住 Control 点按 App → 「打开」；Sequoia 起这条捷径已移除。）"
 fi
 
 cat > "$STAGING/README.txt" <<README_EOF

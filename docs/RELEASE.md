@@ -35,7 +35,7 @@
 
 | 渠道 | `build.sh` 找的身份 | 找不到时 |
 | --- | --- | --- |
-| `CHANNEL=oss`（默认） | `Developer ID Application: ...`（签 `.app`） | 退回 ad-hoc（`codesign --sign -`），产物照出，用户首次打开要右键 → 打开 |
+| `CHANNEL=oss`（默认） | `Developer ID Application: ...`（签 `.app`） | 退回 ad-hoc（`codesign --sign -`），产物照出，用户首次打开会被拦一次、要在系统设置里放行 |
 | `CHANNEL=appstore` | `Apple Distribution: ...`（签 `.app`）+ `Mac Installer Distribution: ...`（`productbuild` 签 `.pkg`） | 退回 ad-hoc，但这样的 `.pkg` 传不上去，只能本地验构建链 |
 
 想强制走 ad-hoc 测回退路径：`SIGN_IDENTITY=none`。两边都带 `--options runtime --timestamp`
@@ -112,7 +112,7 @@ NOTARIZE=1 NOTARY_PROFILE=diskwise bash build_app/build.sh
 
 DMG 里那份 `README.txt` 的「首次打开」文案由 `SIGNED` 和 `NOTARIZE` 两个开关推出三种状态：
 ad-hoc（未签名）、已签名但未公证、已签名且已公证——只有最后一种写「双击即可」，前两种都给
-右键 → 打开。签名 ≠ 公证，缺票据的包照样被 Gatekeeper 拦，文案不能写反。
+系统设置 → 隐私与安全性 → 「仍要打开」（macOS 15 起右键 → 打开已失效）。签名 ≠ 公证，缺票据的包照样被 Gatekeeper 拦，文案不能写反。
 
 ---
 
