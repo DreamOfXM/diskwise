@@ -1,7 +1,7 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 重复文件：每组保留最早的一个，其余可删 ──
+// ── 重复文件：每组保留日期最新的一个，其余可删 ──
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
@@ -84,7 +84,7 @@ struct DupView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "square.on.square", title: L("重复文件"),
-                           subtitle: L("每组最早的那份永远保留，动其余的"),
+                           subtitle: L("每组日期最新的那份永远保留，动其余的"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
@@ -127,7 +127,7 @@ struct DupView: View {
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
+                      text: LF("将 %1$@移入废纸篓（每组日期最新的一份永远保留）。",
                                cnt(model.selectedCount, "个多余副本"))) {
             doClean()
         }
@@ -226,6 +226,7 @@ private struct DupGroupRow: View {
             if isKept {
                 ThemeBadge(text: L("保留"), tone: .safe, symbol: "lock.fill")
                     .frame(minWidth: 62, alignment: .leading)
+                    .help(L("每组留下日期最新的那一份：备份、导出这类目录是按日期递增的，留最旧的等于把最新那份删了"))
             } else {
                 Toggle("", isOn: Binding(
                     get: { selection.contains(url.path) },
@@ -242,8 +243,15 @@ private struct DupGroupRow: View {
                 .foregroundStyle(isKept ? theme.palette.inkTertiary : theme.palette.inkSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-            Spacer(minLength: 0)
+            // 日期摆出来，「留的是哪一份」才看得见：这一页原先一个日期都没有，
+            // 保留规则只能靠猜，用户看到留了最旧那份时以为我们挑错了。
+            Text(shortDate(fileDate(url)))
+                .font(theme.numeric(.caption2))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkTertiary)
+                .fixedSize()
         }
         .padding(.leading, 21)
         .padding(.vertical, 4)

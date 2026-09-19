@@ -100,7 +100,7 @@ public func defaultScanDirs(scope: ScanScope) -> [URL] {
 public struct DupGroup: Identifiable {
     public let id = UUID()
     public var size: Int64
-    public var files: [URL]   // 第一个保留，其余可删
+    public var files: [URL]   // 第一个保留（日期最新那份），其余可删
     public var waste: Int64 { size * Int64(max(0, files.count - 1)) }
 }
 
@@ -133,6 +133,21 @@ private func fullHash(_ url: URL) -> String? {
     return digest.finalize().map { String(format: "%02x", $0) }.joined()
 }
 
+/// 留哪一份看这个日期：修改时间，读不到退回创建时间，再读不到算最旧。
+/// 单独露出来是因为行上标的日期必须跟排序用的是同一个数——否则界面说「留最新」，
+/// 行的日期却对不上，那一屏就成了自证矛盾的现场。
+public func fileDate(_ url: URL) -> Date {
+    let v = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+    return v?.contentModificationDate ?? v?.creationDate ?? .distantPast
+}
+
+/// `yyyy-MM-dd HH:mm`：同一天里连拍几份备份很常见，只到「日」就分不出留哪个
+public func shortDate(_ d: Date) -> String {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd HH:mm"
+    return f.string(from: d)
+}
+
 public func findDupGroups(_ rows: [FileRow]) -> [DupGroup] {
     var bySize: [Int64: [URL]] = [:]
     for r in rows { bySize[r.size, default: []].append(r.url) }
@@ -150,9 +165,15 @@ public func findDupGroups(_ rows: [FileRow]) -> [DupGroup] {
                 if let h = fullHash(u) { byFull[h, default: []].append(u) }
             }
             for (_, same) in byFull where same.count > 1 {
+                // 降序：files[0] 是保留的那一份，留最新。备份、导出这类目录按日期递增，
+                // 留最旧等于把最新那份送进废纸篓、留下一堆过期档。
+                // 日期相同（整棵树同一秒拷出来的演示盘、批量复制）必须有第二把尺：
+                // 只按日期排的话同秒之间谁在前取决于字典遍历顺序，同一台机器重扫一次
+                // 就能把「保留」挪到另一份上，这一列就不可信了。
                 let ordered = same.sorted {
-                    ((try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
-                    < ((try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
+                    fileDate($0) != fileDate($1)
+                        ? fileDate($0) > fileDate($1)
+                        : $0.path < $1.path
                 }
                 groups.append(DupGroup(size: sz, files: ordered))
             }

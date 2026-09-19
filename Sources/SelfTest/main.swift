@@ -258,25 +258,43 @@ Task {
 }
 sem.wait()
 
-// 7. 通用遍历 + 重复检测：两个相同文件 + 一个不同文件
+// 7. 通用遍历 + 重复检测：三个相同文件（其中两个同秒）+ 一个不同文件
 let dbase = fm.temporaryDirectory.appendingPathComponent("duptest-\(UUID().uuidString)")
 try! fm.createDirectory(at: dbase, withIntermediateDirectories: true)
 try! Data("same-content".utf8).write(to: dbase.appendingPathComponent("a.txt"))
 try! Data("same-content".utf8).write(to: dbase.appendingPathComponent("b.txt"))
+try! Data("same-content".utf8).write(to: dbase.appendingPathComponent("e.txt"))
 try! Data("different!!".utf8).write(to: dbase.appendingPathComponent("c.txt"))
 try! fm.createDirectory(at: dbase.appendingPathComponent("sub"), withIntermediateDirectories: true)
 try! Data("nested-file!".utf8).write(to: dbase.appendingPathComponent("sub/d.txt"))
+// 给 a/b/e 钉上明确的先后：留哪一份就是由日期定的，全同秒的话这条测不出东西。
+// b 和 e 故意同秒——同秒里留谁必须由路径定死，不能看字典遍历的心情。
+let olderMtime = Date(timeIntervalSince1970: 1_600_000_000)
+let newerMtime = Date(timeIntervalSince1970: 1_700_000_000)
+try! fm.setAttributes([.modificationDate: olderMtime],
+                      ofItemAtPath: dbase.appendingPathComponent("a.txt").path)
+try! fm.setAttributes([.modificationDate: newerMtime],
+                      ofItemAtPath: dbase.appendingPathComponent("b.txt").path)
+try! fm.setAttributes([.modificationDate: newerMtime],
+                      ofItemAtPath: dbase.appendingPathComponent("e.txt").path)
 let sem2 = DispatchSemaphore(value: 0)
 Task {
     let r = await walkFiles(dirs: [dbase])
-    check(r.rows.count == 4 && r.matched == 4, "遍历到 4 个文件")
+    check(r.rows.count == 5 && r.matched == 5, "遍历到 5 个文件")
     let gs = findDupGroups(r.rows)
-    check(gs.count == 1 && gs[0].files.count == 2, "检出 1 组重复（a/b），c、d 不在其中")
+    check(gs.count == 1 && gs[0].files.count == 3, "检出 1 组重复（a/b/e），c、d 不在其中")
+    // files[0] 就是界面上那颗「保留」。备份/导出目录按日期递增，留最旧等于删最新备份
+    check(gs[0].files.first?.lastPathComponent == "b.txt",
+          "重复组保留日期最新那份（实留 \(gs[0].files.first?.lastPathComponent ?? "无")）")
+    check(gs[0].files.dropFirst().map(\.lastPathComponent) == ["e.txt", "a.txt"],
+          "同秒的两份按路径定死先后（实排 \(gs[0].files.dropFirst().map(\.lastPathComponent))）")
+    check(shortDate(fileDate(gs[0].files[0])) == shortDate(newerMtime),
+          "行上标的日期就是排序依据（\(shortDate(fileDate(gs[0].files[0])))）")
     let capped = await walkFiles(dirs: [dbase], top: 2)
-    check(capped.rows.count == 2 && capped.matched == 4, "top 2 只留两条，命中总数仍是 4")
+    check(capped.rows.count == 2 && capped.matched == 5, "top 2 只留两条，命中总数仍是 5")
     // 根套根（演示树里整盘根全落在假家目录底下）：同一份文件只能算一次
     let nested = await walkFiles(dirs: [dbase, dbase.appendingPathComponent("sub")])
-    check(nested.rows.count == 4, "嵌套根不重复计数（实得 \(nested.rows.count) 条）")
+    check(nested.rows.count == 5, "嵌套根不重复计数（实得 \(nested.rows.count) 条）")
     check(Set(nested.rows.map { $0.url.path }).count == nested.rows.count, "嵌套根交出来的路径不重复")
     try? fm.removeItem(at: dbase)
     sem2.signal()
