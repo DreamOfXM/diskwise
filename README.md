@@ -7,14 +7,14 @@
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription. 4.0 MB DMG.
+server, no telemetry, no subscription. 4.4 MB DMG, one file for Apple Silicon and Intel.
 
 [English](#english) · [中文](#中文)
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-4.0%20MB-blue)
+![size](https://img.shields.io/badge/DMG-4.4%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 </div>
@@ -188,10 +188,11 @@ They're in the cache knowledge base, because on a Chinese developer's Mac those 
 single biggest consumers. That's also why the UI ships bilingual.
 
 **Intel Mac?**
-`bash build_app/build.sh` defaults to Apple Silicon; `ARCH=universal` produces one DMG carrying
-both the arm64 and x86_64 slices. Which one a given release ships is written in that release's
-note — so far every published DMG has been the arm64 one, so Intel users should check before
-downloading, or just build from source (it takes a minute and needs no Xcode).
+From v1.3 on, every published DMG is built with `ARCH=universal` and carries both the arm64 and
+x86_64 slices in one file, so the same download works on Apple Silicon and Intel. Releases before
+v1.3 shipped an arm64-only file (`DiskWise-<version>.dmg`, no `-universal` in the name); Intel
+users on those versions need to build from source instead (it takes a minute and needs no Xcode).
+`bash build_app/build.sh` still defaults to Apple Silicon; pass `ARCH=universal` to get both.
 
 **Why does macOS complain on first launch?**
 It depends on how that build was signed. `build.sh` uses a Developer ID certificate and
@@ -251,7 +252,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具，CleanMyMac 的免费开源替代。所有删除只进废纸篓，
 本次会话内随时可撤销；专治开发者机器上的 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、
 微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅。安装包 4.0 MB。
+没有端口、不联网、无遥测、无订阅。安装包 4.4 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
 
 ## 它凭什么值得信任
 
@@ -393,9 +394,11 @@ GitHub、邮箱或 QQ 群的原因。
 管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，界面也因此做成中英双语。
 
 **Intel 机器能用吗？**
-代码和构建链都支持——`ARCH=universal bash build_app/build.sh` 出的那个文件里 arm64 和 x86_64
-两个切片都在，闸门会单独把 x86_64 那份跑一遍。但**目前发出去的每个 DMG 都只带 arm64**，
-所以 Intel 用户下载前先看那条 Release 的说明，或者干脆自己编一条命令的事（不需要完整 Xcode）。
+从 v1.3 起，发出去的每个 DMG 都是 `ARCH=universal` 出的，同一个文件里 arm64 和 x86_64 两个切片
+都在，闸门会单独把 x86_64 那份跑一遍，Intel 和 Apple Silicon 下载同一个链接即可。v1.3 之前的
+Release 附的是只带 arm64 的 `DiskWise-<版本号>.dmg`（文件名没有 `-universal`），那几个版本要
+Intel 就得自己编一条命令的事（不需要完整 Xcode）。本地 `build.sh` 默认仍只出 Apple Silicon，
+加 `ARCH=universal` 才出双切片。
 
 **为什么首次打开系统要警告？**
 看那一版是怎么签的。`build.sh` 有 Developer ID 证书和公证凭据时走正式签名 + 公证，双击就开；
