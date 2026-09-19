@@ -255,7 +255,8 @@ struct OverviewView: View {
     @ObservedObject var model: OverviewModel
 
     /// 默认摊开：这块是「那几百 G 到底是谁」的正面回答，收起来等于把答案藏起来。
-    @State private var gapExpanded = true
+    /// 商店取图那一趟例外：演示树拆不出卷账，摊开只会露出「这是演示树」的那句解释。
+    @State private var gapExpanded = !storeShotMode
     /// 列表封顶之后的那些格子。默认收起，但一行点开就全在——
     /// 环形里那块「其他已统计」不能只有一坨数，得能一路摊到名字。
     @State private var showAllHotspots = false
@@ -375,7 +376,7 @@ struct OverviewView: View {
             // 演示树必须占满一条视线，不能只靠覆盖率那行末尾的小字：假家目录配真盘
             // 容量、或者配一块 96 GB 的假盘，缩略图里跟真机一模一样，挑图的人（包括
             // 我自己）就会拿一张假账去说「这才几十 G」。
-            if homeIsDemo {
+            if demoDisclosed {
                 HStack(spacing: 8) {
                     Image(systemName: "theatermask.and.paintbrush")
                         .font(.system(size: 12))
@@ -640,7 +641,7 @@ struct OverviewView: View {
         if HomeAccess.runsSandboxed {
             text = L("沙盒只放行了你授权过的目录，其余位置量不到。这不是盘上的死账：授权范围里的东西量到之后都能进废纸篓。")
         } else if model.split == nil {
-            text = homeIsDemo
+            text = demoDisclosed
                 ? L("演示树只画得出这一块。真机上这里会按卷点名：系统卷、虚拟内存、引导分区各占多少，一眼分清哪些能追回来。")
                 : L("这一轮没扫到、或目录打不开的都归在这里。这台机器的分卷账拆不出来，所以没法替你把系统分区单独挑出去。")
         } else {
@@ -683,7 +684,7 @@ struct OverviewView: View {
                             .font(theme.display(.subheadline))
                             .tracking(theme.titleTracking + 0.2)
                             .foregroundStyle(theme.palette.ink)
-                        if homeIsDemo {
+                        if demoDisclosed {
                             Text(L("（演示数据）"))
                                 .font(theme.bodyFont(.caption))
                                 .foregroundStyle(theme.palette.inkTertiary)
