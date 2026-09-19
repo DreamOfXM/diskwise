@@ -236,7 +236,12 @@
 "交给访达清空" = "Empty via Finder";
 "这一步由访达执行，清空后不可恢复。系统层面会再确认一次。" = "Finder performs this step and it can't be undone. macOS will ask you once more.";
 "已请访达清空，真实释放约 %@（以访达完成为准）。" = "Asked Finder to empty it — roughly %@ actually freed (count it once Finder finishes).";
-"清空失败：%@。去「系统设置 → 隐私与安全性 → 自动化」里允许本工具控制访达，然后重试。" = "Emptying failed: %@. Allow this app to control Finder under System Settings → Privacy & Security → Automation, then try again.";
+"正在请访达清空…" = "Asking Finder to empty it…";
+"清空失败：%@。" = "Emptying failed: %@.";
+"清空失败：%@。系统没放行本工具指挥访达——在「隐私与安全性 → 自动化」里勾上 Finder，勾完重启本工具再试。" = "Emptying failed: %@. macOS hasn't let this app drive Finder — tick Finder under Privacy & Security → Automation, then relaunch DiskWise and try again.";
+"打开自动化设置" = "Open Automation settings";
+"%@。废纸篓里的东西还在，没有清空。" = "%@. Nothing was emptied — the items are still in the Trash.";
+"清空失败：%@。也可以手动清空：点上面的「访达中打开」，在访达窗口里按 ⌘⇧⌫。" = "Emptying failed: %@. You can also empty it by hand: hit “Open in Finder” above, then press ⌘⇧⌫ in the Finder window.";
 
 // ── 外观皮肤 ────────────────────────────────────────────────────────────────
 "免费三套随便穿；付费三套连骨架都不一样" = "Three free skins; three premium ones rebuild the skeleton";
@@ -358,6 +363,8 @@
 "系统未返回废纸篓位置" = "The system didn't return a Trash location";
 "无法创建访达指令" = "Couldn't build the Finder command";
 "访达拒绝执行" = "Finder refused to run it";
+"没有控制访达的权限" = "No permission to control Finder";
+"访达的确认被取消了" = "Finder's confirmation was cancelled";
 "清空前随时可在访达里把文件拖回原位置" = "Drag files back from Finder until it's emptied";
 "清空后才真正释放空间，清空后不可恢复" = "Space frees only when emptied, and emptying is permanent";
 

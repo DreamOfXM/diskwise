@@ -417,6 +417,10 @@ public enum TrashError: Error {
     case noTrashLocation
     case noFinderScript
     case finderRefused(String)
+    /// 系统没放行本工具指挥访达（自动化权限），跟「访达自己不肯干」是两回事
+    case automationDenied(String)
+    /// 访达弹了自己的确认框并且被点了「取消」——不是故障，别按失败说
+    case finderCanceled(String)
 
     /// 交给 L() 查词表的源文案
     public var reasonKey: String {
@@ -427,13 +431,16 @@ public enum TrashError: Error {
         case .noTrashLocation: return "系统未返回废纸篓位置"
         case .noFinderScript: return "无法创建访达指令"
         case .finderRefused: return "访达拒绝执行"
+        case .automationDenied: return "没有控制访达的权限"
+        case .finderCanceled: return "访达的确认被取消了"
         }
     }
 
     /// 路径或系统原话，不翻译
     public var detail: String {
         switch self {
-        case .protected(let s), .outsideAllowed(let s), .failed(let s), .finderRefused(let s): return s
+        case .protected(let s), .outsideAllowed(let s), .failed(let s),
+             .finderRefused(let s), .automationDenied(let s), .finderCanceled(let s): return s
         case .noTrashLocation, .noFinderScript: return ""
         }
     }
@@ -494,6 +501,18 @@ public func openTrashInFinder() {
     NSWorkspace.shared.open(homeDir().appendingPathComponent(".Trash"))
 }
 
+/// 访达的回执 → 失败原因。错误号才是分诊依据：-1743（没放行自动化）和「访达自己
+/// 不肯干」的下一步完全不同，所以不能只抄 errorMessage 让用户去猜。
+/// 单独拆成函数是因为真跑一次要么真清空废纸篓、要么动系统权限，都不该进自检。
+public func finderError(number: Int, message: String) -> TrashError {
+    let detail = message.isEmpty ? "AppleScript 错误 \(number)" : "\(message)（错误 \(number)）"
+    switch number {
+    case -1743, -1744: return .automationDenied(detail)   // 事件没被 TCC 放行
+    case -128: return .finderCanceled(detail)             // 访达自己的确认框被点了取消
+    default: return .finderRefused(detail)
+    }
+}
+
 /// 清空废纸篓交给访达执行（系统层面再确认一次；首次需授权自动化）
 public func emptyTrashViaFinder() throws {
     let src = "tell application \"Finder\" to empty the trash"
@@ -502,7 +521,7 @@ public func emptyTrashViaFinder() throws {
     }
     var err: NSDictionary?
     script.executeAndReturnError(&err)
-    if let e = err {
-        throw TrashError.finderRefused("\(e[NSAppleScript.errorMessage as String] ?? "")")
-    }
+    guard let e = err else { return }
+    throw finderError(number: (e[NSAppleScript.errorNumber as String] as? Int) ?? 0,
+                      message: (e[NSAppleScript.errorMessage as String] as? String) ?? "")
 }

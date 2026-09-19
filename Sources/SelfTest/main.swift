@@ -112,7 +112,18 @@ do {
           "系统区被拦：\(e.reasonKey)")
 }
 
-// 4c. 扫描范围根：用户区 = 家目录 + /Applications；整盘再加系统白名单，
+// 4c. 访达回执的分诊：清空失败时界面要说出「哪一种失败 + 下一步」，
+//     所以错误号必须落到不同的案上——-1743 是系统没放行，-128 是他自己点了取消
+check(finderError(number: -1743, message: "").reasonKey == "没有控制访达的权限",
+      "-1743 归成「没放行自动化」")
+check(finderError(number: -128, message: "User canceled.").reasonKey == "访达的确认被取消了",
+      "-128 归成「被取消」，不当故障报")
+check(finderError(number: -10010, message: "err").reasonKey == "访达拒绝执行",
+      "其它错误号仍算访达拒绝")
+check(finderError(number: -1743, message: "Not authorized").detail.contains("-1743"),
+      "详情里留着错误号，远程排查才问得出来")
+
+// 4d. 扫描范围根：用户区 = 家目录 + /Applications；整盘再加系统白名单，
 //     但绝不爬密封系统卷与挂载点（那会把外置盘和时间机器备份盘算进我们的账）
 let userRoots = scanRoots(scope: .user)
 check(userRoots.contains(homeDir()), "用户区根含家目录")
@@ -146,7 +157,7 @@ if !homeIsDemo {
 }
 check(Set(diskRoots.map { $0.path }).count == diskRoots.count, "整盘根没有重复项")
 
-// 4d. 卷账拆分：环形的「没量到的地方」要按 APFS 卷点名，数据源是 diskutil 的按卷清单
+// 4e. 卷账拆分：环形的「没量到的地方」要按 APFS 卷点名，数据源是 diskutil 的按卷清单
 //     （statfs 对每个卷都回同一份容器数；df 的表里没有平时不挂载的恢复卷）
 let apfsPlist: [String: Any] = [
     "Containers": [
@@ -193,7 +204,7 @@ if let u = volumeUsage(), let real = volumeSplit(diskUsed: u.usedPhysical) {
     check(homeIsDemo, "非演示模式该能拆卷账")
 }
 
-// 4e. 容量口径：界面上的「可用 / 已用」必须跟系统设置那一屏是同一个数
+// 4f. 容量口径：界面上的「可用 / 已用」必须跟系统设置那一屏是同一个数
 if let u = volumeUsage() {
     check(u.available == u.free + u.purgeable, "可用 = 空闲 + 系统可清除")
     check(u.used + u.available == u.total, "已用 + 可用 = 总容量，环形才不会画歪")
@@ -203,7 +214,7 @@ if let u = volumeUsage() {
     if homeIsDemo { check(u.purgeable == 0, "演示盘没有可清除这块") }
 }
 
-// 4f. 环形分段：这张图唯一的信用来源是「加起来正好等于已用」，而且「其他已统计」
+// 4g. 环形分段：这张图唯一的信用来源是「加起来正好等于已用」，而且「其他已统计」
 //     必须能被下面的列表逐段加出来——所以它只能等于「这一轮量到的 − 前三」，
 //     不许掺第二本账。（以前这里按用户区/整盘两档拆弧、列表按整盘列，同一屏两个口径，
 //     有人对着 134.7 GB 把列表加了三遍加不出来，从此不信这屏的数。）
