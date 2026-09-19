@@ -7,14 +7,14 @@
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription. 4.4 MB DMG, one file for Apple Silicon and Intel.
+server, no telemetry, no subscription. A ~4 MB DMG, one file for Apple Silicon and Intel.
 
 [English](#english) · [中文](#中文)
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-4.4%20MB-blue)
+![size](https://img.shields.io/badge/DMG-~4%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 </div>
@@ -252,7 +252,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具，CleanMyMac 的免费开源替代。所有删除只进废纸篓，
 本次会话内随时可撤销；专治开发者机器上的 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、
 微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅。安装包 4.4 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
+没有端口、不联网、无遥测、无订阅。安装包约 4 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
 
 ## 它凭什么值得信任
 
