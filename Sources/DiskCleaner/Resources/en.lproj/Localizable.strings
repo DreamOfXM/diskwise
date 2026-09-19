@@ -127,7 +127,8 @@
 "正在翻你的文件夹…" = "Going through your folders…";
 "共扫到 %@" = "Found %@";
 "只看 %@" = "Only %@";
-"恢复默认" = "Reset scope";
+"返回空间总览" = "Back to Overview";
+"不限这个目录" = "Show all folders";
 "还没扫到大文件" = "No large files yet";
 "点右上角重新扫描，或回总览换个目录深挖" = "Hit Rescan in the top right, or dig into another folder from the overview";
 "超过" = "Older than";

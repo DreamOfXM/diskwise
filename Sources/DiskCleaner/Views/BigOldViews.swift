@@ -104,8 +104,14 @@ struct BigFilesView: View {
                         Text(LF("共扫到 %@", cnt(model.count, "个文件")))
                     }
                     if let note = model.scopeNote {
+                        // 深挖是从总览的热点行跳进来的，但这条链上没人记「上一页」，
+                        // 删空之后这一屏就成了死胡同——所以返回入口固定摆在工具条最左，
+                        // 空列表时页头还在，它就一直按得回去。
+                        ThemeButton(kind: .compact, title: L("返回空间总览")) {
+                            store.jumpTo = .overview
+                        }
                         ThemeBadge(text: LF("只看 %@", note), tone: .tint, symbol: "scope")
-                        ThemeButton(kind: .compact, title: L("恢复默认")) {
+                        ThemeButton(kind: .compact, title: L("不限这个目录")) {
                             model.scan(scope: store.scope)
                         }
                     } else {

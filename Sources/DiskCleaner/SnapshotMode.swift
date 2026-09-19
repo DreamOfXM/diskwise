@@ -23,6 +23,8 @@ import SwiftUI
 // 命中的页各补两张 -selected / -deselected。
 // 要拍「总览某一行的下一级摊开」：再加 DISKWISE_DRILL='~/Library'，总览那张之后会补一张
 // 01-overview-drill.png（列表里没有这个名字时就不补，只拍普通那张）。
+// 要拍「从总览深挖进某目录后的大文件页」（带返回入口那一屏）：
+//   DISKWISE_ONLY=big DISKWISE_BIGDRILL='<某个目录>' → 02-big-files-drilled.png。
 // 要拍「点环形图例之后滚到哪」：再加 DISKWISE_JUMP=rest|restnote|gap|<某行完整路径>，rest 滚到
 // 「其他已统计」那块弧的落点（前三行底下那条分界线；没有分界线时是「展开其余 N 处」或列表尾巴那句对账），
 // restnote 直接落到那句对账，gap 滚到「没量到的地方」那一段，补 01-overview-jump.png。
@@ -88,6 +90,16 @@ enum SnapshotMode {
         let raw = (ProcessInfo.processInfo.environment["DISKWISE_JUMP"] ?? "")
             .trimmingCharacters(in: .whitespaces)
         return raw.isEmpty ? nil : raw
+    }
+
+    /// DISKWISE_BIGDRILL=<目录>：拍 02 那一张时，走的正是总览点「深挖」那条路
+    /// （塞 bigScanDir 再切页，由大文件页的 onAppear 消费一次），出来的图就叫
+    /// `02-big-files-drilled.png`。配 `DISKWISE_ONLY=big` 用：这趟只出深挖那一张，
+    /// 不带这个变量再跑一趟才拿到默认范围的 02。
+    private static var bigDrillDir: URL? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_BIGDRILL"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? nil : URL(fileURLWithPath: (raw as NSString).expandingTildeInPath)
     }
 
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
@@ -174,6 +186,7 @@ enum SnapshotMode {
         app.activate(ignoringOtherApps: true)
 
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+        store.bigScanDir = bigDrillDir
         pump(3)
         // 换页之前量一次，这就是整套图的画幅。之后窗口会被内容的理想尺寸撑高（SwiftUI 的
         // ScrollView 把自己的理想高度报成内容高度），但每张图都只从内容顶部截这一块——
@@ -199,7 +212,7 @@ enum SnapshotMode {
         for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
             store.jumpTo = panel
             waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
-            shoot(name)
+            shoot(panel == .big && bigDrillDir != nil ? name + "-drilled" : name)
             if pickPanels.contains(String(describing: panel)) {
                 store.selectAllPulse += 1
                 waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 12)
