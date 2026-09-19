@@ -125,7 +125,8 @@ Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwis
 Homebrew does not skip Gatekeeper here: whatever the cask installs is the same build the
 Releases page carries. **Read the release note of the version you are about to install** — it
 says whether that build is Developer ID-signed and notarized (double-click) or ad-hoc signed
-(first launch needs **right-click → Open → Open**). Everything published so far is ad-hoc.
+(first launch gets blocked, then you approve it in **System Settings → Privacy & Security →
+Open Anyway**; macOS 13–14 also take the older right-click → Open). Everything published so far is ad-hoc.
 
 **Option B — DMG**
 
@@ -133,8 +134,10 @@ says whether that build is Developer ID-signed and notarized (double-click) or a
    [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
 3. First launch depends on the build, and the release note for that version is the authority:
-   a Developer ID-signed, notarized build opens with a double-click; an ad-hoc one needs
-   **right-click → Open → Open** once. (See [Known limits](#known-limits).)
+   a Developer ID-signed, notarized build opens with a double-click; an ad-hoc one gets blocked the
+   first time, and you approve it in **System Settings → Privacy & Security → Open Anyway**
+   (right-click → Open does that job on macOS 13–14, but Sequoia removed that shortcut).
+   (See [Known limits](#known-limits).)
 
 Releases built with `ARCH=universal` are named `…-universal.dmg` and carry both the Apple
 Silicon and Intel slices in one file; the Apple Silicon-only ones are named `DiskWise-<version>.dmg`.
@@ -198,16 +201,19 @@ users on those versions need to build from source instead (it takes a minute and
 It depends on how that build was signed. `build.sh` uses a Developer ID certificate and
 notarizes when the certificate and notarization credentials are present, and such a build opens
 with a double-click. Without them it falls back to ad-hoc signing — which is what every release
-published so far got — and a quarantined ad-hoc build needs one **right-click → Open**
-(see [Install](#install)). The release note of the version you're downloading says which it is.
+published so far got — and a quarantined ad-hoc build gets blocked once, then approved in
+**System Settings → Privacy & Security → Open Anyway** (see [Install](#install)). On macOS 13–14,
+right-click → Open does the same job; Sequoia removed that shortcut. The release note of the
+version you're downloading says which signing mode it is.
 
 ## Known limits
 
 Honest list, because a cleanup tool earns trust by admitting what it can't do:
 
 - **No auto-update.** You get new versions from the Releases page or `brew upgrade`.
-- **Direct downloads are ad-hoc signed so far**, so the first launch needs right-click → Open.
-  The Developer ID + notarization path is in `build.sh` and CI, waiting on a certificate.
+- **Direct downloads are ad-hoc signed so far**, so the first launch gets blocked and has to be
+  approved in System Settings → Privacy & Security. The Developer ID + notarization path is in
+  `build.sh` and CI, waiting on a certificate.
 - **Whole-disk scope counts the system area, it does not clean it.** Rows under `/Library`, `/opt` or
   `/private` come up with a *System area* badge and a locked checkbox: either only an admin can write
   there, or the files belong to Homebrew / Xcode, whose own cleanup commands do a better job.
@@ -340,7 +346,8 @@ brew install --cask diskwise
 tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
 
 用 Homebrew 也躲不过 Gatekeeper——但装的就是 Releases 页那个包：**装之前读一眼那条 Release 的说明**，
-里面写清了这一版是 Developer ID 签名 + 公证（双击即开）还是 ad-hoc 签名（首次要**右键 → 打开 → 打开**）。
+里面写清了这一版是 Developer ID 签名 + 公证（双击即开）还是 ad-hoc 签名（首次会被拦一下，然后到
+**系统设置 → 隐私与安全性 → 「仍要打开」**里放行；macOS 13–14 上右键 → 打开 也能顶过去）。
 目前发出去的每一个包都是 ad-hoc。
 
 **方式二：DMG**
@@ -348,7 +355,8 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>[-universal].dmg`
 2. 打开后把 **DiskWise.app** 拖进「应用程序」
 3. 首次打开怎么点，以那条 Release 的说明为准：Developer ID 签名 + 公证过的双击即开；
-   ad-hoc 的那份要**右键 → 打开 → 打开**一次（见[已知不足](#已知不足)）
+   ad-hoc 的那份第一次会被拦下，再到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行
+   （macOS 13–14 上可以用老办法：右键 → 打开）（见[已知不足](#已知不足)）
 
 `ARCH=universal` 出的包文件名带 `-universal`，同一个文件里同时有 arm64 和 x86_64 两个切片；
 不带后缀的那份只有 Apple Silicon。每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
@@ -402,14 +410,15 @@ Intel 就得自己编一条命令的事（不需要完整 Xcode）。本地 `bui
 
 **为什么首次打开系统要警告？**
 看那一版是怎么签的。`build.sh` 有 Developer ID 证书和公证凭据时走正式签名 + 公证，双击就开；
-缺任何一样就退回 ad-hoc 签名——**到现在为止发出去的包全是这一种**——带着隔离标记，
-首次打开要右键 → 打开确认一次（见[下载与安装](#下载与安装)）。
+缺任何一样就退回 ad-hoc 签名——**到现在为止发出去的包全是这一种**——带着隔离标记，第一次会被
+Gatekeeper 拦下，要到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行（见[下载与安装](#下载与安装)）。
+macOS 15 Sequoia 起，右键 → 打开 这条捷径已经不管用了；13–14 还能用。
 
 ## 已知不足
 
 - **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
-- **直链包目前都是 ad-hoc 签名**，首次打开要右键 → 打开一次；Developer ID + 公证那条链路
-  已经在 `build.sh` 和 CI 里，缺一张证书
+- **直链包目前都是 ad-hoc 签名**，首次打开会被拦一次、要在系统设置里放行；Developer ID + 公证
+  那条链路已经在 `build.sh` 和 CI 里，缺一张证书
 - **整盘那一趟只负责把系统区算进账，不负责删它**：`/Library`、`/opt`、`/private` 里的行会带
   「系统区」标记、勾选框锁死——那些位置要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，
   用它们各自的清理命令比这个按钮安全
