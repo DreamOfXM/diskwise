@@ -139,7 +139,7 @@
 "没有落灰的文件" = "Nothing gathering dust";
 
 // ── 重复文件 ────────────────────────────────────────────────────────────────
-"每组最早的那份永远保留，动其余的" = "The oldest copy in each group is always kept";
+"每组日期最新的那份永远保留，动其余的" = "The newest copy in each group is always kept";
 "正在比对…" = "Comparing…";
 "遍历文件…" = "Walking files…";
 "比对内容（%@ 个候选）…" = "Comparing contents (%@ candidates)…";
@@ -338,7 +338,8 @@
 "将 %1$@（%2$@）移入废纸篓。" = "Move %1$@ (%2$@) to the Trash.";
 "将 %1$@（%2$@）移入废纸篓，随时可撤销。真正释放空间需要之后清空废纸篓。" = "Move %1$@ (%2$@) to the Trash — you can undo any time. Space frees up once the Trash is emptied.";
 "将 %1$@的依赖（%2$@）移入废纸篓。" = "Move the dependencies of %1$@ (%2$@) to the Trash.";
-"将 %1$@移入废纸篓（每组最早的一份永远保留）。" = "Move %1$@ to the Trash (the oldest copy in each group is always kept).";
+"将 %1$@移入废纸篓（每组日期最新的一份永远保留）。" = "Move %1$@ to the Trash (the newest copy in each group is always kept).";
+"每组留下日期最新的那一份：备份、导出这类目录是按日期递增的，留最旧的等于把最新那份删了" = "Each group keeps its newest copy: backup and export folders are dated in ascending order, so keeping the oldest would throw away the freshest backup";
 "删除只进废纸篓，随时可撤销；真正释放空间需要之后清空废纸篓。" = " Deletion only moves items to the Trash, and you can undo any time. Space frees up when the Trash is emptied.";
 "增加" = "Increase";
 "减少" = "Decrease";
