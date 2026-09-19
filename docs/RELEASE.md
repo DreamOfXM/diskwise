@@ -137,6 +137,17 @@ ad-hoc（未签名）、已签名但未公证、已签名且已公证——只�
    （`.gitignore` 已经挡掉了：描述文件里带着账号的 App ID 前缀和团队名，不该公开），
    换路径给 `PROVISION_PROFILE=<路径>`。
 4. App Store Connect → 我的 App → 新建 macOS App，Bundle ID 选第 2 步那个，SKU 定了就别改。
+5. 凡是走 App Store Connect API 的本地脚本（上传、查构建、挂 TestFlight 群组）都只从**环境变量**
+   读凭据，仓库里不留任何默认值——密钥一改，写死的默认值就变成一颗会自己炸的雷：
+
+   ```bash
+   export ASC_KEY_ID=<你的 API 密钥 Key ID>
+   export ASC_ISSUER_ID=<你的 Issuer ID>
+   export ASC_P8_PATH=<仓库外的 .p8 路径>   # 可选，不导出则按 Key ID 推默认路径
+   ```
+
+   三串值都只在 App Store Connect → 用户和访问 → 集成 → API 密钥 那一页查，`.p8` 下载后放仓库外。
+   少了前两个，脚本会直接打印缺哪个变量后退出，不会拿别人的默认值悄悄跑。
 
 ### 4.2 出包并上传
 
