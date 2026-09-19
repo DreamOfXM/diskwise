@@ -12,6 +12,8 @@ struct TrashView: View {
     @State private var measureTask: Task<Void, Never>? = nil
     @State private var confirmEmpty = false
     @State private var message: String? = nil
+    /// 上一次失败到底是不是「系统没放行自动化」——只有是的时候才摆授权入口
+    @State private var automationGate = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -98,9 +100,18 @@ struct TrashView: View {
                     }
 
                     if let m = message {
-                        Text(m)
-                            .font(theme.bodyFont(.callout))
-                            .foregroundStyle(theme.palette.inkSecondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(m)
+                                .font(theme.bodyFont(.callout))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if automationGate {
+                                ThemeButton(kind: .compact, symbol: "lock.open",
+                                            title: L("打开自动化设置")) {
+                                    openAutomationPane()
+                                }
+                            }
+                        }
                     }
 
                     if !store.trashHistory.isEmpty {
@@ -173,12 +184,26 @@ struct TrashView: View {
     }
 
     private func empty() {
-        do {
-            let before = volumeUsage()?.free ?? 0
-            try emptyTrashViaFinder()
+        automationGate = false
+        message = L("正在请访达清空…")
+        // 清空这一步要同步等访达的事件回执：它可能先弹自己的确认框，清空一个大
+        // 废纸篓也能持续好几秒。搁主线程上点完就冻住，看着就是「按了没反应」。
+        Task {
+            let job: (free: Int64?, result: Result<Void, Error>) = await Task.detached(priority: .userInitiated) {
+                let before = volumeUsage()?.free
+                return (before, Result { try emptyTrashViaFinder() })
+            }.value
+            await MainActor.run { finishEmpty(job) }
+        }
+    }
+
+    private func finishEmpty(_ job: (free: Int64?, result: Result<Void, Error>)) {
+        switch job.result {
+        case .success:
             // 访达是异步清空的，等 2 秒再读，报告真实释放量
             Task {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
+                let before = job.free ?? 0
                 let after = volumeUsage()?.free ?? before
                 await MainActor.run {
                     message = LF("已请访达清空，真实释放约 %@（以访达完成为准）。", human(max(0, after - before)))
@@ -186,9 +211,30 @@ struct TrashView: View {
                     refresh()
                 }
             }
-        } catch {
-            message = LF("清空失败：%@。去「系统设置 → 隐私与安全性 → 自动化」里允许本工具控制访达，然后重试。",
-                         error.localizedDescription)
+        case .failure(let error):
+            // 报访达的原话 + 错误号，而不是 Swift 自动生成的「错误 N」——
+            // 那个数字既不告诉用户下一步，也让我们远程排查时什么都问不出来。
+            let why = failReason(error)
+            if let t = error as? TrashError {
+                switch t {
+                case .automationDenied:
+                    automationGate = true
+                    message = LF("清空失败：%@。系统没放行本工具指挥访达——在「隐私与安全性 → 自动化」里勾上 Finder，勾完重启本工具再试。", why)
+                case .finderCanceled:
+                    message = LF("%@。废纸篓里的东西还在，没有清空。", why)
+                default:
+                    message = LF("清空失败：%@。也可以手动清空：点上面的「访达中打开」，在访达窗口里按 ⌘⇧⌫。", why)
+                }
+            } else {
+                message = LF("清空失败：%@。", why)
+            }
+            refresh()
+        }
+    }
+
+    private func openAutomationPane() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
         }
     }
 }

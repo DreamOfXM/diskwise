@@ -43,15 +43,15 @@ extension View {
     }
 }
 
-/// 一条失败原因：「条目名：为什么」。TrashError 只给原因码，句子在这拼
+/// 一条失败原因：为什么（含系统原话）。TrashError 只给原因码，句子在这拼
+func failReason(_ error: Error) -> String {
+    guard let t = error as? TrashError else { return error.localizedDescription }
+    return t.detail.isEmpty ? L(t.reasonKey) : LF("%@：%@", L(t.reasonKey), t.detail)
+}
+
+/// 一条失败原因：「条目名：为什么」
 func failLine(_ name: String, _ error: Error) -> String {
-    let reason: String
-    if let t = error as? TrashError {
-        reason = t.detail.isEmpty ? L(t.reasonKey) : LF("%@：%@", L(t.reasonKey), t.detail)
-    } else {
-        reason = error.localizedDescription
-    }
-    return LF("%@：%@", name, reason)
+    LF("%@：%@", name, failReason(error))
 }
 
 /// 清理完成后的顶部提示：成功多少、失败多少
