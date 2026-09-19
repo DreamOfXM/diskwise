@@ -42,6 +42,16 @@ public var homeIsDemo: Bool {
     !(ProcessInfo.processInfo.environment["DISKWISE_HOME_SHIM"] ?? "").isEmpty
 }
 
+/// 商店产品页取图模式。演示横幅是给挑图的人防身用的（真拿假账当实测数字汇报），
+/// 而真实用户永远不会去设 `DISKWISE_HOME_SHIM`，也就永远看不到它——所以出商店图时
+/// 把它收起来，让画面回到用户实际会看到的样子。README 截图和日常使用不受影响。
+public var storeShotMode: Bool {
+    ProcessInfo.processInfo.environment["DISKWISE_STORE_SHOTS"] == "1"
+}
+
+/// 界面上要不要自报「这一屏是演示数据」。
+public var demoDisclosed: Bool { homeIsDemo && !storeShotMode }
+
 /// 装 App 的目录。演示模式下跟着搬进假树：真 /Applications 有几十万个文件，
 /// 扫得慢，还会把作者装了哪些 App 晒进 README。
 public func applicationsDir() -> String {
