@@ -193,6 +193,10 @@ func collectFromDB(_ root: String) throws -> Set<String> {
 //
 // 一行一条 "key" = "value"; ——我们自己维护的表就这个格式，不引第三方解析。
 
+func err(_ msg: String) -> NSError {
+    NSError(domain: "l10n", code: 3, userInfo: [NSLocalizedDescriptionKey: msg])
+}
+
 func readTable(_ root: String) throws -> [String: String] {
     let path = "\(root)/\(tablePath)"
     guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
@@ -205,6 +209,16 @@ func readTable(_ root: String) throws -> [String: String] {
         if line.isEmpty || line.hasPrefix("//") || line.hasPrefix("/*") { continue }
         let lits = stringLiterals(in: line)
         if lits.count >= 2 { out[lits[0]] = lits[1] }
+    }
+    // 行扫描器不看分号：漏一个分号，运行时整张表都读不出来，界面全体退回中文，
+    // 而覆盖率照样报「完整」。所以再用 App 同款解析器过一遍，条数必须对得上。
+    let strict = (try? PropertyListSerialization.propertyList(
+        from: Data(text.utf8), options: [], format: nil)) as? [String: String]
+    if strict == nil {
+        throw err("译文表解析失败：\(path)——多半是某行漏了分号或引号")
+    }
+    if strict!.count != out.count {
+        throw err("译文表只解析出 \(strict!.count) 条，行扫描看到 \(out.count) 条——某行漏了结尾的分号")
     }
     return out
 }
@@ -239,13 +253,28 @@ func checkSpecs(_ keys: Set<String>, _ table: [String: String]) -> [String] {
     var bad: [String] = []
     for k in keys.sorted() {
         let want = specifiers(k).sorted()
+        if mixedSpecs(k) {
+            bad.append("  带序号和普通参数混用：\(k)\n    一条串里只要有一个 %1$@，其余参数也必须带序号")
+            continue
+        }
         guard let v = table[k] else { continue }
         let got = specifiers(v).sorted()
         if want != got {
             bad.append("  参数对不上：\(k)\n    key \(want) vs 译文 \(got)")
         }
+        if mixedSpecs(v) {
+            bad.append("  译文混用带序号与普通参数：\(k)\n    \(v)")
+        }
     }
     return bad
+}
+
+/// 带序号的参数（`%1$d`）和普通的（`%d`、`%@`）不能出现在同一条串里：
+/// CFString 解析时会直接崩（实测 EXC_BAD_ACCESS，且只在走到那条分支时崩，
+/// 演示数据常常凑不齐触发条件——总览页「展开其余 N 处」就是这么漏过去的）。
+func mixedSpecs(_ s: String) -> Bool {
+    let specs = specifiers(s)
+    return specs.contains { $0.contains("$") } && specs.contains { !$0.contains("$") }
 }
 
 // MARK: - %@ 喂整数 = 闪退
@@ -280,6 +309,27 @@ func splitArgs(_ s: String) -> [String] {
     return out
 }
 
+/// 把格式串里的占位符按 C 的规则对上实参：带序号的（`%2$@`）直接数序号，
+/// 不带的按出现顺序吃下一个。只有对上 `%@` 的那一个实参是裸整数才算闪退。
+/// 以前这里不看位置，`("第 4 到 %1$d 行 %2$@", count, human(x))` 被误报成会炸——
+/// 误报攒多了，这道闸门就没人信了。
+func boundArgs(key: String, args: [String]) -> [(spec: String, arg: String)] {
+    let params = Array(args.dropFirst())
+    var out: [(spec: String, arg: String)] = []
+    var next = 0
+    for spec in specifiers(key) {
+        let idx: Int
+        if let dollar = spec.firstIndex(of: "$") {
+            idx = (Int(spec[spec.index(after: spec.startIndex)..<dollar]) ?? 1) - 1
+        } else {
+            idx = next
+        }
+        next = idx + 1
+        if idx >= 0, idx < params.count { out.append((spec, params[idx])) }
+    }
+    return out
+}
+
 func checkIntFormat(_ root: String) -> [String] {
     var bad: [String] = []
     for file in swiftFiles(root) {
@@ -301,12 +351,13 @@ func checkIntFormat(_ root: String) -> [String] {
             let args = splitArgs(inner)
             guard args.count >= 2, let key = stringLiterals(in: args[0]).first,
                   specifiers(key).contains(where: { $0.hasSuffix("@") }) else { continue }
-            for arg in args.dropFirst() {
+            for (spec, arg) in boundArgs(key: key, args: args) {
+                guard spec.hasSuffix("@") else { continue }
                 let a = arg.trimmingCharacters(in: .whitespaces)
                 let looksInt = a.hasSuffix(".count") || intLikeNames.contains(a)
                 if looksInt && !a.hasPrefix("String(") {
                     let name = (file as NSString).lastPathComponent
-                    bad.append("  \(name):\(no + 1)  \(a) 是整数，喂给 %@ 会闪退，包一层 String(…)")
+                    bad.append("  \(name):\(no + 1)  \(a) 是整数，喂给 \(spec) 会闪退，包一层 String(…)")
                 }
             }
         }
@@ -325,7 +376,14 @@ var need = swiftKeys.union(collectFromSkins(root))
 do { try need.formUnion(collectFromDB(root)) }
 catch { FileHandle.standardError.write("读取失败：\((error as NSError).description)\n".data(using: .utf8)!) ; exit(2) }
 
-let table = (try? readTable(root)) ?? [:]
+let table: [String: String]
+do {
+    table = try readTable(root)
+} catch {
+    FileHandle.standardError.write("\((error as NSError).localizedDescription)\n".data(using: .utf8)!)
+    exit(2)
+}
+
 let tableKeys = Set(table.keys)
 let missing = need.subtracting(tableKeys).sorted()
 let unused = tableKeys.subtracting(need).sorted()

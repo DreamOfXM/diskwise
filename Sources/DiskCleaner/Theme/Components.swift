@@ -511,6 +511,9 @@ struct GaugeSegment: Identifiable {
     var label: String
     var value: Int64
     var color: Color
+    /// 点这条图例要跳到哪儿（值是页面里那个视图的 id）。nil = 这块弧落不到任何一行上，
+    /// 比如「空闲」「系统可清除」——它们本来就不是「谁占了地方」的答案。
+    var jumpTo: String? = nil
 }
 
 struct RingGauge: View {
@@ -523,8 +526,12 @@ struct RingGauge: View {
     var diameter: CGFloat = 168
     /// 给了宽度就把图例排在圆环右侧——总览页靠这个把英雄卡压扁
     var legendWidth: CGFloat? = nil
+    /// 点带 `jumpTo` 的图例行时回调。环形上每一块都得能问到「是谁、在哪、动得了吗」，
+    /// 光有一条弧加一个数不算回答。
+    var select: ((String) -> Void)? = nil
 
     @State private var progress: CGFloat = 0
+    @State private var hovered: UUID? = nil
 
     private var total: Int64 { max(1, segments.reduce(0) { $0 + max(0, $1.value) }) }
     private var lineWidth: CGFloat { diameter * 0.13 }
@@ -596,29 +603,54 @@ struct RingGauge: View {
     private var legend: some View {
         VStack(alignment: .leading, spacing: 7) {
             ForEach(segments) { seg in
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(seg.color)
-                        .frame(width: 9, height: 9)
-                    Text(seg.label)
-                        .font(theme.bodyFont(.callout))
-                        .foregroundStyle(theme.palette.ink)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(human(seg.value))
-                        .font(theme.bodyFont(.callout).weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(theme.palette.inkSecondary)
-                        .frame(width: 72, alignment: .trailing)
-                    Text("\(Int((Double(max(0, seg.value)) / Double(total) * 100).rounded()))%")
-                        .font(theme.bodyFont(.caption))
-                        .monospacedDigit()
-                        .foregroundStyle(theme.palette.inkTertiary)
-                        .frame(width: 34, alignment: .trailing)
+                if let target = seg.jumpTo, let select {
+                    Button { select(target) } label: {
+                        legendCell(seg)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(hovered == seg.id ? theme.palette.tintSoft : Color.clear,
+                                in: theme.controlShape())
+                    .onHover { inside in hovered = inside ? seg.id : nil }
+                    .help(LF("跳到下面的「%@」", seg.label))
+                    .accessibilityHint(LF("跳到「%@」那一行", seg.label))
+                } else {
+                    legendCell(seg)
                 }
             }
         }
+    }
+
+    private func legendCell(_ seg: GaugeSegment) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(seg.color)
+                .frame(width: 9, height: 9)
+            Text(seg.label)
+                .font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.ink)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(human(seg.value))
+                .font(theme.bodyFont(.callout).weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkSecondary)
+                .frame(width: 72, alignment: .trailing)
+            Text("\(Int((Double(max(0, seg.value)) / Double(total) * 100).rounded()))%")
+                .font(theme.bodyFont(.caption))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkTertiary)
+                .frame(width: 34, alignment: .trailing)
+            // 只有点得动的行才有这个箭头：整列都标的话就等于没标，
+            // 而「空闲」「系统可清除」确实没有「下面哪一行」可跳。
+            Image(systemName: "arrow.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .opacity(seg.jumpTo == nil ? 0 : 1)
+                .frame(width: 11)
+        }
+        .padding(.horizontal, 5)
     }
 
     private var accessibilitySummary: String {
@@ -694,6 +726,38 @@ struct SectionLabel: View {
             }
             Spacer()
         }
+    }
+}
+
+// MARK: - 折叠箭头
+
+/// 展开/收起那一颗尖角。
+///
+/// 用 Path 画而不是 `Image(systemName: "chevron-*")`：实测 9pt 的 SF Symbol 箭头
+/// 在行里只占位不落地（重复文件、node_modules、缓存的行都看不见它），
+/// 而「这行能不能点开」全押在这颗箭头身上——看不见就等于没有。
+/// 描边形状跟进度条一样在每条渲染路径上都在。
+struct ThemeChevron: View {
+    @Environment(\.theme) private var theme
+    var expanded: Bool
+    var color: Color? = nil
+
+    var body: some View {
+        Path { p in
+            if expanded {   // 朝下
+                p.move(to: CGPoint(x: 2.9, y: 3.9))
+                p.addLine(to: CGPoint(x: 5.0, y: 6.1))
+                p.addLine(to: CGPoint(x: 7.1, y: 3.9))
+            } else {        // 朝右
+                p.move(to: CGPoint(x: 3.9, y: 2.9))
+                p.addLine(to: CGPoint(x: 6.1, y: 5.0))
+                p.addLine(to: CGPoint(x: 3.9, y: 7.1))
+            }
+        }
+        .stroke(color ?? theme.palette.inkTertiary,
+                style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        .frame(width: 10, height: 10)
+        .accessibilityHidden(true)
     }
 }
 

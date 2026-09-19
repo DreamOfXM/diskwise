@@ -269,10 +269,7 @@ private struct DockerRow: View {
                     withAnimation(reduceMotion ? nil : theme.animation) { expanded.toggle() }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: expanded ? "chevron-down" : "chevron-right")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(theme.palette.inkTertiary)
-                            .frame(width: 10)
+                        ThemeChevron(expanded: expanded)
                         Text(dockerHead(item))
                             .font(theme.bodyFont(.callout))
                             .foregroundStyle(theme.palette.ink)

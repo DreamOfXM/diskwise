@@ -54,10 +54,11 @@ It is built for machines that have been used by a developer for a few years — 
 ## What you get
 
 **See the space**
-- **Overview** — a segmented ring gauge whose slices add up to the whole volume (top folders + everything else counted + not covered + free), plus the fattest folders, each with *Reveal* and *Dig in*.
-- **Scan scope** — *User area* or *Whole disk*, one switch on the overview. The sweep covers the volume, not just the tidy corners of your home folder.
-- **An honest coverage line** — the overview states how much of your used space it actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on Full Disk Access (with a button straight to that settings pane). Every number is decimal, so it matches Finder and About This Mac byte for byte.
-- **Large Files** — top N across whatever scope you picked, dev directories skippable.
+- **Overview** — a segmented ring gauge whose slices add up to the whole volume (top folders + everything else counted + not measured + purgeable + free), plus the fattest folders, each with *Reveal* and *Dig in*.
+- **Whole-disk sweep** — no scope to guess at: the open-source build walks the whole volume (whitelisted system roots included, other users' homes included), the sandboxed Mac App Store build walks everything its grant can reach and says so. Either way it covers the volume, not just the tidy corners of your home folder.
+- **An honest coverage line** — the overview states how much of your used space it actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on Full Disk Access — and the *Grant access* button only appears when a real read of a protected file says the permission is actually missing. Every number is decimal, so it matches Finder and About This Mac byte for byte.
+- **The "Other counted" slice adds up** — a boundary line sits directly above the rows that make that arc, and the line below the list spells it out part by part (those rows, the folders behind *Show the rest*, and the small ones under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
+- **Large Files** — top N across the same roots, dev directories skippable.
 - **Long Untouched** — files you haven't opened in N days, across the same roots.
 - **Duplicates** — size → partial hash → full hash, grouped, oldest copy locked so you can't nuke the only one.
 
@@ -274,10 +275,11 @@ DiskWise 押的是反面：
 ## 功能
 
 **看清空间**
-- **空间总览**：分段环形仪表，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 未覆盖 + 可用）；下面列最占地方的文件夹，每行「访达显示 / 深挖」
-- **扫描范围**：总览页一个开关，「用户区 / 整盘」。扫描覆盖的是整块盘，不是家目录里那几处整洁的角落
-- **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及缺「完全磁盘访问权限」的那几处（后者直接给一颗跳设置的按钮）。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
-- **大文件**：按选定范围遍历，TOP 可调，可跳过开发目录
+- **空间总览**：分段环形仪表，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到的地方 + 系统可清除 + 空闲）；下面列最占地方的文件夹，每行「访达显示 / 深挖」
+- **走整盘扫描**：没有范围开关要猜。开源版整趟走整盘（白名单里的系统根、别人的家目录都在内），商店沙盒版走授权能达到的最大范围并把这个边界写在界面上。两边扫的都是整块盘，不是家目录里那几处整洁的角落
+- **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及读不动的那几处。那颗跳「完全磁盘访问权限」设置的按钮只在实测读不到受保护文件时才出现，已经授权过的人不会再被喊一次「去授权」。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
+- **「其他已统计」凑得出来**：这块弧对应的那几行上面有一条分界线把它们框住，列表下面那句再把它逐段摊开（那几行 + 「展开其余」里那几处 + 不到 100 MB 的小目录），一百多 G 不能只写成一句「信我」
+- **大文件**：按同一批范围根遍历，TOP 可调，可跳过开发目录
 - **很久没动**：同样这些根里，N 天没打开的文件
 - **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组最早一份锁定保留
 
@@ -405,7 +407,7 @@ GitHub、邮箱或 QQ 群的原因。
 - **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
 - **直链包目前都是 ad-hoc 签名**，首次打开要右键 → 打开一次；Developer ID + 公证那条链路
   已经在 `build.sh` 和 CI 里，缺一张证书
-- **「整盘」只负责把系统区算进账，不负责删它**：`/Library`、`/opt`、`/private` 里的行会带
+- **整盘那一趟只负责把系统区算进账，不负责删它**：`/Library`、`/opt`、`/private` 里的行会带
   「系统区」标记、勾选框锁死——那些位置要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，
   用它们各自的清理命令比这个按钮安全
 - **node_modules 大盘扫描慢**，且还没有流式快照
