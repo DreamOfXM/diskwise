@@ -103,7 +103,7 @@ build_for_triple() {
 	swift build --show-bin-path -c release --triple "$triple" 2>/dev/null | tail -n 1
 }
 
-echo "==> [3/7] release 编译（架构 $ARCH，渠道 $CHANNEL）"
+echo "==> [3/7] release 编译（架构 ${ARCH}，渠道 ${CHANNEL}）"
 BIN="$ROOT_DIR/.build/release/DiskCleaner"          # 进包的那个二进制
 if [ -n "$ARCH_TRIPLE" ]; then
 	SINGLE="$(build_for_triple "$ARCH_TRIPLE")"
@@ -271,7 +271,7 @@ if [ "$CHANNEL" = "appstore" ]; then
 		elif [[ "$PROFILE_BUNDLE" == *.\* && "$BUNDLE_ID" == "${PROFILE_BUNDLE%?}"* ]]; then
 			:
 		else
-			echo "    错误：描述文件绑的 App ID 是 $PROFILE_APPID，不是本包的 $BUNDLE_ID" >&2
+			echo "    错误：描述文件绑的 App ID 是 ${PROFILE_APPID}，不是本包的 $BUNDLE_ID" >&2
 			echo "    换一份对应这个 bundle id 的描述文件（门户 Profiles → 编辑 → 选对 App ID）" >&2
 			exit 1
 		fi
@@ -282,7 +282,7 @@ if [ "$CHANNEL" = "appstore" ]; then
 				|| /usr/libexec/PlistBuddy -c "Add :${k%%=*} string ${k#*=}" "$ENTITLEMENTS" >/dev/null
 		done
 		plutil -lint "$ENTITLEMENTS" >/dev/null
-		echo "    App ID entitlement：$PROFILE_APPID（team $PROFILE_TEAM）"
+		echo "    App ID entitlement：${PROFILE_APPID}（team ${PROFILE_TEAM}）"
 	else
 		echo "    没有描述文件（$PROFILE 不存在）——本地能跑，但这份包传不上 App Store Connect"
 	fi
@@ -373,7 +373,7 @@ if [ "$CHANNEL" = "appstore" ]; then
 		fi
 	fi
 	rm -rf "$PKG_STAGE"
-	echo "    $PKG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
+	echo "    ${PKG_NAME}：$(du -h "$ARTIFACT" | cut -f1)"
 else
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
@@ -402,7 +402,7 @@ else
 Right-click (or Control-click) the app in Applications -> Open -> Open.
 Or: after double-click is blocked, go to
 System Settings -> Privacy & Security -> \"Open Anyway\"."
-	LAUNCH_ZH="【首次打开（$HEADER_ZH，只需一次）】
+	LAUNCH_ZH="【首次打开（${HEADER_ZH}，只需一次）】
 在「应用程序」里按住 Control 点按 App → 选「打开」→ 再点「打开」。
 或：双击被拦后，到 系统设置 → 隐私与安全性 → 点「仍要打开」。"
 fi
@@ -438,7 +438,7 @@ Drag the app to the Trash. No leftovers, no background agents.
 
 ------------------------------------------------------------
 
-DiskWise v$VERSION（SwiftUI 原生 · $HEADER_ZH）
+DiskWise v${VERSION}（SwiftUI 原生 · ${HEADER_ZH}）
 ============================================================
 
 【这是什么】
@@ -466,7 +466,7 @@ README_EOF
 
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGING" -ov -format UDZO "$DIST_DIR/$DMG_NAME" >/dev/null
 ARTIFACT="$DIST_DIR/$DMG_NAME"
-echo "    $DMG_NAME：$(du -h "$ARTIFACT" | cut -f1)"
+echo "    ${DMG_NAME}：$(du -h "$ARTIFACT" | cut -f1)"
 fi
 
 echo "==> [7/7] 公证"

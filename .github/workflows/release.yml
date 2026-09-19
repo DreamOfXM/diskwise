@@ -57,7 +57,7 @@ jobs:
           V="$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' build_app/build.sh | head -n 1)"
           T="${GITHUB_REF_NAME#v}"
           if [ "$V" != "$T" ]; then
-              echo "::error::tag 是 v$T，build_app/build.sh 里 VERSION=\"$V\"，对不上"
+              echo "::error::tag 是 v${T}，build_app/build.sh 里 VERSION=\"$V\"，对不上"
               exit 1
           fi
           echo "VERSION=$V"
