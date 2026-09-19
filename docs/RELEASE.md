@@ -256,7 +256,10 @@ CI 只跑直链这条线（`CHANNEL` 保持默认 `oss`）。商店包不进 CI�
    DISKWISE_HOME_SHIM=/tmp/dw_home DISKWISE_SHOTS=/tmp/dw_shots swift run DiskCleaner
    ```
 3. 发布物自查：图标不是系统通用白纸、DMG 里的 `README.txt` 版本号和首次打开措辞跟实际签名状态
-   一致（签了没公证 / 没签，文案不能写反）、Release 正文里的 SHA256 是**这一版**的。
+   一致（签了没公证 / 没签，文案不能写反）、Release 正文里的 SHA256 是**这一版**的（下载回来
+   `shasum` 对一遍，别信 CI 打印的）、Release 正文自己写清这一版怎么签、首次打开该点哪——
+   CI 模板会生成那两行，手写过一遍就要检查有没有过期（macOS 15 起 Gatekeeper 只认
+   系统设置 → 隐私与安全性 → 「仍要打开」，右键 → 打开 是 13–14 的老办法）。
 4. 泄露扫描（仓库是公开的，push 之后收不回来）：
    ```bash
    git grep --cached -nI -e "/Users/" -e "<真实用户名>" -e "<邮箱>"
