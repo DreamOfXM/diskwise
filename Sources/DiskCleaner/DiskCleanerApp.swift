@@ -55,33 +55,24 @@ final class AppStore: ObservableObject {
     @Published var notice: String? = nil
     @Published var jumpTo: AppPanel? = nil
     @Published var bigScanDir: URL? = nil   // 总览跳过来的定向扫描目录
-    /// 扫描范围。开源版默认整盘——沙盒版给 `.disk` 只会扫一堆读不到的路径，
-    /// 首屏空转还显示成「你的盘很干净」，那是最坏的错法。
-    @Published private(set) var scope: ScanScope = AppStore.storedScope()
-    /// 改范围时自增。各扫描页监听它重跑，否则切完范围看到的还是旧范围的结果。
-    @Published private(set) var scanEpoch = 0
-    private static let scopeKey = "diskwise.scanScope"
-
-    private static func storedScope() -> ScanScope {
-        // 截图链路要能钉住范围：README 那几张图里页头的范围标签每次都得一样。
-        if let raw = ProcessInfo.processInfo.environment["DISKWISE_SCOPE"],
-           let s = ScanScope(rawValue: raw) { return s }
-        // 演示树不读存盘值：不然作者机器上点过一下「用户区」，README 的图就跟着变，
-        // 而看图的人根本不知道这个开关存在。
-        if homeIsDemo { return Channel.isAppStore ? .user : .disk }
-        if let raw = UserDefaults.standard.string(forKey: scopeKey),
-           let s = ScanScope(rawValue: raw) { return s }
-        return Channel.isAppStore ? .user : .disk
-    }
-
-    /// 沙盒版拿不到的范围直接回落到用户区，不让界面留一个扫不动的选项。
-    func setScope(_ s: ScanScope) {
-        let want = (s == .disk && HomeAccess.runsSandboxed) ? ScanScope.user : s
-        guard want != scope else { return }
-        scope = want
-        if !homeIsDemo { UserDefaults.standard.set(want.rawValue, forKey: Self.scopeKey) }
-        scanEpoch += 1
-    }
+    /// 让总览页就地摊开某个名字的那一行，读完即清空。
+    /// 现在只有截图链路会写它（`DISKWISE_DRILL`）：摊开出来的下级要点下去才看得见，
+    /// 而批量拍图这一路没有键鼠。走的仍是行上那颗箭头调的同一个方法，不是另画的假界面。
+    @Published var overviewDrill: String? = nil
+    /// 让总览页滚到某个锚点：`rest` = 「其他已统计」那块弧的落点（前三行底下那条分界线），
+    /// `restnote` = 列表尾巴那句对账，`gap` = 「没量到的地方」，
+    /// 其余值当作某一行的路径直接落到它上面。同样只有截图链路会写（`DISKWISE_JUMP`），
+    /// 走的仍是点图例那一格时走的同一条路径（含「先摊开再滚」）。
+    @Published var overviewJump: String? = nil
+    /// 让画面上那一页按一次底部清理条的「全选 / 取消全选」：每 +1 就按一次。
+    /// 只有截图链路会写（`DISKWISE_PICK`），因为批量拍图这一路没有键鼠，
+    /// 而「勾上 170 项之后撤得回来」这件事只有真按一次才照得出来。
+    /// 按下的就是那颗按钮自己的 action，不是另画的假界面。
+    @Published var selectAllPulse = 0
+    /// 扫描范围。界面上没有开关：两档的账画在同一屏，人就会拿用户区的环形去对整盘的列表，
+    /// 对不上就直接不信这屏的数（实测过）。所以永远走这一版能扫到的最大范围，
+    /// 沙盒版给 `.disk` 只会扫一堆读不到的路径，那才是真的扫不动。
+    var scope: ScanScope { ScanScope.effective }
     /// 用户选的界面语言。改它 = 让整棵树重画，所以切语言不用重启（商店版也不能自己重启）。
     /// 初值要把 `DISKWISE_LANG` 那次覆盖折进来，否则截图模式下词表被环境变量换掉了、
     /// 选择器还指着存盘那一格，图里就是「界面英文、选中中文」。跟随系统的 Auto 不参与这条覆盖。

@@ -127,10 +127,7 @@ struct ItemRow<Detail: View>: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: expanded ? "chevron-down" : "chevron-right")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(theme.palette.inkTertiary)
-                            .frame(width: 10)
+                        ThemeChevron(expanded: expanded)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(name)
                                 .font(theme.bodyFont(.callout))
@@ -270,6 +267,7 @@ struct SelectAll {
 
 struct CleanBar: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var store: AppStore
     var count: Int
     var bytes: Int64
     var errorText: String? = nil
@@ -333,6 +331,12 @@ struct CleanBar: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
+        // 截图链路要「真按一次」才照得见这颗按钮的两态（见 AppStore.selectAllPulse）。
+        // 同一时刻画面上只有一页在渲染，所以这一按落的就是当前页那条清理条。
+        .onChange(of: store.selectAllPulse) { _ in
+            guard let s = selection else { return }
+            s.toggle(!s.allSelected)
+        }
     }
 }
 

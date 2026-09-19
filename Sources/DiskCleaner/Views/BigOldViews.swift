@@ -166,7 +166,6 @@ struct BigFilesView: View {
                 model.scan(scope: store.scope)
             }
         }
-        .onChange(of: store.scanEpoch) { _ in model.rescan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),
@@ -314,7 +313,6 @@ struct OldFilesView: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
-        .onChange(of: store.scanEpoch) { _ in model.scan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "个文件"),

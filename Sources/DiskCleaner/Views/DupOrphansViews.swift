@@ -49,9 +49,15 @@ final class DupModel: ObservableObject {
 
     func stop() { task?.cancel(); scanning = false }
 
-    func selectAllButFirst() {
-        for g in groups {
-            for u in g.files.dropFirst() { selection.insert(u.path) }
+    /// 「全选」只管多余的那几份，每组保留的那一份算在「不在全选范围内」里：
+    /// 它列在同一个组里却永远勾不动，不报这个数用户只会以为漏勾了一份。
+    /// 反向也必须能按——这一页动辄几百项，一次勾错没有一键撤回路可走不通。
+    var selectAll: SelectAll? {
+        let extras = groups.flatMap { $0.files.dropFirst() }
+        guard !extras.isEmpty else { return nil }
+        return SelectAll(allSelected: extras.allSatisfy { selection.contains($0.path) },
+                         unselectable: groups.count) { on in
+            self.selection = on ? Set(extras.map(\.path)) : []
         }
     }
 }
@@ -92,9 +98,6 @@ struct DupView: View {
                 } trailing: {
                     ThemeStepper(label: "≥", unit: "MB", value: $model.minMB,
                                  range: 5...500, step: 5) { model.scan(scope: store.scope) }
-                    ThemeButton(kind: .secondary, symbol: "checkmark.rectangle.stack",
-                                title: L("全选多余"),
-                                isDisabled: model.groups.isEmpty) { model.selectAllButFirst() }
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan(scope: store.scope) }, stop: { model.stop() })
                 }
@@ -119,11 +122,10 @@ struct DupView: View {
             }
 
             CleanBar(count: model.selectedCount, bytes: selectedBytes,
-                     errorText: err) { confirm = true }
+                     errorText: err, selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
-        .onChange(of: store.scanEpoch) { _ in model.scan(scope: store.scope) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@移入废纸篓（每组最早的一份永远保留）。",
                                cnt(model.selectedCount, "个多余副本"))) {
@@ -172,10 +174,7 @@ private struct DupGroupRow: View {
                 withAnimation(reduceMotion ? nil : theme.animation) { expanded.toggle() }
             } label: {
                 HStack(spacing: 11) {
-                    Image(systemName: expanded ? "chevron-down" : "chevron-right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(theme.palette.inkTertiary)
-                        .frame(width: 10)
+                    ThemeChevron(expanded: expanded)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(LF("%1$@ 等 %2$@",
                                 group.files.first?.lastPathComponent ?? L("重复组"),

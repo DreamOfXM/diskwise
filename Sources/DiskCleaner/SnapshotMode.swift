@@ -19,6 +19,13 @@ import SwiftUI
 //     DISKWISE_DEMO_USAGE=96:16 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
 //     ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
+// 要拍「底部那颗全选按下去 / 再按回来」：再加 DISKWISE_PICK=dup 或 dup,caches，
+// 命中的页各补两张 -selected / -deselected。
+// 要拍「总览某一行的下一级摊开」：再加 DISKWISE_DRILL='~/Library'，总览那张之后会补一张
+// 01-overview-drill.png（列表里没有这个名字时就不补，只拍普通那张）。
+// 要拍「点环形图例之后滚到哪」：再加 DISKWISE_JUMP=rest|restnote|gap|<某行完整路径>，rest 滚到
+// 「其他已统计」那块弧的落点（前三行底下那条分界线；没有分界线时是「展开其余 N 处」或列表尾巴那句对账），
+// restnote 直接落到那句对账，gap 滚到「没量到的地方」那一段，补 01-overview-jump.png。
 // 皮肤页那种长页要一次装下六张卡：再加 DISKWISE_WIN=1280x920（默认 1280x820）。
 // 注意走合成路径时窗口必须放得下屏幕，超出屏幕的那一截拍不到。
 // 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
@@ -64,13 +71,34 @@ enum SnapshotMode {
         }
     }
 
+    /// DISKWISE_DRILL=<行名>：拍完总览之后，把列表里那一行就地摊开再补一张
+    /// （`01-overview-drill.png`）。摊开出来的下级只有点下去才看得见，
+    /// 而截图这一路没有键鼠，所以直接调行上那颗箭头走的同一个方法——不另画一份假界面。
+    private static var drillRow: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_DRILL"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? nil : raw
+    }
+
+    /// DISKWISE_JUMP=rest|restnote|gap|<某行的完整路径>：拍完总览再滚到那一处，补一张
+    /// `01-overview-jump.png`。走的是点环形图例那一格的同一条路径（先摊开、再滚）。
+    /// 为什么需要它：列表尾巴那颗「展开其余 N 处」和它下面那句逐段对账在画幅之外，
+    /// 而「其他已统计」那块弧到底回答没回答「能不能删」，恰恰就看那几行。
+    private static var jumpToken: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_JUMP"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? nil : raw
+    }
+
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
     ///
     /// 哈希大文件的那几页要给足预算：一趟 640 MB 的全量哈希能安静好几秒，
     /// 画面在这段时间里一动不动，光靠「连续 N 帧一致」会在扫描中途收工。
     /// 实测过一张少算一份副本的重复文件页（3 份报成 2 份）。
     private static let pages: [(AppPanel, String, Double, Double)] = [
-        (.overview, "01-overview", 12, 60),
+        // 总览的上限给到 5 分钟：演示树十几秒就静了，真机整盘要走过几百 G，
+        // 60 秒会在扫描中途收工——那张图的账是半截的，拿去对账反而误导。
+        (.overview, "01-overview", 12, 300),
         (.big, "02-big-files", 10, 45),
         (.old, "03-old-files", 10, 45),
         (.dup, "04-duplicates", 20, 120),
@@ -82,6 +110,14 @@ enum SnapshotMode {
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),
     ]
+
+    /// DISKWISE_PICK=dup,caches：这些页各补两张——按一次底部清理条的「全选」，再按一次
+    /// 「取消全选」（`04-duplicates-selected.png` / `-deselected.png`）。勾选列表动辄几百项，
+    /// 「勾上去撤不回」是用户报过的缺陷，只有真按一次才照得出来；按的就是那颗按钮的 action。
+    private static var pickPanels: Set<String> {
+        Set((ProcessInfo.processInfo.environment["DISKWISE_PICK"] ?? "")
+            .split(separator: ",").map { $0.lowercased() })
+    }
 
     /// DISKWISE_LANG_FLIP=<en|zhHans>：整套拍完后在同一个进程里当场切一次语言，
     /// 把皮肤页再拍一张。切语言不重启就得当场生效，这件事用户报过两回，
@@ -164,6 +200,25 @@ enum SnapshotMode {
             store.jumpTo = panel
             waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
             shoot(name)
+            if pickPanels.contains(String(describing: panel)) {
+                store.selectAllPulse += 1
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 12)
+                shoot(name + "-selected")
+                store.selectAllPulse += 1
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 12)
+                shoot(name + "-deselected")
+            }
+            if panel == .overview, let drill = drillRow {
+                store.overviewDrill = drill
+                // 下一级是真去量的：一趟几十 G 的子树，等它静下来再拍。
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 3, maxSeconds: 180)
+                shoot(name + "-drill")
+            }
+            if panel == .overview, let token = jumpToken {
+                store.overviewJump = token
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 3, maxSeconds: 120)
+                shoot(name + "-jump")
+            }
         }
         if let flip = languageFlip {
             store.jumpTo = .appearance

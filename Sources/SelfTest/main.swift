@@ -40,10 +40,11 @@ check(!HomeAccess.runsSandboxed, "自检跑在非沙盒环境")
 check(!HomeAccess.needsGrant, "非沙盒不该拦授权")
 check(!realHomeDir().path.contains("/Library/Containers/"), "真实家目录没被改写成容器路径")
 check(homeDir() == realHomeDir(), "未授权时 homeDir 落回真实家目录，不是容器")
-// 范围选择器只列可达的那几个：沙盒里「整盘」点了会被降级，留着一格就是死按钮
-check(ScanScope.reachable.contains(.user), "用户区永远在可达范围里")
-check(!HomeAccess.runsSandboxed || !ScanScope.reachable.contains(.disk),
-      "沙盒下不把「整盘」摆成可选项")
+// 范围只剩一档、且由「扫不扫得动」决定：沙盒里整盘扫不动，就不能拿它当默认，
+// 而非沙盒只看用户区等于把大半块盘排除在承诺之外。界面上没有这个开关了。
+check(ScanScope.effective == .disk, "非沙盒走整盘：界面上没有开关，默认就得是能扫到的那一档")
+check(!HomeAccess.runsSandboxed || ScanScope.effective == .user,
+      "沙盒下不把「整盘」当默认（点了也扫不动）")
 setenv("DISKWISE_HOME_SHIM", "/tmp/diskwise-selftest-home", 1)
 check(homeDir().path == "/tmp/diskwise-selftest-home", "假家目录开关仍然优先")
 unsetenv("DISKWISE_HOME_SHIM")
@@ -66,7 +67,7 @@ check(human(494_384_795_648) == "494.4 GB", "500GB 盘按系统口径显示 494.
 setenv("DISKWISE_HOME_SHIM", "/tmp/diskwise-selftest-home", 1)
 unsetenv("DISKWISE_DEMO_USAGE")
 check(volumeUsage()?.total == 96 * GB, "假家目录没带钉容量时用兜底数，不读真盘")
-check(volumeUsage()?.used == 80 * GB, "兜底容量的已用只有 80 GB：演示树撑得起，未覆盖不会虚高成几百 G")
+check(volumeUsage()?.used == 80 * GB, "兜底容量的已用只有 80 GB：演示树撑得起，没量到的那块不会虚高成几百 G")
 setenv("DISKWISE_DEMO_USAGE", "128:12", 1)
 check(volumeUsage()?.free == 12 * GB, "DISKWISE_DEMO_USAGE 按十进制生效")
 unsetenv("DISKWISE_HOME_SHIM")
@@ -111,7 +112,8 @@ do {
           "系统区被拦：\(e.reasonKey)")
 }
 
-// 4c. 扫描范围根：用户区 = 家目录 + /Applications；整盘再加系统白名单，且永远不碰 /System 和 /Volumes
+// 4c. 扫描范围根：用户区 = 家目录 + /Applications；整盘再加系统白名单，
+//     但绝不爬密封系统卷与挂载点（那会把外置盘和时间机器备份盘算进我们的账）
 let userRoots = scanRoots(scope: .user)
 check(userRoots.contains(homeDir()), "用户区根含家目录")
 check(userRoots.contains(URL(fileURLWithPath: applicationsDir(), isDirectory: true)),
@@ -119,9 +121,108 @@ check(userRoots.contains(URL(fileURLWithPath: applicationsDir(), isDirectory: tr
 let diskRoots = scanRoots(scope: .disk)
 check(diskRoots.first == homeDir(), "整盘根的第一项仍是家目录")
 check(diskRoots.count > userRoots.count, "整盘根比用户区多（实得 \(diskRoots.count) 项）")
-check(!diskRoots.contains { $0.path.contains("/System") || $0.path.contains("/Volumes") },
-      "整盘根不含 /System 与 /Volumes")
+check(!diskRoots.contains { $0.path == "/System" || $0.path == "/Volumes"
+                              || $0.path.hasPrefix("/Volumes/") },
+      "整盘根不含密封系统卷与挂载点")
+check(diskRoots.filter { $0.path == homeDir().path }.count == 1, "整盘根不把家目录算两遍")
+// 数据卷自己那层 /System/Volumes/Data/System 必须算：18.9 GB 的 AssetsV2 住在里面，
+// 漏了它「整盘」就凭空少 5%，而那 5% 会被读成「盘上有东西我们扫不动」。
+func isDirAt(_ url: URL) -> Bool {
+    var d: ObjCBool = false
+    return FileManager.default.fileExists(atPath: url.path, isDirectory: &d) && d.boolValue
+}
+let dataSystem = URL(fileURLWithPath: "/System/Volumes/Data/System", isDirectory: true)
+if !homeIsDemo, isDirAt(dataSystem) {
+    check(diskRoots.contains(dataSystem), "整盘根含数据卷那层 System（AssetsV2 在这里）")
+}
+// 别人的家目录也要算进整盘——它是盘上真实占着的地方
+if !homeIsDemo {
+    let others = ((try? FileManager.default.contentsOfDirectory(atPath: "/Users")) ?? [])
+        .map { URL(fileURLWithPath: "/Users/\($0)", isDirectory: true).standardizedFileURL }
+        .filter { isDirAt($0) && $0.path != homeDir().path
+            && !$0.lastPathComponent.hasPrefix(".") }
+    check(others.allSatisfy { diskRoots.contains($0) },
+          "整盘根含其他用户的家目录（\(others.map(\.lastPathComponent).joined(separator: "、"))）")
+}
 check(Set(diskRoots.map { $0.path }).count == diskRoots.count, "整盘根没有重复项")
+
+// 4d. 卷账拆分：环形的「没量到的地方」要按 APFS 卷点名，数据源是 diskutil 的按卷清单
+//     （statfs 对每个卷都回同一份容器数；df 的表里没有平时不挂载的恢复卷）
+let apfsPlist: [String: Any] = [
+    "Containers": [
+        ["APFSContainerUUID": "BOOT", "Volumes": [
+            ["DeviceIdentifier": "disk3s1", "Roles": ["System"], "CapacityInUse": 12_639_088_640],
+            ["DeviceIdentifier": "disk3s2", "Roles": ["Preboot"], "CapacityInUse": 9_033_097_216],
+            ["DeviceIdentifier": "disk3s3", "Roles": ["Recovery"], "CapacityInUse": 1_284_472_832],
+            ["DeviceIdentifier": "disk3s5", "Roles": ["Data"], "CapacityInUse": 424_415_780_864],
+            ["DeviceIdentifier": "disk3s6", "Roles": ["VM"], "CapacityInUse": 22_550_147_072],
+        ]],
+        // 另一个容器（iOS 模拟器镜像那种）：不是这块盘的账
+        ["APFSContainerUUID": "OTHER", "Volumes": [
+            ["DeviceIdentifier": "disk10s1", "Roles": [String](), "CapacityInUse": 17_571_344_384],
+        ]],
+    ]
+]
+let apfsUsed: Int64 = 470_091_194_368
+if let split = volumeSplit(apfsPlist: apfsPlist, diskUsed: apfsUsed) {
+    check(split.dataVolume == 424_415_780_864, "数据卷按卷算，不是容器数")
+    check(split.sealedSystem == 12_639_088_640, "只读系统卷单列")
+    check(split.virtualMemory == 22_550_147_072, "VM 卷单列")
+    // 回归：恢复卷平时不挂载，按挂载点拆账就会漏掉它，界面上「启动与恢复分区」
+    // 这个名字就跟数字对不上了。
+    check(split.bootAndRecovery == 9_033_097_216 + 1_284_472_832,
+          "引导分区那一行含未挂载的恢复卷")
+    check(split.unattributed == 168_607_744, "残差 = 整盘已用 − 容器里每一个卷")
+    check(split.dataVolume + split.sealedSystem + split.virtualMemory
+            + split.bootAndRecovery + split.unattributed == apfsUsed,
+          "五块加起来正好等于已用总量，环形才不会算歪")
+} else {
+    check(false, "卷账该拆出来")
+}
+// 认不出引导容器（非 APFS、字段改名）时必须退回 nil，不能让界面拿 0 当账
+check(volumeSplit(apfsPlist: ["Containers": [["Volumes": [["Roles": ["Data"],
+                                                           "CapacityInUse": 1]]]]],
+                  diskUsed: 1) == nil, "没有系统卷就不认引导容器")
+// 真机跑一次：能拆的话点名的卷不能超过物理占用，拆不出（演示模式）就退回整块盘一个数
+if let u = volumeUsage(), let real = volumeSplit(diskUsed: u.usedPhysical) {
+    check(real.dataVolume + real.sealedSystem + real.virtualMemory + real.bootAndRecovery
+            <= u.usedPhysical, "真机卷账各块加起来不超过物理占用 \(human(u.usedPhysical))")
+    check(real.dataVolume > 0 && real.sealedSystem > 0 && real.bootAndRecovery > 0,
+          "真机卷账点到了名（数据卷 + 系统卷 + 引导恢复）")
+} else {
+    check(homeIsDemo, "非演示模式该能拆卷账")
+}
+
+// 4e. 容量口径：界面上的「可用 / 已用」必须跟系统设置那一屏是同一个数
+if let u = volumeUsage() {
+    check(u.available == u.free + u.purgeable, "可用 = 空闲 + 系统可清除")
+    check(u.used + u.available == u.total, "已用 + 可用 = 总容量，环形才不会画歪")
+    check(u.usedPhysical == u.used + u.purgeable, "物理占用 = 已用 + 可清除（可清除此刻还占着盘）")
+    check(u.purgeable >= 0, "可清除不为负")
+    // 演示树不许掺真机的可清除账：假树配的是编造的容量，掺进来就是两本账记一张图
+    if homeIsDemo { check(u.purgeable == 0, "演示盘没有可清除这块") }
+}
+
+// 4f. 环形分段：这张图唯一的信用来源是「加起来正好等于已用」，而且「其他已统计」
+//     必须能被下面的列表逐段加出来——所以它只能等于「这一轮量到的 − 前三」，
+//     不许掺第二本账。（以前这里按用户区/整盘两档拆弧、列表按整盘列，同一屏两个口径，
+//     有人对着 134.7 GB 把列表加了三遍加不出来，从此不信这屏的数。）
+let ringCovered: Int64 = 297_000_000_000
+let ringUsed: Int64 = 374_500_000_000
+if let r = ringSplit(covered: ringCovered, used: ringUsed, topSum: 100_000_000_000) {
+    check(r.topSum + r.restMeasured + r.untouched == ringUsed, "环形三段加起来等于已用")
+    check(r.topSum + r.restMeasured == ringCovered, "前三＋其他已统计 = 这一轮量到的，列表才摊得开")
+    check(r.restMeasured == 197_000_000_000, "量到但没进前三的归「其他已统计」")
+    check(r.untouched == 77_500_000_000, "没量到的剩下多少就说多少")
+} else {
+    check(false, "量完一轮后环形该拆得开")
+}
+// 拿不准就不拆：宁可含糊，不可画出一张加起来不等于已用的图
+check(ringSplit(covered: 0, used: 400_000_000_000, topSum: 0) == nil, "还没量完一轮时不拆")
+check(ringSplit(covered: 500_000_000_000, used: 400_000_000_000, topSum: 0) == nil,
+      "量到的比整块盘的已用还多时不拆")
+check(ringSplit(covered: 60_000_000_000, used: 400_000_000_000, topSum: 80_000_000_000) == nil,
+      "前三名比整趟量到的还大时不拆")
 
 // 5. 移废纸篓 + 撤销（/tmp 文件，来回一遍再清掉）
 let src = fm.temporaryDirectory.appendingPathComponent("trashme-\(UUID().uuidString).txt")
@@ -181,6 +282,34 @@ Task {
     sem2.signal()
 }
 sem2.wait()
+
+// 8. 总览行内摊开下一级：点开一行报的是这一层的子目录，界面上还要拿
+//    「父行那一格 − 摊出来的这几格」报剩下的量，所以子层之和不能超过父行，
+//    而且同一份字节不能因为一个符号链接就被数第二遍。
+let cbase = fm.temporaryDirectory.appendingPathComponent("kidtest-\(UUID().uuidString)")
+for (n, mb) in [("small", 1), ("mid", 2), ("big", 3)] {
+    let d = cbase.appendingPathComponent(n)
+    try! fm.createDirectory(at: d, withIntermediateDirectories: true)
+    try! Data(count: mb * 1024 * 1024).write(to: d.appendingPathComponent("f.bin"))
+}
+try! fm.createSymbolicLink(atPath: cbase.appendingPathComponent("linkdir").path,
+                           withDestinationPath: cbase.appendingPathComponent("big").path)
+let sem3 = DispatchSemaphore(value: 0)
+Task {
+    let kids = await childDirSizes(cbase, limit: 2)
+    check(kids.map(\.name) == ["big", "mid"], "下一级按占盘从大到小排并掐到上限（得 \(kids.map(\.name))）")
+    check(kids.allSatisfy { $0.size > 0 }, "摊出来的每一格都得有自己的数")
+    check(!kids.contains { $0.name == "linkdir" },
+          "指向目录的符号链接不摊成第二格")
+    let parent = await dirSize(cbase)
+    let sum = kids.reduce(Int64(0)) { $0 + $1.size }
+    check(sum <= parent, "摊出来的格子加起来不超过父行那一格（\(sum) ≤ \(parent)）")
+    check(await childDirSizes(cbase.appendingPathComponent("big")).isEmpty,
+          "一层里没子目录时摊不出东西，不编一行 0 出来")
+    try? fm.removeItem(at: cbase)
+    sem3.signal()
+}
+sem3.wait()
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

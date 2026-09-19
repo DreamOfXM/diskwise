@@ -76,15 +76,20 @@ permission, and it runs against a synthetic home folder so no real files appear:
 
 ```bash
 bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
-defaults write com.dreamofxm.diskcleaner diskcleaner.language en
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
-  DISKWISE_DEMO_USAGE=96:16 \
-  DISKWISE_SKIN=dawn ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
+  DISKWISE_DEMO_USAGE=96:16 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
+  ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 ```
 
-Four knobs narrow a run so you're not re-rendering 13 pages to look at one:
+Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
 
 - `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
+- `DISKWISE_LANG=en|zh` — the language to shoot in. Don't `defaults write` the stored choice
+  instead: while an instance is running, `cfprefsd` serves that process's cached copy back and
+  the app reads the old value. Same trap as `DISKWISE_SKIN` — both are per-run overrides.
+- `DISKWISE_PICK=dup,caches` — press that page's bottom-bar select-all twice and shoot
+  `-selected` / `-deselected`. A checkbox list you can't un-check is a defect, and only an
+  actual press proves it's gone.
 - `DISKWISE_WIN=1280x920` — window size, default `1280x820`. Raise it for long pages such as
   the skins grid. Shots come from the window server's composite of that window, so a window
   taller than your display gets its bottom cut off — keep it inside the screen.
@@ -94,9 +99,6 @@ Four knobs narrow a run so you're not re-rendering 13 pages to look at one:
   `make_demo_home.sh`'s tree actually fills. It never reads your real disk — that would put a
   few-dozen-GB demo tree next to your machine's real usage total and make the ring look like
   the scanner can't reach 80% of your disk.
-- `DISKWISE_SCOPE=user|disk` — which scan scope the run starts on. A demo home never reads or
-  writes your saved preference (otherwise the README would depend on what the author last
-  clicked), and without this it just takes the channel default.
 
 English copy runs ~30% wider than Chinese, so check **both** languages — a lot of layout bugs are
 only visible in one of them.
@@ -104,7 +106,7 @@ only visible in one of them.
 ## Before opening a PR
 
 ```bash
-swift run SelfTest        # 27/27
+swift run SelfTest        # 77/77
 bash build_app/build.sh   # localization gate + self-test + resource assertions + DMG
 ```
 
