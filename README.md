@@ -23,7 +23,10 @@ server, no telemetry, no subscription. A ~4 MB DMG, one file for Apple Silicon a
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Rather download it? [Latest release](https://github.com/DreamOfXM/diskwise/releases/latest) —
+Or via **Mac App Store**: macOS 13+｜Free｜
+[DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
+
+Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
 every release ships the DMG's SHA-256.
 
 ---
@@ -32,21 +35,24 @@ every release ships the DMG's SHA-256.
 
 ## Why this exists
 
-Disk cleaners ask for a lot of trust: they walk your whole home folder, then offer to delete things.
-Most of them are closed-source, ship a background daemon, and treat `rm -rf` as a feature.
+Cleaning up a Mac's disk means deleting things from places you care about. The right balance between
+"helpful" and "safe" is why I built DiskWise.
 
-DiskWise takes the opposite bet:
+Here's how the experience flows inside the app:
 
-| | DiskWise |
-|---|---|
-| Delete path | **One** — `FileManager.trashItem`. Everything lands in the Trash. |
-| Undo | Yes, per operation, for the whole session. |
-| Protected paths | Home itself, `~/Library`, and friends can never be removed wholesale. |
-| Emptying the Trash | Handed to **Finder**, so macOS asks you once more. |
-| Docker images | Read-only. Virtual disks have no per-image path, so the app points instead of pretending. |
-| Network | None. No updater, no analytics, no ads. |
-| Price | Nothing. Every feature and all six skins ship unlocked in this build. |
-| Runtime | A single `.app`. No Python, no port, no daemon. |
+- **Trust through explanations.** Each row in the cache list says what it is, what happens if you
+  delete it, and how to get it back. Not every entry has this level of detail — only the ones we
+  understand well enough to write down.
+
+- **Control stays at your fingertips.** Every selection shows an estimated reclaimable size before
+  you confirm; if the numbers aren't ready, the "select all" button stays disabled. When you click
+  **Clean**, a confirmation dialog appears and nothing happens unless you say yes. All deletions go
+  to the Trash, which stays undoable until *you* empty it, and the Trash's empty action always
+  goes through Finder once more.
+
+- **Chinese developers come first.** On a typical Chinese dev machine, WeChat/DingTalk/WeCom caches
+  often occupy tens of gigabytes. The UI is bilingual from day one, and the knowledge base covers
+  those apps explicitly because they're central to our workflows.
 
 It is built for machines that have been used by a developer for a few years — the ones where
 `node_modules`, Docker volumes, Xcode `DerivedData`, and ten GB of caches quietly took over.
@@ -260,10 +266,11 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
 没有端口、不联网、无遥测、无订阅。安装包约 4 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
 
-## 它凭什么值得信任
+## 为什么选择 DiskWise
 
-清理工具天然要信任：它扫遍你的家目录，然后劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。
-DiskWise 押的是反面：
+清理工具要进入你的家目录，劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。
+
+DiskWise 走相反的路子：
 
 | | DiskWise |
 |---|---|
@@ -328,6 +335,12 @@ DiskWise 押的是反面：
 
 ## 下载与安装
 
+### Mac App Store
+
+[DiskWise: 空间清理](https://apps.apple.com/app/id6813265402) — macOS 13+｜免费｜直接获取即可开始用。
+
+---
+
 **方式一：Homebrew（一条命令）**
 
 ```bash
@@ -387,8 +400,8 @@ bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app →
 它刻意比套件少做很多：不查杀木马、不做 VPN、不清邮件、没有「加速」，因为那些是另一类产品、另一套风险。
 
 **会不会把我还要的东西删掉？**
-所有删除都进废纸篓，本次会话有撤销栈；家目录本体和 `~/Library` 整体不可删；清空废纸篓交给访达，
-系统会再问你一次才真正释放空间。
+所有删除都进废纸篓，本次会话有撤销栈；家目录本体和 `~/Library` 整体不可删；清空这一步永远在
+访达里完成，访达会让你确认后才真正释放空间。
 
 **`node_modules`、`DerivedData`、各种缓存能删吗？**
 能。`node_modules` 靠 `npm install` 回来，`DerivedData` 靠下次编译回来，缓存靠对应工具的下次运行回来。
