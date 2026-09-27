@@ -63,6 +63,31 @@ old() {
 	if [ -e "$path" ]; then touch -t "$stamp" "$path"; fi
 }
 
+# simdev <UDID> <设备名> <runtime 尾巴> <上次启动 YYYY-MM-DD，没有就写 -> <MB>
+# 一台模拟器 = 一个装着 device.plist 的目录（ScanJobs.swift 里 scanSimulators 就认这个），
+# 光有 UUID 形状的文件夹不算台子。
+simdev() {
+	local udid="$1" name="$2" rt="$3" boot="$4" mb="$5"
+	local dir="$H/Library/Developer/CoreSimulator/Devices/$udid"
+	mkdir -p "$dir"
+	if [ ! -e "$dir/device.plist" ]; then
+		{
+			printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+			printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+			printf '<plist version="1.0">\n<dict>\n'
+			printf '\t<key>UDID</key><string>%s</string>\n' "$udid"
+			printf '\t<key>name</key><string>%s</string>\n' "$name"
+			printf '\t<key>runtime</key><string>com.apple.CoreSimulator.SimRuntime.%s</string>\n' "$rt"
+			printf '\t<key>state</key><integer>1</integer>\n'
+			if [ "$boot" != "-" ]; then
+				printf '\t<key>lastBootedAt</key><date>%sT09:12:40Z</date>\n' "$boot"
+			fi
+			printf '</dict>\n</plist>\n'
+		} > "$dir/device.plist"
+	fi
+	mk "$dir/data/runtime-snapshot.bin" "$mb"
+}
+
 # app <名字> <包标识> <MB>：造一个真装了 App 的样子（有 Info.plist 才认得出包名）。
 # 卸载残留页拿「已装 App」当基准，所以这几个必须和残留的包名对不上。
 app() {
@@ -109,6 +134,11 @@ mk "$H/Library/Developer/Xcode/DerivedData/WebApp-abc123/Index/DataStore.idx" 14
 mk "$H/Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)/Symbols.bin" 1800
 mk "$H/Library/Developer/Xcode/Archives/2025-11-02/WebApp.xcarchive" 900
 mk "$H/Library/Developer/CoreSimulator/Caches/dyld.bin" 700
+# 模拟器台子：「Xcode 模拟器设备」那一行摊开时要逐台列，没有台子这格就是空的
+simdev 3F1A9C2E-7B44-4D8A-9E11-52C0A7D18B63 "iPhone 17 Pro"  "iOS-26-5" 2026-09-27 900
+simdev 8C42D7B1-0E56-4F9A-B3C7-1D94E6A20F55 "iPhone 16"      "iOS-18-4" 2026-08-12 620
+simdev B6E0F3A4-9C1D-4E77-8A25-6F0C31D9BE48 "iPad Pro 13"    "iOS-26-5" 2026-05-30 380
+simdev D29C5E70-4A83-4B16-9F0D-73AE58C26B91 "Apple TV 4K"    "tvOS-18-2" -      150
 mk "$H/Library/Application Support/MobileSync/Backup/00008030-001A/full.bin" 1600
 
 # ── 国产 App 专区（按账号存放的那类路径）──
@@ -155,6 +185,14 @@ mk "$H/Projects/mobile-app/node_modules/.cache/bundle.bin" 600
 for p in web-dashboard admin-console mobile-app; do
 	printf '{"name":"%s","version":"1.0.0"}\n' "$p" > "$H/Projects/$p/package.json"
 done
+# 锁文件决定这一行挂哪家的标（ScanJobs.swift 的 nodePackageManager 先认 node_modules
+# 里面的标记，再认项目根的锁文件）。三种都造齐，行首那一列才拍得出三种标。
+printf '{\n  "name": "web-dashboard",\n  "lockfileVersion": 3,\n  "packages": {}\n}\n' \
+	> "$H/Projects/web-dashboard/package-lock.json"
+printf 'lockfileVersion: "9.0"\nsettings:\n  autoInstallPeers: true\nimporters:\n  .:\n    dependencies: {}\n' \
+	> "$H/Projects/admin-console/pnpm-lock.yaml"
+printf '# yarn lockfile v1\n\n\nminimatch@^3.0.4:\n  version "3.1.2"\n  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-3.1.2.tgz"\n' \
+	> "$H/Projects/mobile-app/yarn.lock"
 
 # ── 受管环境自己的副本（重复文件页要摘出去的那一组）──
 # 三份内容真相同、各住一个 venv。少了这一段，这棵树里 `envGroups` 恒为空，
@@ -171,6 +209,25 @@ old "$H/Downloads/ubuntu-24.04-desktop-amd64.iso" 202209120815
 old "$H/Documents/Reference/legacy-dataset.csv" 201911031720
 old "$H/Downloads/kitchen-renovation.zip" 202007261130
 old "$H/Desktop/Working/Set/photos-export.tar" 201805091955
+
+# ── 重复文件：组内错开年代 ──
+# 同一组三份落在同一分钟时，屏幕上看不出「保留最新的那份」到底留了谁
+# （0928 实拍命中：被锁定的母本和一份可勾的副本都印 2026-09-25 17:00）。
+# 其中两组故意把最新那份放在副本上，用来证明挑的是日期而不是路径顺序。
+old "$H/Documents/Backups/kitchen-renovation.zip" 202007241602
+old "$H/Desktop/kitchen-renovation.zip" 201911020840
+old "$H/Pictures/RAW/import-batch-07.dng" 202609271932
+old "$H/Downloads/import-batch-07.dng" 202609271705
+old "$H/Downloads/import-batch-07 (copy).dng" 202609261448
+old "$H/Desktop/Working/quarterly-report.pdf" 202609251640
+old "$H/Documents/Reports/quarterly-report.pdf" 202609272210
+old "$H/Downloads/quarterly-report(1).pdf" 202609221035
+old "$H/Movies/family-clip-2019.mov" 202609262015
+old "$H/Desktop/family-clip-2019.mov" 202609201500
+old "$H/Documents/Backups/family-clip-2019.mov" 202609180930
+old "$H/Downloads/installer-sdk-2.7.pkg" 202609251745
+old "$H/Documents/Backups/installer-sdk-2.7.pkg" 202609191410
+old "$H/Desktop/installer-sdk-2.7.pkg" 202609271830
 
 # ── 已装 App（演示树内的 /Applications：总览页那一行 + 残留页的基准）──
 app "Demo Notes" com.demo.notes 780
