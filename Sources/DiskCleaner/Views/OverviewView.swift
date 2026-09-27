@@ -1032,7 +1032,7 @@ struct OverviewView: View {
         } else {
             run = human(acct.reclaimable)
             text = LF("%1$d 处 %2$@ 动得了；已量到的其余 %3$@ 先不动，没量到的 %4$@ 另算。",
-                      n, run, human(acct.measuredIdle), human(acct.untouched))
+                      n, run, human(acct.measuredIdle), acct.untouchedShown)
         }
         // 15 pt 是样稿 `.lede` 的字号。上一版走 `.callout`（macOS 上 11 pt），
         // 这句「整圈怎么分成四笔账」比它下面那列账的正文还小一档，层级是倒的。
@@ -1569,6 +1569,14 @@ struct OverviewView: View {
         var totalShown: String { human(total) }
         var availableShown: String { human(available) }
         var usedShown: String { diffShown(totalShown, availableShown) ?? human(used) }
+        /// 导语里「没量到的另算」那个数：拿**那一行印出来的字**，不拿字节现算。
+        /// 这一列是按最大余数分到「各行相加 = 整块盘」上的，哪一行都可能比裸 `human()`
+        /// 多或少 0.1；导语自己 `human()` 一次，同一屏就会长出两个数。
+        /// 2026-09-28 实拍命中：搬走一项后「本次移入废纸篓」进了列、拿走那份余数，
+        /// 导语印 32.6 而「没量到」那行印 32.7。
+        var untouchedShown: String {
+            segs.first { $0.drill == .gapRows }?.sizeShown ?? human(untouched)
+        }
         var afterClearShown: String {
             sumShown([availableShown, human(reclaimable), human(inBin)]) ?? human(afterClear)
         }
