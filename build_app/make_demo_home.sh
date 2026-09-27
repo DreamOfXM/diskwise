@@ -156,6 +156,15 @@ for p in web-dashboard admin-console mobile-app; do
 	printf '{"name":"%s","version":"1.0.0"}\n' "$p" > "$H/Projects/$p/package.json"
 done
 
+# ── 受管环境自己的副本（重复文件页要摘出去的那一组）──
+# 三份内容真相同、各住一个 venv。少了这一段，这棵树里 `envGroups` 恒为空，
+# 页头那句「另有 N 组…」和点开的那张名单根本不会出现，0928 验收第一轮就是这样
+# 拍不到那张图的（`✗ 04-duplicates-envlist.png no sheet window` 说的就是这件事）。
+mk "$H/Projects/alpha/.venv/lib/python3.12/site-packages/models/model-weights.bin" 21
+dup "$H/Projects/alpha/.venv/lib/python3.12/site-packages/models/model-weights.bin" \
+    "$H/Projects/beta/.venv/lib/python3.12/site-packages/models/model-weights.bin" \
+    "$H/Projects/gamma/venv/lib/python3.11/site-packages/models/model-weights.bin"
+
 # ── 很久没动：把年代推到上个十年 ──
 old "$H/Movies/Screen Recording 2021-04-18 at 14.32.05.mov" 202104181432
 old "$H/Downloads/ubuntu-24.04-desktop-amd64.iso" 202209120815
