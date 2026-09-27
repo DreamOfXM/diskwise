@@ -142,6 +142,7 @@ func cnt(_ n: Int, _ zhUnit: String) -> String {
         "个应用": "app", "个包": "package", "个 node_modules": "node_modules folder",
         "个可清理项": "cleanable item", "处可疑": "suspicious spot", "次": "time",
         "套": "skin", "个多余副本": "extra copy", "个条目": "entry",
+        "个环境": "environment", "处": "spot",
     ]
     let many: [String: String] = [
         "项": "items", "个文件": "files", "个副本": "copies", "处残留": "leftovers",
@@ -150,6 +151,7 @@ func cnt(_ n: Int, _ zhUnit: String) -> String {
         "个应用": "apps", "个包": "packages", "个 node_modules": "node_modules folders",
         "个可清理项": "cleanable items", "处可疑": "suspicious spots", "次": "times",
         "套": "skins", "个多余副本": "extra copies", "个条目": "entries",
+        "个环境": "environments", "处": "spots",
     ]
     // l10n-scan: on
     guard let unit = one[zhUnit] else { return "\(head) \(zhUnit)" }

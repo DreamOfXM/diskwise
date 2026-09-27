@@ -37,8 +37,8 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
 
 ## The easiest useful contribution: cache knowledge base
 
-`Sources/DiskCleaner/Resources/safety_db.json` is the list of things the Caches page understands.
-More real entries = a more useful app. One entry:
+`Sources/DiskCleaner/Resources/safety_db.json` is the list the two cache pages understand —
+**App Caches** and **Dev Caches**. More real entries = a more useful app. One entry:
 
 ```json
 {
@@ -48,7 +48,9 @@ More real entries = a more useful app. One entry:
   "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
   "path": "~/Library/Application Support/Codex/Crashpad/pending",
   "level": "safe",
-  "grp": "general"
+  "grp": "general",
+  "app": "com.openai.codex",
+  "icon": "openai"
 }
 ```
 
@@ -56,7 +58,11 @@ More real entries = a more useful app. One entry:
 - `level` is `safe` or `warn`. When in doubt, `warn`: an entry that is too cautious still tells the
   user something; one that is too confident deletes their work.
 - Overlapping paths are fine (they happen a lot), but the UI never sums them — keep it that way.
-- Entries are grouped by `grp`; the Caches page shows the group under each name.
+- Entries are grouped by `grp`: `general` and `cn_app` render on App Caches, `dev` on Dev Caches.
+- `app` is the owning app's bundle id, `icon` the brand mark's file name under
+  `Sources/DiskCleaner/Resources/BrandIcons/`. The leading tile resolves in one order across every
+  page: real app icon → brand mark → SF Symbol (rows with no path) → one generic fallback. Only ship
+  an `icon` whose official vector exists there, and keep `SelfTest`'s slug check green.
 
 ## Translations
 
@@ -105,6 +111,14 @@ Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
   `make_demo_home.sh`'s tree actually fills. It never reads your real disk — that would put a
   few-dozen-GB demo tree next to your machine's real usage total and make the ring look like
   the scanner can't reach 80% of your disk.
+
+- `DISKWISE_FILM=10` — instead of one PNG per page, burst the Overview page at that frame rate
+  into `<DISKWISE_SHOTS>/film/f0001.png` …: it scans, settles, unfolds a ledger row, collapses it,
+  arms an arc, moves it to the Trash, then undoes. This is how `docs/demo/overview-*.gif` at the top
+  of the README is made — the frames are real UI states, nothing is animated afterwards except
+  timing. Keep the same `DISKWISE_WIN=1280x800` and demo home as the still shots, then drop the
+  moving frames into `gifski` at 1500 px wide; encoding every frame at a flat 10 fps costs ~10× the
+  bytes for no extra motion, because most of the run is a screen sitting still.
 
 English copy runs ~30% wider than Chinese, so check **both** languages — a lot of layout bugs are
 only visible in one of them.

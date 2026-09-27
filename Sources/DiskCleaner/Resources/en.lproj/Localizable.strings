@@ -22,7 +22,8 @@
 "很久没动" = "Long Untouched";
 "重复文件" = "Duplicates";
 "Docker 占用" = "Docker Usage";
-"缓存清理" = "Caches";
+"开发缓存" = "Dev Caches";
+"应用缓存" = "App Caches";
 "卸载残留" = "Leftovers";
 "废纸篓" = "Trash";
 "外观皮肤" = "Skins";
@@ -124,33 +125,41 @@
 "Node.js 项目的依赖文件夹，只在开发这个项目时用到" = "The dependency folder of a Node.js project — only used while developing it";
 "这个项目暂时跑不起来；不影响源码与 package.json" = "The project won't run until you reinstall; source and package.json are untouched";
 "在项目目录执行 npm install（或 pnpm/yarn），按 package.json 原样装回" = "Run npm install (or pnpm/yarn) in the project folder and package.json restores it exactly";
+"在项目目录执行 %@，按 package.json 原样装回" = "Run %@ in the project folder and package.json restores it exactly";
 "部分" = "Partial";
 "部分统计" = "Partially counted";
 
-// ── Docker ──────────────────────────────────────────────────────────────────
-"只看不删——照指路去 Docker Desktop 里动手" = "Read-only — it points, Docker Desktop acts";
-"正在问 Docker 都吃了啥…" = "Asking Docker what it ate…";
+// ── Docker 占用 ─────────────────────────────────────────────────────────────
 "共 %@" = "%@ total";
 "本页不设删除键" = "No delete button here";
-"没发现 Docker 数据" = "No Docker data found";
-"没装 Docker Desktop 就不会有" = "You'd only see this with Docker Desktop installed";
+"没找到容器运行时" = "No container runtime found";
+"这台机器上没有 Docker Desktop、OrbStack、Podman、colima 的数据目录" = "There's no data folder here for Docker Desktop, OrbStack, Podman or colima";
+"容器引擎" = "the container engine";
+"%@ 数据" = "%@ data";
+"磁盘实占" = "Actually on disk";
+"引擎报的总量" = "The engine's own total";
 "镜像 · 合计" = "Images · Total";
 "容器 · 合计" = "Containers · Total";
 "卷 · 合计" = "Volumes · Total";
 "构建缓存 · 合计" = "Build cache · Total";
 "%@ · 合计" = "%@ · Total";
 "悬空镜像（%@）" = "Dangling image (%@)";
-"Docker 数据 · %@" = "Docker data · %@";
 "共 %1$@ 个，活跃 %2$@ 个" = "%1$@ total, %2$@ active";
-"，Docker Desktop 里还能清 %1$@（%2$@）" = ", and Docker Desktop can free %1$@ (%2$@)";
-"，Docker Desktop 里还能清 %@" = ", and Docker Desktop can free %@";
-"镜像存在 Docker 的虚拟盘里" = "Images live inside Docker's virtual disk";
+"，%1$@ 里还能清 %2$@（%3$@）" = ", and %1$@ can free %2$@ (%3$@)";
+"，%1$@ 里还能清 %2$@" = ", and %1$@ can free %2$@";
 "怎么清" = "How to clean";
-"打开 Docker Desktop 对应页面删除；本工具不代删（虚拟盘内无独立路径）" = "Open the matching page in Docker Desktop and delete there; this tool won't do it for you (images live inside one virtual disk)";
-"Docker Desktop → Images 里删除" = "Delete them in Docker Desktop → Images";
-"更稳妥：在 Docker Desktop 里清理；这里删等于清空该子目录" = "Safer: clean it inside Docker Desktop — deleting here empties the whole subfolder";
+"这台机器上找不到这一家的数据目录，这一行是引擎报的几段相加" = "This runtime's data folder isn't on this machine, so this row adds up what the engine reports";
+"%@ 的镜像、容器、卷都存在一块虚拟机磁盘里；这一行是那块磁盘在这台机器上实际占掉的量" = "%@ keeps its images, containers and volumes in one virtual disk. This row is what that disk actually occupies on this Mac";
+"这一段是 %@ 自己报的账，量的是引擎内部的逻辑大小，不是这块盘上另外的字节" = "This segment is %@'s own figure — the engine's logical size, not extra bytes on this disk";
+"%@ 的镜像都躺在那块虚拟机磁盘里" = "%@'s images all live inside that virtual disk";
+"在 OrbStack 里清：它的 docker 命令是通的（docker system prune -a 删不用的镜像与构建缓存），删完那块磁盘会自动收缩" = "Clean it inside OrbStack: its docker commands work (docker system prune -a drops unused images and build cache), and that disk shrinks by itself afterwards";
+"colima 的删法是删掉整个虚拟机（colima delete）；本工具不代删" = "colima's way out is deleting the whole VM (colima delete); this tool won't do it for you";
+"用 podman 自己的命令清（podman system prune）；本工具不代删" = "Clean it with podman's own command (podman system prune); this tool won't do it for you";
+"打开 %@ 对应页面删除；本工具不代删（虚拟盘内无独立路径）" = "Open the matching page in %@ and delete there; this tool won't do it for you (there are no separate paths inside one virtual disk)";
+"在 %@ 里删这个镜像（命令行是 docker rmi）" = "Delete this image in %@ (docker rmi on the command line)";
+"本工具不代删；在跑起来的那一家里清" = "This tool won't delete it — clean up in whichever runtime is running";
 
-// ── 缓存清理 ────────────────────────────────────────────────────────────────
+// ── 应用缓存 / 开发缓存 ──────────────────────────────────────────────────────
 "每项都写明来历，勾你认得的，不认识的别碰" = "Every entry says what it is. Check what you recognize, leave the rest.";
 "正在翻你的缓存目录，稍等…" = "Digging through your cache folders…";
 "%d 项可查" = "Entries listed: %d";
@@ -161,6 +170,10 @@
 "怎么恢复" = "How to recover";
 "内容" = "Contents";
 "最近改动 %@" = "Last changed %@";
+"逐台看" = "By device";
+"正在一台一台量，稍等…" = "Measuring each device…";
+"上次启动 %@" = "Last booted %@";
+"从没启动过" = "Never booted";
 "常规缓存" = "Everyday caches";
 "国产 App" = "Chinese apps";
 "留意" = "Careful";
@@ -351,8 +364,6 @@
 "重新授权" = "Re-grant";
 
 // ── 知识库条目名（safety_db.json）───────────────────────────────────────────
-"Codex 崩溃转储" = "Codex crash dumps";
-"Codex 崩溃时生成的 .dmp 报告，只用于上报诊断" = ".dmp reports Codex writes when it crashes, used only for diagnostics";
 "无需恢复；下次程序崩溃会自动生成新的报告" = "Nothing to restore; the next crash writes a fresh report";
 "Qoder 崩溃转储" = "Qoder crash dumps";
 "Qoder 崩溃时生成的报告文件堆积" = "Crash report files generated by Qoder";
@@ -367,13 +378,7 @@
 "nvm 下载过的 Node 安装包缓存" = "Node installers nvm downloaded";
 "删掉后已安装的 Node 版本不受影响" = "Node versions you already installed are unaffected";
 "无需恢复；需要时 nvm install 会重新下载" = "Nothing to restore; nvm install re-downloads when needed";
-"npm 缓存" = "npm cache";
-"npm 的内容寻址下载缓存（_cacache）" = "npm's content-addressed download cache (_cacache)";
-"删掉后下次安装会慢一次" = "The next install is slower once";
-"无需恢复；npm install 会自动重建缓存" = "Nothing to restore; npm install rebuilds the cache";
 "npm 缓存目录" = "npm cache folder";
-"npm 的整个缓存根目录 ~/.npm" = "npm's whole cache root at ~/.npm";
-"删掉后已装的全局包不受影响，缓存会重建" = "Global packages are unaffected; the cache rebuilds itself";
 "无需恢复；npm install 自动重建" = "Nothing to restore; npm install rebuilds it";
 "tnpm 缓存" = "tnpm cache";
 "集团 npm 镜像（tnpm）的缓存目录" = "The cache folder of the tnpm corporate npm mirror";
@@ -394,7 +399,6 @@
 "Gradle 的构建缓存与依赖仓库" = "Gradle's build cache and dependency repository";
 "删掉后下次构建要全量重新下载依赖（首次构建明显变慢）" = "The next build re-downloads every dependency from scratch (noticeably slower the first time)";
 "无需恢复；下次构建自动重新下载，离线环境请先确认依赖仓库可用" = "Nothing to restore; the next build re-downloads. On an offline machine, check your mirror first";
-"Maven 仓库" = "Maven repository";
 "Maven 本地依赖仓库 ~/.m2/repository" = "Maven's local dependency repository at ~/.m2/repository";
 "删掉后首次构建会全量重新下载（可能较慢）" = "The first build re-downloads everything (can be slow)";
 "无需恢复；构建时 Maven 按需重新下载，离线机器需先配置好镜像仓库" = "Nothing to restore; Maven fetches what builds need. Offline machines need a mirror configured first";
@@ -419,10 +423,6 @@
 "真机调试时拷贝的旧系统版本调试符号" = "Debug symbols copied over for real-device debugging on old system versions";
 "删掉后连旧系统真机调试要重新生成" = "Debugging on older real devices regenerates it";
 "无需恢复；连接对应系统的真机时 Xcode 会自动重新生成" = "Nothing to restore; Xcode regenerates it when you connect a device on that system version";
-"模拟器缓存" = "Simulator cache";
-"CoreSimulator 的临时缓存" = "Temporary cache files of CoreSimulator";
-"删掉后模拟器下次启动会重建" = "The simulator rebuilds it on next launch";
-"无需恢复；模拟器自动重建" = "Nothing to restore; the simulator rebuilds it";
 "iOS 设备备份" = "iOS device backups";
 "iPhone/iPad 通过这台电脑做的整机备份" = "Full-device backups of your iPhone/iPad made on this Mac";
 "删掉后这些历史备份没了，设备本身不受影响" = "These historical backups are gone; the device itself is fine";
@@ -474,6 +474,90 @@
 "企业微信按账号存放的聊天图片、视频与文件数据" = "WeCom chat photos, videos and files, stored per account";
 "无法本地恢复；在手机企业微信的对应聊天里重新下载" = "No local restore; re-download in the matching chat on your phone";
 
+// ── 开发缓存条目（0927：safety_db 里 grp=dev 的那批）───────────────────────
+"Android Studio 缓存" = "Android Studio cache";
+"Android Studio 的索引、编译缓存与日志" = "Android Studio's indexes, build caches and logs";
+"Android 虚拟机镜像" = "Android emulator images";
+"Android 虚拟机（AVD）的系统镜像与里面存的数据" = "System images of your Android virtual devices (AVDs) and the data stored inside them";
+"ChatGPT 桌面版崩溃转储" = "ChatGPT desktop crash dumps";
+"ChatGPT 桌面版崩溃时生成的 .dmp 报告，只用于上报诊断（目录叫 Codex 是因为这个 App 的包名就是 com.openai.codex）" = ".dmp reports the ChatGPT desktop app writes when it crashes, used only for diagnostics (the folder is named Codex because that app's bundle id is com.openai.codex)";
+"CocoaPods 缓存" = "CocoaPods cache";
+"CocoaPods 下载的 pod 源码压缩包" = "The pod source archives CocoaPods downloaded";
+"Codex CLI 运行时装机" = "Codex CLI runtime install";
+"Codex CLI 自己下载的 Node 运行时与依赖" = "The Node runtime and dependencies Codex CLI fetched for itself";
+"Go 构建缓存" = "Go build cache";
+"Go 模块缓存" = "Go module cache";
+"Gradle 版本下载" = "Gradle version downloads";
+"gradlew 按项目声明的版本下载下来的 Gradle 发行包" = "The Gradle distributions gradlew downloaded for the versions your projects declare";
+"Hugging Face 模型缓存" = "Hugging Face model cache";
+"transformers / datasets 下载的模型与数据集，单个可达几十 GB" = "Models and datasets downloaded by transformers / datasets — one of them can be tens of GB";
+"IntelliJ IDEA 缓存" = "IntelliJ IDEA cache";
+"IntelliJ IDEA 建的索引、本地历史与编译缓存" = "Indexes, local history and build caches IntelliJ IDEA keeps";
+"Maven 依赖仓库" = "Maven dependency repository";
+"Ollama 模型" = "Ollama models";
+"Ollama 拉取的大模型权重，单个模型常常几十 GB" = "The large model weights Ollama pulled — a single model is often tens of GB";
+"PyCharm 缓存" = "PyCharm cache";
+"PyCharm 建的索引、本地历史与编译缓存" = "Indexes, local history and build caches PyCharm keeps";
+"SwiftPM 缓存" = "SwiftPM cache";
+"Swift Package Manager 克隆下来的依赖仓库副本" = "Copies of the dependency repositories Swift Package Manager cloned";
+"Whisper 模型缓存" = "Whisper model cache";
+"openai-whisper 下载的语言模型权重" = "The language model weights openai-whisper downloaded";
+"Xcode 模拟器设备" = "Xcode simulator devices";
+"每台 iOS 模拟器的整机镜像，连同里面已装的 App 数据与登录态" = "The full disk image of every iOS simulator, along with the apps, data and sign-ins stored inside";
+"cargo 注册表" = "cargo registry";
+"cargo 拉取的 crates.io 索引与依赖源码" = "The crates.io index and dependency sources cargo fetched";
+"chrome-devtools-mcp 浏览器内核" = "chrome-devtools-mcp browser builds";
+"chrome-devtools-mcp 为驱动浏览器下载的 Chrome for Testing" = "The Chrome for Testing builds chrome-devtools-mcp downloads to drive";
+"sdkmanager 装的 Android 平台、构建工具与系统镜像" = "Android platforms, build tools and system images installed by sdkmanager";
+"uv 下载缓存" = "uv download cache";
+"uv 为 Python 依赖下载的包与预编译轮子" = "Packages and prebuilt wheels uv downloaded for your Python dependencies";
+"go 下载的依赖模块源码" = "Source of the dependency modules go downloaded";
+"go 编译产生的中间产物" = "Intermediates produced by go builds";
+"npm 的整个缓存目录，含 _cacache 那份内容寻址下载缓存" = "npm's entire cache directory, including that _cacache content-addressed download cache";
+"删掉后 codex 下次启动要重新拉一遍运行时" = "The next codex launch re-fetches its runtime";
+"删掉后下次 pod install 会重新下载" = "The next pod install re-downloads them";
+"删掉后下次构建 Rust 项目要重新下载依赖" = "The next Rust build re-downloads its dependencies";
+"删掉后下次构建会重新下载依赖" = "The next build re-downloads the dependencies";
+"删掉后下次构建会重新下载对应版本" = "The next build re-downloads that version";
+"删掉后下次装环境会重新下载，慢一次" = "Setting up the environment next time re-downloads and is slower once";
+"删掉后下次转写会重新下载模型" = "The next transcription re-downloads the model";
+"删掉后已装的全局包不受影响，下次安装会重新下载依赖" = "Global packages you already installed are unaffected; the next install re-downloads dependencies";
+"删掉后所有安卓项目都构建不了，要重装整套 SDK" = "No Android project can build until the SDK is reinstalled";
+"删掉后这个 MCP 下次启动会重新下载浏览器" = "This MCP re-downloads the browser the next time it starts";
+"删掉后首次打开项目要重建索引" = "Opening a project rebuilds its indexes first";
+"删掉后首次打开项目要重建索引，工程配置不在这里" = "Opening a project rebuilds its indexes; your project settings don't live here";
+"删掉后首次构建慢一次" = "The first build is slower once";
+"删掉后首次解析依赖要重新克隆" = "Resolving dependencies re-clones them the first time";
+"删掉的模型要重新下载才能再用，受限模型还得再登录一次" = "Those models have to be downloaded again before use; gated ones need you to sign in again";
+"删掉的模型要重新联网下载才能再用" = "Those models have to be downloaded again before you can use them";
+"删掉的模拟器下次启动是台空机器，里面的 App 和数据一起没了" = "The next launch gives you a blank device — its apps and data go with it";
+"这些虚拟机连同已装的 App 数据一起没了" = "These virtual devices go, along with the apps and data inside";
+"无法直接恢复；需在 Device Manager 重新创建" = "Can't be restored directly; recreate the device in Device Manager";
+"无法直接恢复；需在 Xcode 里重新创建模拟器" = "Can't be restored directly; recreate the simulator in Xcode";
+"无法直接恢复；需用 sdkmanager 重新安装" = "Can't be restored directly; reinstall it with sdkmanager";
+"无需恢复；IDE 打开项目自动重建" = "Nothing to restore; the IDE rebuilds it when you open the project";
+"无需恢复；IDE 自动重建" = "Nothing to restore; the IDE rebuilds it";
+"无需恢复；Xcode 或 swift build 会自动重新获取" = "Nothing to restore; Xcode or swift build fetches them again";
+"无需恢复；cargo build 自动重建" = "Nothing to restore; cargo build rebuilds it";
+"无需恢复；go build 自动重建" = "Nothing to restore; go build rebuilds it";
+"无需恢复；go mod download 自动重建" = "Nothing to restore; go mod download rebuilds it";
+"无需恢复；ollama pull 模型名 重新下载" = "Nothing to restore; ollama pull <model> downloads it again";
+"无需恢复；pod install 自动重下" = "Nothing to restore; pod install re-downloads it";
+"无需恢复；uv 下次运行自动重建" = "Nothing to restore; uv rebuilds it on its next run";
+"无需恢复；下次启动自动重新下载" = "Nothing to restore; the next start re-downloads it";
+"无需恢复；下次执行 ./gradlew 自动重下" = "Nothing to restore; the next ./gradlew re-downloads it";
+"无需恢复；再次调用 whisper 自动下载" = "Nothing to restore; running whisper again downloads it";
+"无需恢复；再次运行 codex 会自动装回" = "Nothing to restore; running codex again reinstalls it";
+"无需恢复；按模型仓库名重新下载" = "Nothing to restore; it re-downloads by model repository name";
+
+// ── 开发缓存页（0927：缓存一页拆成应用/开发两页）─────────────────────
+"只看不删——各家容器的删法不一样，展开那一行看指路" = "Read-only — each container runtime deletes differently; open the row for the route";
+"正在盘点 Docker 占用…" = "Counting what your containers take…";
+"开发工具" = "Dev tools";
+"装过的工具才出现在这一页，删了下次用到会自己重新下载" = "Only tools you've actually installed show up here; delete one and it re-downloads the next time you need it";
+"没有检测到开发工具的缓存" = "No developer-tool caches found";
+"装过 Xcode、npm、Gradle、Ollama 之后回到这里重新扫描" = "Install Xcode, npm, Gradle or Ollama, then rescan here";
+
 "%d 处" = "%d paths";
 
 // ── 列表页与英雄卡对齐（r04：行解剖、同一把尺、对账句）──────────────────────
@@ -481,8 +565,16 @@
 "按个头排好队，大的在上面" = "Sorted by size, largest first";
 "扫到的 %1$@ 个里只列最大的 %2$d 个，剩下的比这一列最小那行还小。" = " Showing the %2$d largest of the %1$@ found — the rest are smaller than the smallest row here.";
 "这一页的行全在屏幕上，当场就能把这一列加到页头那句。" = " Every row on this page is on screen: add this column and you land on the header's number.";
-"每组日期最新的那份不在这一列里——它永远保留。" = " The newest file in each group isn't listed here — it's always kept.";
+"每组日期最新的那份列在组里第一行，带锁、不给勾。" = "The newest copy in each group is listed first inside it, locked — that row can't be ticked.";
 "每组保留日期最新的那份，勾不上" = "Each group keeps its newest file — that row can't be ticked";
+// 受管环境自己装的副本：不进比对，但页顶留一句可以点开看名单
+"另有 %1$@ 是各环境自己的副本，不参与比对" = "Plus %1$@ that belong to their own environments — not compared";
+"不参与比对的组" = "Excluded from comparison";
+"%1$@ · 共 %2$@" = "%1$@ · %2$@ in total";
+"每份 %1$@ · 住在 %2$@" = "%1$@ each · lives in %2$@";
+"住在哪个环境" = "Lives in";
+"这些副本各自住在某个环境里。删一份，那个环境就缺一块；卸掉那个环境，整块一起回收。" = "Each of these copies lives inside an environment. Delete one and that environment is missing a piece; remove the environment and the whole block goes with it.";
+"关闭" = "Close";
 "「留意」那几项本来就不给全选" = "Rows marked “Careful” were never in Select all";
 "标「留意」的那几项不在全选范围内，得逐条自己判。" = " Rows marked “Careful” stay out of Select all — judge them one at a time.";
 "%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。" = " %1$d of these paths sit inside another entry, so Select all actually takes %2$@ — not whatever this column adds up to.";
@@ -490,17 +582,14 @@
 "合计按条目各自的大小相加" = "The total adds each entry's own size";
 "页头那句「共 %@」跟这一列是同一个数——这一页的行全在屏幕上。" = " The header's “%@ in total” is this very column — every row on this page is on screen.";
 "这一页动不了，所以整列一个灯色都不上。" = "Nothing on this page is ours to move, so no row lights up.";
-"下面 %d 行是明细，已经躺在上面那几段里面，不单独加一次。" = " The %d rows below are detail — already inside the segments above, not counted again.";
+"下面 %d 行是引擎自己报的口径，和上面那一行量的是同一块磁盘，不单独加一次。" = " The %d rows below are the engine's own figures for that same disk — not counted again.";
 // 「这一页的账」那块读数（PageLedger）：原来那句对账话升成一块带分档条的读数。
 "这一页量到" = "This page measures";
 "其中动得了的" = "Movable";
 "动得了" = "Movable";
-"Docker 未运行，只能按子目录粗分" = "Docker isn't running, so this is a rough split by subfolder";
-"按子目录粗分" = "Rough split by subfolder";
 "镜像明细 · 已经算在上面那一段「镜像 · 合计」里" = "Image detail — already counted in the “Images · Total” segment above";
-"这一段是 Docker 自己报的总量，明细列在它下面" = "Docker reports this total itself; the detail is listed underneath";
 "这一行的账" = "How this row is counted";
-"这一行已经算在上面那一段「镜像 · 合计」里，不重复相加" = "Already inside the “Images · Total” segment above — adding it again would count the same bytes twice";
+"这一行不进展式：它是引擎报的账，不是这块盘上另外的字节" = "This row stays out of the total: it's the engine's figure for the same disk, not extra bytes on it";
 "本次没往里移东西" = "nothing moved this session";
 "这一列 %1$d 行相加 %2$@，就是上面「本次移入」那个数。" = "These %1$d rows add up to %2$@ — the number under “Moved this session” above.";
 "把选中的 %@ 移进废纸篓" = "Move the selected %@ to the Trash";
@@ -511,12 +600,12 @@
 "%@：这一圈里的账，不是一个能整个搬走的位置。" = "%@: a line in this ring, not one location you can move as a whole.";
 "去废纸篓页：这些字节还占着盘，在那里交给访达清空才真让位" = "Open the Trash page: these bytes still sit on the disk — Finder empties them, and only then does the space come back";
 "各段之和 %1$@" = "Segments add up to %1$@";
-"已把「%1$@」名下的 %2$d 处移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。" = "Moved %2$d spots from “%1$@” (%3$@) to the Trash. Those bytes still sit on the disk — empty the Trash in Finder and the space actually comes back.";
+"已把「%1$@」名下的 %2$@移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。" = "Moved %2$@ from “%1$@” (%3$@) to the Trash. Those bytes still sit on the disk — empty the Trash in Finder and the space actually comes back.";
 "另有 %1$d 处没搬动。" = "%1$d more didn't move.";
 "另有 %1$d 处没搬动，第一处的原因是：%2$@。" = "%1$d more didn't move; the first one failed because: %2$@.";
 "已选中这一圈里动得了的全部 %1$d 处、共 %2$@。再点一次按钮才移进废纸篓；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "Every movable spot in this ring is armed — %1$d of them, %2$@ in total. Tap the button once more to move them to the Trash; it cancels itself after 3 seconds. What's already in the Trash can be brought back from the Trash page.";
 "已选中「%1$@」：%2$@。再点一次那一段确认；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "%1$@ armed: %2$@. Tap that arc once more to confirm; it cancels itself after 3 seconds. What's already in the Trash can be brought back from the Trash page.";
-"把它名下点名的 %1$d 处、共 %2$@ 移进废纸篓" = "moving the %1$d spots named under it, %2$@ in all, to the Trash";
+"把它名下点名的 %1$@、共 %2$@ 移进废纸篓" = "moving the %1$@ named under it, %2$@ in all, to the Trash";
 "本次移入废纸篓" = "In Trash";
 "确认移入废纸篓" = "Tap again to move to Trash";
 "还没量到" = "Not yet";
@@ -550,19 +639,20 @@
 "已经空着的地方" = "Space already free";
 
 // ── 总览：就地摊开的明细（一行摊一行，下面不再有第二段列表） ─────────────────────
-"先看清，再下手——每一行行首点开，就是它名下具体是哪几个目录" = "Look first, delete later — open any row to see exactly which folders it covers";
+"先看清，再下手——每一行点开，就是它名下具体是哪几个目录" = "Look first, delete later — open any row to see exactly which folders it covers";
 "摊开 %@ 的明细" = "Show what's inside %@";
 "收起 %@ 的明细" = "Hide what's inside %@";
 "点开摊开「%@」的明细" = "Click to open the details of “%@”";
-"行首摊开「%@」的明细；带着那道记号的数点两次才收走" = "At the start of the row: open the details of “%@”. A number carrying that mark needs two clicks to clear.";
+"点这一行摊开「%@」的明细；带着那道记号的数点两次才收走" = "Open this row to see the details of “%@”. The number carrying that mark takes two clicks to clear.";
+"点两次把「%@」移进废纸篓" = "Click twice to move “%@” to the Trash";
 "收起明细，回到整圈" = "Close the details and go back to the whole ring";
 "点这一条去另一页看「%@」" = "Click this slice to see “%@” on another page";
 "正在量「%@」的下一级" = "Measuring what's inside “%@”";
 "这一层的空间全在它自己的文件里，没有读得出的子目录。用行尾那颗「访达显示」去盘上看。" = "All of it is this folder's own files — no readable subfolders. Use Reveal at the end of the row to look.";
 "这里这 %1$d 处 %2$@" = "these %1$d here, %2$@";
 "环形上「其他已统计」那条弧 %1$@，就是这几段相加：%2$@。" = "The “Other counted” slice on the ring — %1$@ — is exactly these parts added up: %2$@.";
-"第 4 名往后，行首摊开就是它们的名字" = "Everything from 4th down — open the row to see their names";
-"不整体搬走 · 行首摊开看明细" = "Not deleted as a whole · open the row to itemise it";
+"第 4 名往后，点开这一行就是它们的名字" = "Everything from 4th down — open the row to see their names";
+"不整体搬走 · 点开这一行看明细" = "Not deleted as a whole · open the row to itemise it";
 "%@ 是受保护的位置，整个搬走会伤到系统或你自己的资料。里面的东西能清——去别的清理页挑。" = "%@ is a protected location — deleting the whole of it would hurt your system or your own files. What's inside is still cleanable: pick it out on the other pages.";
 "其中 %1$d 处缺「完全磁盘访问权限」：点「没量到」那一行行尾的「去授权」，勾完要退出这个 App 再打开才生效，然后重扫一轮。" = "%1$d of them need Full Disk Access: use “Grant access” at the end of the “Not measured” row, then quit DiskWise and reopen it — the grant only lands on a fresh launch — and run another pass.";
 "打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效" = "Opens System Settings › Privacy & Security › Full Disk Access; restart DiskWise once you've ticked it";

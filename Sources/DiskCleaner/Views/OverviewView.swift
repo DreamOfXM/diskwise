@@ -198,19 +198,24 @@ final class OverviewModel: ObservableObject {
         min(max(0, arc), restReclaimTargets().reduce(0) { $0 + $1.size })
     }
 
-    private weak var cachesModel: CachesModel?
-    private var cachesSub: AnyCancellable?
+    /// 应用缓存与开发缓存两台模型。环形认的是「知识库里量出来的那几处」，
+    /// 不分页——少接一台，一键腾出的数就会少掉整个开发工具那一坨。
+    /// 强引用不成环：两台模型都不回头指总览，而三方都由 `ScanStore` 持有。
+    private var cachesModels: [CachesModel] = []
+    private var cachesSubs: [AnyCancellable] = []
 
     /// 由 `ScanStore` 在构造时接线：缓存页每落地一处体积，这边重归一次账。
     /// 订阅而不是轮询：体积是一条条异步量完的，靠定时刷会出现「弧上刚亮起来、数还是旧的」。
-    func bind(caches: CachesModel) {
-        cachesModel = caches
-        cachesSub = caches.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                self?.objectWillChange.send()
-                self?.rebuildCacheTargets()
-            }
+    func bind(caches: [CachesModel]) {
+        cachesModels = caches
+        cachesSubs = caches.map { model in
+            model.objectWillChange
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in
+                    self?.objectWillChange.send()
+                    self?.rebuildCacheTargets()
+                }
+        }
     }
 
     /// 重新归一次缓存可回收账。扫描收尾、缓存体积落地、真搬走过东西，都要重跑这一趟。
@@ -226,7 +231,7 @@ final class OverviewModel: ObservableObject {
         let fm = FileManager.default
         let rows = (hotspots + restHotspots).map { $0.path }
         var hits: [ReclaimTarget] = []
-        for it in cachesModel?.items ?? [] {
+        for it in cachesModels.flatMap(\.items) {
             guard it.entry.level != "warn" else { continue }
             for (p, sz) in it.pathSizes where sz > 0 {
                 guard isDeletable(URL(fileURLWithPath: p)) else { continue }
@@ -362,7 +367,7 @@ final class OverviewModel: ObservableObject {
             // 量体积走的是缓存页同一本知识库、同一趟统计（`load` 自带只跑一次的闸），
             // 一处一处量回来之后，环形那道金弧和主按钮的数才有凭据。
             rebuildCacheTargets()
-            cachesModel?.load()
+            cachesModels.forEach { $0.load() }
         }
     }
 
@@ -662,8 +667,8 @@ struct OverviewView: View {
                 if why.isEmpty { why = failReason(error) }   // 只留第一处的原因，句子才不失控
             }
         }
-        var line = LF("已把「%1$@」名下的 %2$d 处移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。",
-                      seg.label, ok, human(bytes))
+        var line = LF("已把「%1$@」名下的 %2$@移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。",
+                      seg.label, cnt(ok, "处"), human(bytes))
         if failed > 0 {
             // 系统给的那句原因自带句号（「你没有许可。」），照搬进模板就是「许可。。」。
             let cause = why.hasSuffix("。") || why.hasSuffix(".") ? String(why.dropLast()) : why
@@ -704,7 +709,7 @@ struct OverviewView: View {
         // 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点。
         VStack(spacing: 0) {
             PageHeader(symbol: "internaldrive", title: L("空间总览"),
-                       subtitle: L("先看清，再下手——每一行行首点开，就是它名下具体是哪几个目录"),
+                       subtitle: L("先看清，再下手——每一行点开，就是它名下具体是哪几个目录"),
                        variant: .display) {
                 ScanControl(scanning: model.scanning, kind: .primary,
                             rescan: { model.refresh(scope: store.scope) },
@@ -790,6 +795,9 @@ struct OverviewView: View {
             default: openChildDrill(token)
             }
         }
+        // 截图连拍要「摊开 → 再收回去」两拍都在一段里跑完，而收起在真机上是再点同一行，
+        // 这一路没有键鼠点不到它。这里走的就是那颗行首 `▸` 的同一个 `setDrill`。
+        .onChange(of: store.overviewCollapsePulse) { _ in setDrill(nil) }
     }
 
     private func heroCard(_ u: VolumeUsage) -> some View {
@@ -1145,7 +1153,8 @@ struct OverviewView: View {
                 busyLine(LF("正在量「%@」的下一级", title))
             }
             ForEach(Array(rows.enumerated()), id: \.element.path) { i, c in
-                DrillRow(name: c.name, path: c.path, sizeText: texts[i],
+                DrillRow(icon: .path(URL(fileURLWithPath: c.path)),
+                         name: c.name, path: c.path, sizeText: texts[i],
                          reclaim: min(c.size, model.reclaimableUnder(c.path)),
                          ruler: whole,
                          fraction: Double(c.size) / Double(max(1, rows.first?.size ?? 1)))
@@ -1194,7 +1203,8 @@ struct OverviewView: View {
                  human(total), parts.joined(separator: " ＋ "))
         return VStack(alignment: .leading, spacing: 5) {
             ForEach(Array(rows.enumerated()), id: \.element.path) { i, r in
-                DrillRow(name: r.name, path: r.path, sizeText: texts[i],
+                DrillRow(icon: .path(URL(fileURLWithPath: r.path)),
+                         name: r.name, path: r.path, sizeText: texts[i],
                          reclaim: model.reclaimable(of: r.path),
                          ruler: total,
                          fraction: Double(nets[i]) / Double(max(1, nets.first ?? 1)))
@@ -1213,34 +1223,40 @@ struct OverviewView: View {
         if let u = model.usage {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(Array(gapRows(u).enumerated()), id: \.offset) { _, row in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(row.title)
-                                .font(theme.bodyFont(.caption))
-                                .foregroundStyle(theme.palette.ink)
-                            Text(row.tag)
+                    // 图形跟另外两种载荷同一格：这一屏摊出来的每一行都有那一格，
+                    // 只有「没量到」那几行没有，读起来就像那几行不属于这张表。
+                    HStack(alignment: .top, spacing: 10) {
+                        RowIconView(icon: .symbol(row.symbol))
+                            .frame(width: rowIconSide, height: rowIconSide)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(row.title)
+                                    .font(theme.bodyFont(.caption))
+                                    .foregroundStyle(theme.palette.ink)
+                                Text(row.tag)
+                                    .font(theme.bodyFont(.caption2))
+                                    .foregroundStyle(row.actionable
+                                                     ? theme.palette.tint : theme.palette.inkTertiary)
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(Capsule().fill(row.actionable
+                                                                ? theme.palette.tintSoft
+                                                                : theme.palette.surfaceAlt))
+                                Spacer(minLength: 8)
+                                Text(human(row.bytes))
+                                    .font(theme.numeric(size: 13))
+                                    .monospacedDigit()
+                                    .foregroundStyle(theme.palette.inkSecondary)
+                                    .fixedSize()
+                            }
+                            Text(row.reason)
                                 .font(theme.bodyFont(.caption2))
-                                .foregroundStyle(row.actionable
-                                                 ? theme.palette.tint : theme.palette.inkTertiary)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Capsule().fill(row.actionable
-                                                            ? theme.palette.tintSoft
-                                                            : theme.palette.surfaceAlt))
-                            Spacer(minLength: 8)
-                            Text(human(row.bytes))
-                                .font(theme.numeric(size: 13))
-                                .monospacedDigit()
-                                .foregroundStyle(theme.palette.inkSecondary)
-                                .fixedSize()
+                                .foregroundStyle(theme.palette.inkTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(row.reason)
-                            .font(theme.bodyFont(.caption2))
-                            .foregroundStyle(theme.palette.inkTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
-            .padding(.leading, drillIndent)
+            .padding(.leading, drillIndent - rowIconSide - 10)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -1330,8 +1346,8 @@ struct OverviewView: View {
                            acct.places, human(acct.reclaimable)), true)
             }
             guard let seg = acct.segs.first(where: { $0.armKey == armed }) else { return nil }
-            let what = LF("把它名下点名的 %1$d 处、共 %2$@ 移进废纸篓",
-                          seg.targets.count, seg.reclaimShown)
+            let what = LF("把它名下点名的 %1$@、共 %2$@ 移进废纸篓",
+                          cnt(seg.targets.count, "处"), seg.reclaimShown)
             return (LF("已选中「%1$@」：%2$@。再点一次那一段确认；3 秒不点自动取消，移进去之后还能在废纸篓页找回。",
                        seg.label, what), true)
         }
@@ -1378,6 +1394,8 @@ struct OverviewView: View {
         let bytes: Int64
         /// 这一块有没有能要回来的部分——决定画不画那颗「去授权」。
         let actionable: Bool
+        /// 行首那一格。这几块都没有路径可查（不是盘上的某个文件夹），走类别符号那一档。
+        let symbol: String
     }
 
     /// 这一格能不能靠「去授权」要回来——决定画不画那颗按钮。
@@ -1406,25 +1424,26 @@ struct OverviewView: View {
                            tag: gapFirstRowTag,
                            reason: gapFirstRowReason,
                            bytes: max(0, dataVolume - min(model.covered, dataVolume) - purgeableInData),
-                           actionable: canGrantFDA || HomeAccess.runsSandboxed)
+                           actionable: canGrantFDA || HomeAccess.runsSandboxed,
+                           symbol: "questionmark.folder")
         var rows = [first]
         if let s = model.split {
             rows.append(GapRow(
                 title: L("macOS 系统卷"), tag: L("删不动"),
                 reason: L("只读、签名封存，由 SIP 看着。任何清理工具都动不了它，真要瘦只能等系统更新自己整理。"),
-                bytes: s.sealedSystem, actionable: false))
+                bytes: s.sealedSystem, actionable: false, symbol: "lock.rectangle.on.rectangle"))
             rows.append(GapRow(
                 title: L("虚拟内存与休眠镜像"), tag: L("系统自己收回"),
                 reason: L("内存吃紧时 macOS 借硬盘喘息，深度休眠前还会把整份内存写下来。关掉占内存的应用就会缩，不该由工具去删。"),
-                bytes: s.virtualMemory, actionable: false))
+                bytes: s.virtualMemory, actionable: false, symbol: "memorychip"))
             rows.append(GapRow(
                 title: L("启动与恢复分区"), tag: L("删不动"),
                 reason: L("开不了机时才用得上，属于固件的地盘。恢复卷平时不挂载，也一起算在这一行。"),
-                bytes: s.bootAndRecovery, actionable: false))
+                bytes: s.bootAndRecovery, actionable: false, symbol: "arrow.counterclockwise.circle"))
             rows.append(GapRow(
                 title: L("卷之间的未归属占用"), tag: L("对不到目录"),
                 reason: L("APFS 容器自己的元数据，加上各卷共享的那点取整差。这一坨对不到具体文件夹，只能整体看着。"),
-                bytes: s.unattributed, actionable: false))
+                bytes: s.unattributed, actionable: false, symbol: "circle.dashed"))
         }
         return rows.filter { $0.bytes > 0 }
     }
@@ -1663,7 +1682,7 @@ struct OverviewView: View {
                     tone: can > 0 ? .hot : .neutral,
                     sub: can > 0 ? LF("%1$@ 可回收 · 这一条弧是第 4 名往后的那些位置",
                                       restText)
-                                 : L("第 4 名往后，行首摊开就是它们的名字"),
+                                 : L("第 4 名往后，点开这一行就是它们的名字"),
                     reclaim: can, reclaimText: restText,
                     targets: model.restReclaimTargets(), drill: .restGroup))
             }
@@ -1724,7 +1743,7 @@ struct OverviewView: View {
     /// `text` 是外面按「这一列加起来要等于圆心总数」分配好的那个字符串，不在这里现算
     /// `human(can)`——各行独立四舍五入会飘出 0.1，那一列就和圆心对不上了。
     private func hotArcNote(can: Int64, text: String, movedOut: Int64) -> String {
-        if can <= 0 { return L("不整体搬走 · 行首摊开看明细") }
+        if can <= 0 { return L("不整体搬走 · 点开这一行看明细") }
         if movedOut > 0 {
             return LF("%1$@ 可回收 · 已搬走 %2$@", text, human(movedOut))
         }
@@ -1740,14 +1759,17 @@ struct OverviewView: View {
 /// 差一截的话那句对账就悬在列表外面，读不出它说的是哪一组。
 private let drillIndent: CGFloat = 52
 
-/// 摊开后的一行明细。行解剖跟账目行同一副：名字在上、条子在下、数在右肩，
-/// 只有真动得了的那一档给灯色。
+/// 摊开后的一行明细。行解剖跟账目行同一副：图形在名字左边、名字在上、条子在下、
+/// 数在右肩，只有真动得了的那一档给灯色。
 ///
 /// 那个数由调用方整列过一次 `addableHumanColumn` 再传进来，不在这里 `human()`：
 /// 这一列底下明写着「合计 x GB」那句对账，各行独立四舍五入会各自往上飘，
 /// 那句就永远加不回来——同一屏两本账是这一页塌过的每一次的形状。
 private struct DrillRow: View {
     @Environment(\.theme) private var theme
+    /// 行首那一格：这一行的下一级就是一个真实目录，走同一套三档判图（归属 App →
+    /// 品牌标 → 系统通用图）。原先这一列只有文字，24 格里 24 个名字，认不出谁是谁的。
+    var icon: RowIcon
     var name: String
     var path: String
     var sizeText: String
@@ -1764,6 +1786,8 @@ private struct DrillRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            RowIconView(icon: icon)
+                .frame(width: rowIconSide, height: rowIconSide)
             VStack(alignment: .leading, spacing: 6) {
                 Text(name)
                     .font(theme.bodyFont(.caption))
@@ -1794,7 +1818,9 @@ private struct DrillRow: View {
             .help(LF("在访达里打开 %@", path))
         }
         .padding(.vertical, 3)
-        .padding(.leading, drillIndent)
+        // 图形落在名字左边那一格，缩进要让出图形位（26 + 间距 10）：
+        // 名字仍跟上面账目行的名字在同一条竖线上，尾巴那句对账也才对得上这一列。
+        .padding(.leading, drillIndent - rowIconSide - 10)
     }
 }
 

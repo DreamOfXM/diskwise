@@ -3,6 +3,21 @@ import DiskCleanerCore
 
 // ── node_modules：按项目聚合，删了重装回来就行 ──
 
+/// 行首那一格挂的是「这份依赖是谁装的」：npm / pnpm / yarn / bun 各挂自家官方标，
+/// 认不出管理器才挂 Node.js——`node_modules` 这个名字本身就足够支持这句话，
+/// 所以那一格不会空着，也不会退化成整列一样的通用文件夹。
+///
+/// 归属 App 那一档在这里天然取不到（项目目录不是任何 App 的沙盒），所以品牌标就是首选，
+/// 不是兜底。
+
+/// 恢复这一句跟着真正的管理器走：知道是 pnpm 就别再让他敲 npm install。
+private func restoreHint(_ manager: String?) -> String {
+    guard let m = manager else {
+        return L("在项目目录执行 npm install（或 pnpm/yarn），按 package.json 原样装回")
+    }
+    return LF("在项目目录执行 %@，按 package.json 原样装回", "\(m) install")
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class NMModel: ObservableObject {
@@ -86,6 +101,7 @@ struct NMView: View {
                 List($model.items) { $it in
                     ItemRow(selected: $it.selected,
                             icon: .path(URL(fileURLWithPath: it.project)),
+                            brand: it.manager ?? "nodedotjs",
                             name: URL(fileURLWithPath: it.project).lastPathComponent,
                             sub: nmSub(it),
                             sizeText: shown[it.id] ?? human(it.size),
@@ -94,7 +110,7 @@ struct NMView: View {
                             showRule: model.items.first?.id != it.id) {
                         ExplainLine(key: L("这是什么"), value: L("Node.js 项目的依赖文件夹，只在开发这个项目时用到"))
                         ExplainLine(key: L("删了会怎样"), value: L("这个项目暂时跑不起来；不影响源码与 package.json"))
-                        ExplainLine(key: L("怎么恢复"), value: L("在项目目录执行 npm install（或 pnpm/yarn），按 package.json 原样装回"))
+                        ExplainLine(key: L("怎么恢复"), value: restoreHint(it.manager))
                         PathLine(path: it.project)
                     }
                 }
@@ -131,9 +147,17 @@ struct NMView: View {
         LF("页头那句「共 %@」跟这一列是同一个数——这一页的行全在屏幕上。", human(model.totalBytes))
     }
 
+    /// 副标题只报**有信息量**的那几样。
+    ///
+    /// 原来每行都印「N 个包」，可那个数数的是项目里有几处 `node_modules`（monorepo 才会大于 1），
+    /// 不是依赖包的数量——118 行里 117 行都是「1 个包」，一行重复到底就等于没有信息。
+    /// 现在只在真有多处时才说，其余留日期。
     private func nmSub(_ it: NMProject) -> String {
-        [cnt(it.nmCount, "个包"), it.date, it.partial ? L("部分统计") : nil]
-            .compactMap { $0 }.joined(separator: " · ")
+        var parts: [String] = []
+        if it.nmCount > 1 { parts.append(cnt(it.nmCount, "个 node_modules")) }
+        parts.append(it.date)
+        if it.partial { parts.append(L("部分统计")) }
+        return parts.joined(separator: " · ")
     }
 
     private func doClean() {
@@ -203,87 +227,116 @@ final class DockerModel: ObservableObject {
 }
 
 /// Core 只给分类标识，措辞全在这里
+///
+/// 品牌名不翻译：这两家在两种语言里都叫这个名字。认不出是谁家（CLI 不是这两家之一、
+/// 或商店版沙盒里问不到）才用那句通用说法。
+private func runtimeName(_ r: DockerRuntime?) -> String {
+    switch r {
+    case .orbstack:      return "OrbStack"
+    case .dockerDesktop: return "Docker Desktop"
+    case .podman:        return "Podman"
+    case .colima:        return "colima"
+    case nil:            return L("容器引擎")
+    }
+}
+
 private func dockerHead(_ it: DockerItem) -> String {
     switch it.kind {
+    case .runtime:       return LF("%@ 数据", runtimeName(it.runtime))
     case .dfImages:      return L("镜像 · 合计")
     case .dfContainers:  return L("容器 · 合计")
     case .dfVolumes:     return L("卷 · 合计")
     case .dfCache:       return L("构建缓存 · 合计")
     case .image:         return it.title
     case .danglingImage: return LF("悬空镜像（%@）", it.title)
-    case .rawDir:        return LF("Docker 数据 · %@", it.title)
     case .other:         return LF("%@ · 合计", it.title)
     }
 }
 
 private func dockerNote(_ it: DockerItem) -> String {
+    let name = runtimeName(it.runtime)
     switch it.kind {
+    case .runtime:
+        // 磁盘那一行是本页唯一进展式的数，所以它必须自己说清量的是什么。
+        guard it.path != nil else {
+            return L("这台机器上找不到这一家的数据目录，这一行是引擎报的几段相加")
+        }
+        return LF("%@ 的镜像、容器、卷都存在一块虚拟机磁盘里；这一行是那块磁盘在这台机器上实际占掉的量", name)
     case .dfImages, .dfContainers, .dfVolumes, .dfCache, .other:
-        return L("这一段是 Docker 自己报的总量，明细列在它下面")
+        return LF("这一段是 %@ 自己报的账，量的是引擎内部的逻辑大小，不是这块盘上另外的字节", name)
     case .image, .danglingImage:
-        return L("镜像存在 Docker 的虚拟盘里")
-    case .rawDir:
-        return L("Docker 未运行，只能按子目录粗分")
+        return LF("%@ 的镜像都躺在那块虚拟机磁盘里", name)
     }
 }
 
-/// 行内副标题：段报它的组成，明细就地标明它不进展式——
+/// 行内副标题：运行时那行说自己量的是什么，段报它的组成，明细就地标明它不进展式——
 /// 一屏列得下四段却列不下几十行镜像，对账那句在卡底下，滚到中间就看不到了。
 private func dockerSub(_ it: DockerItem) -> String {
     switch it.kind {
+    case .runtime:
+        return it.path != nil ? L("磁盘实占") : L("引擎报的总量")
     case .dfImages, .dfContainers, .dfVolumes, .dfCache, .other:
         // 「可回收」这三个字在本工具里专指「我们替你搬得走的」，而这一页一项都动不了，
-        // 所以 Docker 报的那个数必须带上它自己的主语。
+        // 所以引擎报的那个数必须带上它自己的主语——而且主语得是真在跑的那一家。
         var s = LF("共 %1$@ 个，活跃 %2$@ 个", it.total ?? "?", it.active ?? "?")
         guard let can = it.reclaimable, can > 0 else { return s }
+        let name = runtimeName(it.runtime)
         if let share = it.reclaimableShare {
-            s += LF("，Docker Desktop 里还能清 %1$@（%2$@）",
+            s += LF("，%1$@ 里还能清 %2$@（%3$@）", name,
                     human(can, inRulerOf: it.size), share)
         } else {
-            s += LF("，Docker Desktop 里还能清 %@", human(can, inRulerOf: it.size))
+            s += LF("，%1$@ 里还能清 %2$@", name, human(can, inRulerOf: it.size))
         }
         return s
     case .image, .danglingImage:
         return L("镜像明细 · 已经算在上面那一段「镜像 · 合计」里")
-    case .rawDir:
-        return L("按子目录粗分")
     }
 }
 
 /// 明细行摊开后要说的一句：它的字节不进展式。计算属性，语言切换后才跟着换。
 ///
-/// 只在明细行上出现——段自己就是被加的那一项，跟它说「不重复相加」是废话。
+/// 不只镜像明细不进展式——`docker system df` 那四段同样不进，它们和磁盘实占那行
+/// 说的是同一批字节的两种算法（本机实测：四段相加 38.4 GB，那块磁盘实占 22.8 GB）。
 private var dockerDetailNote: String {
-    L("这一行已经算在上面那一段「镜像 · 合计」里，不重复相加")
+    L("这一行不进展式：它是引擎报的账，不是这块盘上另外的字节")
 }
 
-/// 行首那一格。回退模式（Docker 没在跑）量的是真目录，挂访达里那个文件夹的图标；
+/// 行首那一格。运行时那一行挂着数据目录，所以挂得上那一家的真 App 图标；
 /// `docker system df` 那几段背后没有路径可对——虚拟盘里没有一个文件给图标服务读——
-/// 所以只能按类别挂符号，那是诚实的写法，不是偷懒的兜底。
+/// 只能按类别挂符号，那是诚实的写法，不是偷懒的兜底。
 private func dockerIcon(_ it: DockerItem) -> RowIcon {
     if let p = it.path { return .path(p) }
     let symbol: String
     switch it.kind {
-    case .dfContainers:                symbol = "play.rectangle"
-    case .dfVolumes:                   symbol = "externaldrive"
-    case .dfCache:                     symbol = "bolt.horizontal"
+    case .runtime:                   symbol = "cube"
+    case .dfContainers:              symbol = "play.rectangle"
+    case .dfVolumes:                 symbol = "externaldrive"
+    case .dfCache:                   symbol = "bolt.horizontal"
     case .dfImages, .image, .danglingImage: symbol = "shippingbox"
-    case .other:                       symbol = "circle.grid.cross"
-    case .rawDir:                      symbol = "folder"
+    case .other:                     symbol = "circle.grid.cross"
     }
     return .symbol(symbol)
 }
 
 private func dockerHowTo(_ it: DockerItem) -> String {
+    let name = runtimeName(it.runtime)
     switch it.kind {
-    case .dfImages, .dfContainers, .dfVolumes, .dfCache, .other:
-        return L("打开 Docker Desktop 对应页面删除；本工具不代删（虚拟盘内无独立路径）")
+    case .runtime:
+        guard it.path != nil else { return L("本工具不代删；在跑起来的那一家里清") }
+        switch it.runtime {
+        // 「删完会自动收缩」不是安慰话，是 OrbStack 自家 README 里写的机制。
+        case .orbstack: return L("在 OrbStack 里清：它的 docker 命令是通的（docker system prune -a 删不用的镜像与构建缓存），删完那块磁盘会自动收缩")
+        case .colima:   return L("colima 的删法是删掉整个虚拟机（colima delete）；本工具不代删")
+        case .podman:   return L("用 podman 自己的命令清（podman system prune）；本工具不代删")
+        default:        return LF("打开 %@ 对应页面删除；本工具不代删（虚拟盘内无独立路径）", name)
+        }
     case .image, .danglingImage:
-        return L("Docker Desktop → Images 里删除")
-    case .rawDir:
-        return L("更稳妥：在 Docker Desktop 里清理；这里删等于清空该子目录")
+        return LF("在 %@ 里删这个镜像（命令行是 docker rmi）", name)
+    case .dfImages, .dfContainers, .dfVolumes, .dfCache, .other:
+        return LF("打开 %@ 对应页面删除；本工具不代删（虚拟盘内无独立路径）", name)
     }
 }
+
 
 struct DockerView: View {
     @Environment(\.theme) private var theme
@@ -293,11 +346,11 @@ struct DockerView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "cube", title: L("Docker 占用"),
-                           subtitle: L("只看不删——照指路去 Docker Desktop 里动手"),
+                           subtitle: L("只看不删——各家容器的删法不一样，展开那一行看指路"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在问 Docker 都吃了啥…"))
+                        LoadingRow(text: L("正在盘点 Docker 占用…"))
                     } else {
                         Text(LF("共 %@", human(model.totalBytes)))
                     }
@@ -314,8 +367,8 @@ struct DockerView: View {
             if model.scanning && model.items.isEmpty {
                 ScanSkeleton()
             } else if !model.scanning && model.items.isEmpty {
-                EmptyState(symbol: "cube", title: L("没发现 Docker 数据"),
-                           hint: L("没装 Docker Desktop 就不会有"))
+                EmptyState(symbol: "cube", title: L("没找到容器运行时"),
+                           hint: L("这台机器上没有 Docker Desktop、OrbStack、Podman、colima 的数据目录"))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers,
@@ -324,6 +377,7 @@ struct DockerView: View {
                 List(model.items) { it in
                     ItemRow(selected: .constant(false),
                             icon: dockerIcon(it),
+                            appID: it.runtime?.bundleID,
                             name: dockerHead(it),
                             sub: dockerSub(it),
                             sizeText: shown[it.id] ?? human(it.size),
@@ -335,6 +389,7 @@ struct DockerView: View {
                             ExplainLine(key: L("这一行的账"), value: dockerDetailNote)
                         }
                         ExplainLine(key: L("怎么清"), value: dockerHowTo(it))
+                        if let p = it.path { PathLine(path: p.path) }
                     }
                 }
                 .ledgerCard()
@@ -346,9 +401,9 @@ struct DockerView: View {
 
     private var maxSize: Int64 { max(1, model.items.map(\.size).max() ?? 1) }
 
-    /// 段那几行**当场要加得起来**：页头那个数就是它们四个的和，各自四舍五入会飘出
-    /// 41.3 而页头写着 41.2（2026-09-26 实拍）。明细行不进加式，只跟着同一把尺，
-    /// 保证能和段横向比大小。
+    /// 进加式的那几行（一行一个运行时）**当场要加得起来**：页头那个数就是它们的和，
+    /// 各行独立四舍五入会飘出 41.3 而页头写着 41.2（2026-09-26 实拍）。引擎报的账和
+    /// 镜像明细不进加式，只跟着同一把尺，保证能和上面那些行横向比大小。
     private var shown: [UUID: String] {
         var out: [UUID: String] = [:]
         let sections = model.items.filter(\.countsInTotal)
@@ -372,7 +427,8 @@ struct DockerView: View {
     private var ledgerNote: String? {
         var s = L("这一页动不了，所以整列一个灯色都不上。")
         if model.detailCount > 0 {
-            s += LF("下面 %d 行是明细，已经躺在上面那几段里面，不单独加一次。", model.detailCount)
+            s += LF("下面 %d 行是引擎自己报的口径，和上面那一行量的是同一块磁盘，不单独加一次。",
+                    model.detailCount)
         }
         return s
     }

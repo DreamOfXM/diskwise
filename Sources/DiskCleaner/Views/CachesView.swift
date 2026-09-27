@@ -1,7 +1,7 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 缓存清理：知识库驱动，每项解释 + 勾选 + 只进废纸篓 ──
+// ── 缓存两页（应用缓存 / 开发缓存）：知识库驱动，每项解释 + 勾选 + 只进废纸篓 ──
 //
 // 知识库条目之间路径互相套着（`~/Library/Caches` 底下就躺着 `Caches/Homebrew`），
 // 所以任何「合起来多少」都必须走 `contentsUnionSize`，不能按条目自己的 size 相加。
@@ -23,17 +23,47 @@ func cacheGroupLabel(_ key: String) -> String {
     switch key {
     case "general": return L("常规缓存")
     case "cn_app":  return L("国产 App")
+    case "dev":     return L("开发工具")
     default:        return key
     }
+}
+
+/// 同一套版面跑两个入口：应用缓存（日常 App 留下的）与开发缓存（开发工具留下的）。
+///
+/// 差别只有三处——读知识库的哪几组、页头那三样文案、副标题还要不要再标一次分组。
+/// 版面、勾选、账本、删除全共用一份，所以两页的行为不会各跑各的口径。
+enum CachesPage {
+    case app, dev
+
+    /// 这一台只管知识库里的哪几组。分开两台各扫各的：页头那句「本机 N 处」
+    /// 说的就得是自己这一组，不能拿整本知识库的数顶上去。
+    var groupKeys: Set<String> { self == .dev ? ["dev"] : ["general", "cn_app"] }
+    var symbol: String { self == .dev ? "hammer" : "sparkles" }
+    var titleKey: String { self == .dev ? "开发缓存" : "应用缓存" }
+    var subtitleKey: String {
+        self == .dev ? "装过的工具才出现在这一页，删了下次用到会自己重新下载"
+                     : "每项都写明来历，勾你认得的，不认识的别碰"
+    }
+    /// 空态在两页说的是两件事：应用页空 = 知识库没读出来（故障）；
+    /// 开发页空 = 这台机器压根没装过开发工具（正常），不能拿报错的口吻说它。
+    var emptyTitleKey: String {
+        self == .dev ? "没有检测到开发工具的缓存" : "知识库没加载出来"
+    }
+    var emptyHintKey: String {
+        self == .dev ? "装过 Xcode、npm、Gradle、Ollama 之后回到这里重新扫描"
+                     : "点右上角重新扫描，还不行就提个 Issue"
+    }
+    /// 只有应用页需要把「国产 App」标在行里：开发页整页都是开发工具，再标一遍等于没说。
+    var showsGroupLabel: Bool { self == .app }
 }
 
 /// 行内副标题。原来写分组名，可知识库 27 条里 25 条的 grp 都是 general，
 /// 于是每行都是「常规缓存」——一行字重复 25 遍就等于没有信息。
 /// 认一条缓存靠的是路径尾段，所以副标题给真实路径；展开行里仍是全路径。
-private func cacheRowSub(_ item: CacheItem) -> String? {
+private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
     guard let first = item.resolvedPaths.first else { return nil }
     var parts: [String] = []
-    if item.groupKey != "general" { parts.append(cacheGroupLabel(item.groupKey)) }
+    if showsGroup && item.groupKey != "general" { parts.append(cacheGroupLabel(item.groupKey)) }
     parts.append(displayPath(first))
     if item.resolvedPaths.count > 1 {
         parts.append(LF("%d 处", item.resolvedPaths.count))
@@ -52,9 +82,73 @@ private func pathSizes(of items: [CacheItem]) -> [(path: String, bytes: Int64)] 
     items.flatMap { $0.pathSizes.map { (path: $0.key, bytes: $0.value) } }
 }
 
+/// 「Xcode 模拟器设备」那一行背后那摞台子在哪；不是这一条就返回 nil。
+///
+/// 整页只有这一条要逐台摊开：它的字节集中在**哪几台**上，而别处一条缓存目录摊开
+/// 只会看到几百个不相干的文件名——那一列不承载任何决定。
+private func simulatorDevicesDir(_ item: CacheItem) -> URL? {
+    item.resolvedPaths.first { $0.lastPathComponent == "Devices" && $0.path.contains("CoreSimulator") }
+}
+
+/// 摊开那一行时逐台列模拟器：设备名 · 系统 · 占盘 · 上次启动。
+///
+/// 只在行真被摊开时才量（`.task` 跟着视图生死，收起行就掐掉这一趟）：26 台各走一遍
+/// 子树是这一页最慢的一件事，不该为「也许有人会点开」在页面进来时先付掉。
+///
+/// 这一格只列不删：整条「模拟器设备」本来就在「留意」档，勾选框在行首那一级，
+/// 台子级的一键删除要另加一套选中状态，等有人真要按台清时再做。
+struct SimDeviceRows: View {
+    @Environment(\.theme) private var theme
+    var dir: URL
+    @State private var rows: [SimDevice]? = nil
+
+    var body: some View {
+        Group {
+            if rows == nil {
+                ExplainLine(key: L("逐台看"), value: L("正在一台一台量，稍等…"))
+            } else {
+                ForEach(rows ?? []) { d in row(d) }
+            }
+        }
+        .task { rows = await scanSimulators(under: dir) }
+    }
+
+    /// 一台一行，三格定宽。这里不能套 `ExplainLine`：它的键列按内容走宽，
+    /// 26 台摊开就是 26 个不同的落点，那堆体积数字对不齐，也就比不出大小。
+    private func row(_ d: SimDevice) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(d.os.isEmpty ? d.name : "\(d.name) · \(d.os)")
+                .font(theme.bodyFont(.caption).weight(.semibold))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .lineLimit(1)
+                .frame(width: 236, alignment: .leading)
+            Text(human(d.size))
+                .font(theme.bodyFont(.caption).monospacedDigit())
+                .foregroundStyle(theme.palette.inkSecondary)
+                .frame(width: 74, alignment: .trailing)
+            Text(booted(d))
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func booted(_ d: SimDevice) -> String {
+        guard let when = d.lastBooted else { return L("从没启动过") }
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return LF("上次启动 %@", f.string(from: when))
+    }
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class CachesModel: ObservableObject {
+    /// 这台只管知识库里的那几组（见 `CachesPage`）。
+    let groupKeys: Set<String>
+    init(groupKeys: Set<String> = ["general", "cn_app"]) { self.groupKeys = groupKeys }
+
     @Published var items: [CacheItem] = []
     @Published var scanning = false
     @Published private(set) var started = false
@@ -105,6 +199,7 @@ final class CachesModel: ObservableObject {
         progress = ScanProgress()
         task = Task {
             let entries = loadSafetyEntries(from: safetyDBURL())
+                .filter { groupKeys.contains($0.grp ?? "general") }
             var list: [CacheItem] = []
             for e in entries {
                 if Task.isCancelled { break }
@@ -158,15 +253,15 @@ struct CachesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: CachesModel
+    var page: CachesPage = .app
     @State private var confirmClean = false
     @State private var errorText: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "sparkles", title: L("缓存清理"),
-                           subtitle: L("每项都写明来历，勾你认得的，不认识的别碰"),
-                           variant: .display)
+                PageHeader(symbol: page.symbol, title: L(page.titleKey),
+                           subtitle: L(page.subtitleKey), variant: .display)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("正在翻你的缓存目录，稍等…"), progress: model.progress)
@@ -185,8 +280,8 @@ struct CachesView: View {
             if model.scanning && model.items.isEmpty {
                 ScanSkeleton()
             } else if !model.scanning && model.items.isEmpty {
-                EmptyState(symbol: "tray", title: L("知识库没加载出来"),
-                           hint: L("点右上角重新扫描，还不行就提个 Issue"))
+                EmptyState(symbol: page.symbol, title: L(page.emptyTitleKey),
+                           hint: L(page.emptyHintKey))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers, rows: measured.count, note: ledgerNote)
@@ -194,8 +289,9 @@ struct CachesView: View {
                     ItemRow(selected: $item.selected,
                             icon: rowIcon(item.resolvedPaths, "sparkles"),
                             appID: item.entry.app,
+                            brand: item.entry.icon,
                             name: L(item.entry.name),
-                            sub: cacheRowSub(item),
+                            sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
                             sizeText: item.size == nil ? L("统计中…") : (shown[item.id] ?? human(item.size ?? 0)),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: ItemBadge(text: item.entry.level == "warn" ? L("留意") : L("安全"),
@@ -210,6 +306,9 @@ struct CachesView: View {
                         ExplainLine(key: L("怎么恢复"), value: L(item.entry.rec))
                         if let what = contentsLine(item.files, item.newest) {
                             ExplainLine(key: L("内容"), value: what)
+                        }
+                        if let devDir = simulatorDevicesDir(item) {
+                            SimDeviceRows(dir: devDir)
                         }
                         ForEach(item.resolvedPaths, id: \.self) { p in
                             PathLine(path: p.path)

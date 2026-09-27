@@ -150,6 +150,7 @@ cp "$BIN" "$APP_DIR/Contents/MacOS/DiskCleaner"
 cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$RES_DIR/safety_db.json" "$APP_DIR/Contents/Resources/"
 cp -R "$RES_DIR/en.lproj" "$APP_DIR/Contents/Resources/"
+cp -R "$RES_DIR/BrandIcons" "$APP_DIR/Contents/Resources/"
 cp "$QR_SRC" "$APP_DIR/Contents/Resources/qq-group.png"
 # 缓存清理页整页内容都来自这份知识库；丢了不会崩，但会静默变空白页
 [ -f "$APP_DIR/Contents/Resources/safety_db.json" ] \
@@ -163,6 +164,12 @@ cp "$QR_SRC" "$APP_DIR/Contents/Resources/qq-group.png"
 # 反馈页没图不会崩，但只剩一行群号——用户找到人的入口不能这么静默丢掉
 [ -f "$APP_DIR/Contents/Resources/qq-group.png" ] \
 	|| { echo "错误：qq-group.png 没进 .app，反馈页的二维码会是空的" >&2; exit 1; }
+# 品牌标丢了也不崩，只是那些没有 .app 的行（Ollama、uv、JetBrains…）静默退回通用文件夹，
+# 也就是这次要消灭的那一排一模一样的蓝文件夹——所以按「文件数」核，不按「目录存在」核。
+BRAND_N_IN=$(find "$RES_DIR/BrandIcons" -name '*.png' | wc -l | tr -d ' ')
+BRAND_N_OUT=$(find "$APP_DIR/Contents/Resources/BrandIcons" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+[ "$BRAND_N_IN" = "$BRAND_N_OUT" ] && [ "$BRAND_N_OUT" != "0" ] \
+	|| { echo "错误：BrandIcons 只进了 $BRAND_N_OUT/$BRAND_N_IN 张，无 .app 的工具行会退回通用文件夹" >&2; exit 1; }
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

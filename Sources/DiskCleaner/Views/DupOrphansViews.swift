@@ -7,6 +7,9 @@ import DiskCleanerCore
 @MainActor
 final class DupModel: ObservableObject {
     @Published var groups: [DupGroup] = []
+    /// 被受管环境摘走的副本，按组归堆。页顶那句「不参与比对」点开的就是这份名单：
+    /// 整组撤下的那些不列进主列表，但必须看得见，否则像偷偷藏东西。
+    @Published private(set) var envGroups: [EnvDupGroup] = []
     @Published var scanning = false
     @Published var phase = ""
     /// 现场读数：这一页先遍历再哈希，遍历那几分钟里唯一能证明「在动」的就是它。
@@ -19,6 +22,7 @@ final class DupModel: ObservableObject {
     private var task: Task<Void, Never>? = nil
 
     var waste: Int64 { groups.reduce(0) { $0 + $1.waste } }
+    var envBytes: Int64 { envGroups.reduce(0) { $0 + $1.bytes } }
     var selectedCount: Int { selection.count }
 
     func scan(scope: ScanScope) {
@@ -27,6 +31,7 @@ final class DupModel: ObservableObject {
         started = true
         self.scope = scope
         groups = []
+        envGroups = []
         selection = []
         let minB = Int64(minMB) * MB
         let targets = defaultScanDirs(scope: scope)
@@ -42,9 +47,10 @@ final class DupModel: ObservableObject {
             if Task.isCancelled { return }
             self.phase = LF("比对内容（%@ 个候选）…", String(files.count))
             // 哈希是同步重活，扔后台线程做
-            let gs = await Task.detached { findDupGroups(files) }.value
+            let r = await Task.detached { findDupGroups(files) }.value
             if !Task.isCancelled {
-                self.groups = gs
+                self.groups = r.groups
+                self.envGroups = r.excluded
                 self.scanning = false
                 self.phase = ""
             }
@@ -72,6 +78,7 @@ struct DupView: View {
     @ObservedObject var model: DupModel
     @State private var confirm = false
     @State private var err: String? = nil
+    @State private var envList = false
 
     var selectedBytes: Int64 {
         var sizeByPath: [String: Int64] = [:]
@@ -95,7 +102,9 @@ struct DupView: View {
         [LedgerTier(label: L("动得了"), bytes: model.waste, tone: .hot)]
     }
 
-    private var ledgerNote: String? { L("每组日期最新的那份不在这一列里——它永远保留。") }
+    /// 每组保留的那一份也列在组里（第一行、带锁、勾不动），所以这句话要说的是
+    /// 「它在哪儿、为什么按不动」，不是「它不在这一列里」。
+    private var ledgerNote: String? { L("每组日期最新的那份列在组里第一行，带锁、不给勾。") }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,6 +122,9 @@ struct DupView: View {
                     }
                     ThemeBadge(text: LF("范围：%@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
+                    if !model.envGroups.isEmpty {
+                        EnvCopiesClause(count: model.envGroups.count) { envList = true }
+                    }
                 } trailing: {
                     ThemeStepper(label: "≥", unit: "MB", value: $model.minMB,
                                  range: 5...500, step: 5) { model.scan(scope: store.scope) }
@@ -146,6 +158,13 @@ struct DupView: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
+        // 那句只在有副本被摘出去时才在页上，所以这一按也只在它在的时候有效——
+        // 拍不出空名单，也就拍不出一张骗人的名单。
+        .onChange(of: store.envListPulse) { _ in envList = !model.envGroups.isEmpty }
+        .sheet(isPresented: $envList) {
+            EnvCopiesSheet(groups: model.envGroups, bytes: model.envBytes)
+                .themed(theme)   // 名单跟随当前皮肤，别在弹出来那一刻跳色
+        }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@移入废纸篓（每组日期最新的一份永远保留）。",
                                cnt(model.selectedCount, "个多余副本"))) {
@@ -176,7 +195,8 @@ struct DupView: View {
             fraction: Double(g.waste) / Double(maxWaste),
             badge: nil,
             lit: true,
-            showRule: model.groups.first?.id != g.id) {
+            showRule: model.groups.first?.id != g.id,
+            preopen: SnapshotMode.expandFirstRow && model.groups.first?.id == g.id) {
             ForEach(Array(g.files.enumerated()), id: \.element.path) { idx, url in
                 DupFileRow(url: url, isKept: idx == 0, selection: $model.selection)
             }
@@ -250,6 +270,110 @@ private struct DupFileRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// ── 各环境自己的副本：不进比对，但必须看得见 ──
+
+/// 页顶那句「另有 N 组…不参与比对」。整组撤下的副本要在这一页留一个入口，
+/// 不然用户看到的是一次凭空少掉的组数，像我们偷偷不算。
+private struct EnvCopiesClause: View {
+    @Environment(\.theme) private var theme
+    var count: Int
+    var action: () -> Void
+
+    @State private var hovering = false
+    @State private var hand = false
+
+    private var fg: Color {
+        hovering ? SweepRing.lamp(theme.palette.tint) : theme.palette.inkTertiary
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(LF("另有 %1$@ 是各环境自己的副本，不参与比对", cnt(count, "组")))
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(fg)
+                .underline(hovering, color: fg)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(.plain)
+        .onHover {
+            hovering = $0
+            guard hand != $0 else { return }
+            hand = $0
+            ($0 ? NSCursor.pointingHand : NSCursor.arrow).set()
+        }
+        .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// 「不参与比对的组」名单。只讲三件事：哪一组、住在几个环境里、想回收该动谁。
+///
+/// 这里不画勾选框：这一屏一个字节都轮不到这一页来删，摆个勾不上的框只会制造挫败。
+/// 每份的路径仍给 `PathLine`，要点到访达里看清楚随时能去。
+private struct EnvCopiesSheet: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    var groups: [EnvDupGroup]
+    var bytes: Int64
+
+    private var maxBytes: Int64 { max(1, groups.map(\.bytes).max() ?? 1) }
+
+    private var shown: [UUID: String] {
+        sizeColumn(groups.map { (key: $0.id, bytes: $0.bytes) })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(L("不参与比对的组"))
+                    .font(theme.display(.title3))
+                    .tracking(theme.titleTracking)
+                    .foregroundStyle(theme.palette.ink)
+                Text(LF("%1$@ · 共 %2$@", cnt(groups.count, "组"), human(bytes)))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .monospacedDigit()
+                Spacer(minLength: 12)
+                ThemeButton(kind: .ghost, title: L("关闭")) { dismiss() }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            List(groups) { g in
+                ItemRow(selected: .constant(false),
+                        icon: .path(g.files.first ?? URL(fileURLWithPath: "/")),
+                        name: rowName(g),
+                        sub: LF("每份 %1$@ · 住在 %2$@",
+                                human(g.size), cnt(g.envs.count, "个环境")),
+                        sizeText: shown[g.id] ?? human(g.bytes),
+                        fraction: Double(g.bytes) / Double(maxBytes),
+                        selectable: false,
+                        lit: false,
+                        showRule: groups.first?.id != g.id,
+                        preopen: SnapshotMode.expandFirstRow && groups.first?.id == g.id) {
+                            ExplainLine(key: L("住在哪个环境"),
+                                        value: g.envs.map { displayPath(URL(fileURLWithPath: $0)) }
+                                            .joined(separator: " · "))
+                            ForEach(g.files, id: \.path) { u in
+                                PathLine(path: u.path)
+                            }
+                        }
+            }
+            .ledgerCard()
+
+            ListNote(text: L("这些副本各自住在某个环境里。删一份，那个环境就缺一块；卸掉那个环境，整块一起回收。"))
+        }
+        .frame(width: 780, height: 520)
+        .background(theme.palette.paper)
+    }
+
+    /// 只有一份被摘出去时不说「等 1 份」：那个「等」字承诺了后面还有，而这里没有。
+    private func rowName(_ g: EnvDupGroup) -> String {
+        let first = g.files.first?.lastPathComponent ?? L("重复组")
+        return g.files.count > 1 ? LF("%1$@ 等 %2$@", first, cnt(g.files.count, "份")) : first
     }
 }
 

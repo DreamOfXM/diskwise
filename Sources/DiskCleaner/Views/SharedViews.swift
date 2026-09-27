@@ -214,6 +214,8 @@ struct ItemRow<Detail: View>: View {
     var icon: RowIcon
     /// 条目自己声明的归属 App 包名，只有缓存页用得上（safety_db 的 `app` 字段）。
     var appID: String? = nil
+    /// 没有 .app 可查的工具挂哪家官方品牌标（safety_db 的 `icon` 字段）。
+    var brand: String? = nil
     var name: String
     var sub: String? = nil
     /// 这一行的展示级数字。整列由页面过一次 `addableHumanColumn`（或 `unifiedHuman`）
@@ -253,7 +255,7 @@ struct ItemRow<Detail: View>: View {
                 // 图形定宽一格：取不取得到图标都不能让名字那一列左右跳。
                 // 挂在勾选框后面而不是最左，是因为勾选才是这一行唯一可操作的东西，
                 // 它必须继续对齐成一条竖线。
-                RowIconView(icon: icon, appID: appID)
+                RowIconView(icon: icon, appID: appID, brand: brand)
                     .frame(width: rowIconSide, height: rowIconSide)
 
                 Button {
@@ -328,7 +330,9 @@ struct ItemRow<Detail: View>: View {
             }
         }
         .background(rowBG, in: theme.controlShape())
-        .onHover { hovering = $0 }
+        // 截图那一趟不认悬停：鼠标停在谁身上是拍图这一刻的偶然，而没人碰它时这一行没有高亮。
+        // 与关掉常驻动效同一条理由（`SnapshotMode.active`）——拍出去的得是静止态那张脸。
+        .onHover { if !SnapshotMode.active { hovering = $0 } }
         .onAppear { if preopen { expanded = true } }
         .themedRow()
     }

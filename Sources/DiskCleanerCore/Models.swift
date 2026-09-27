@@ -15,9 +15,15 @@ public struct SafetyEntry: Decodable {
     /// （`~/Library/Developer/Xcode/**` 这类），行首那一格靠它挂 App 图标。
     /// 商店版签名带 team 前缀的 App（钉钉那种）不填——对不上就不对，宁可不挂。
     public var app: String?
+    /// 官方品牌标的文件名（不带扩展名）。
+    ///
+    /// 给那些**没有 .app 可查**的工具：`~/.ollama/models`、`~/.cache/uv` 这类只有命令行，
+    /// LaunchServices 里查不到包名，真图标那一档永远取不到东西。填了 `app` 的条目也可以填这里：
+    /// 真图标优先，但「Xcode 已卸载、模拟器还留着」这种机器上就轮到标上岗，比一张通用文件夹认得出。
+    public var icon: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, what, whatif, rec, path, level, grp, docs, app
+        case name, what, whatif, rec, path, level, grp, docs, app, icon
     }
 
     public init(from decoder: Decoder) throws {
@@ -31,6 +37,7 @@ public struct SafetyEntry: Decodable {
         grp = try? c.decode(String.self, forKey: .grp)
         docs = try? c.decode(String.self, forKey: .docs)
         app = try? c.decode(String.self, forKey: .app)
+        icon = try? c.decode(String.self, forKey: .icon)
     }
 }
 

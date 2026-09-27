@@ -11,6 +11,10 @@ server, no telemetry, no subscription. A ~4 MB DMG, one file for Apple Silicon a
 
 [English](#english) · [中文](#中文)
 
+![The Overview page during one pass: a whole-disk scan sweeps its ring segment by segment, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back](docs/demo/overview-en.gif)
+
+*Scan → open a row → two taps → undo. Shot against a synthetic home folder, so the numbers on screen are invented — the orange strip says so.*
+
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
@@ -23,11 +27,18 @@ server, no telemetry, no subscription. A ~4 MB DMG, one file for Apple Silicon a
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Or via **Mac App Store**: macOS 13+｜Free｜
+Or from the **Mac App Store** (macOS 13+, free):
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
 
 Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
 every release ships the DMG's SHA-256.
+
+**First run** — three things, in the order the GIF above plays them:
+
+1. Open **Overview**: it walks the whole volume and draws it as one ring, with the ledger beside it.
+2. Click a row in that ledger — its detail unfolds right there, and the ring steps back to a small dial.
+3. Click the arc you can move **twice**: the first click arms it, the second moves it to the Trash.
+   *Undo* puts it back, and emptying the Trash stays Finder's call.
 
 ---
 
@@ -68,14 +79,15 @@ It is built for machines that have been used by a developer for a few years — 
 - **The "Other counted" slice adds up** — open that row and every place behind the arc is listed under it, and the last line spells the total out part by part (the rows listed, plus the ones under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
 - **Large Files** — top N across the same roots, dev directories skippable.
 - **Long Untouched** — files you haven't opened in N days, across the same roots.
-- **Duplicates** — size → partial hash → full hash, grouped, the newest copy in each group locked so you can't nuke the only one.
+- **Duplicates** — size → partial hash → full hash, grouped, the newest copy in each group locked so you can't nuke the only one. Copies that live inside a venv / site-packages / DerivedData never enter the comparison and are listed separately: delete one and that environment is short a piece.
 
 **Dev machine specials**
 - **node_modules** — project sweep grouped per project, so you see "these 3 checkouts cost 4.7 GB".
-- **Docker Usage** — read-only breakdown of the Docker Desktop data store, with the pointer on where to prune.
+- **Docker Usage** — one row per container runtime actually installed (Docker Desktop, OrbStack, Podman, colima), measured as what its virtual disk takes on this disk, with the engine's own figures listed under it. Read-only: it points at where to prune, it never deletes for you.
 
 **Clean up**
-- **Caches** — a curated knowledge base (Homebrew, npm, yarn, Maven, Gradle, conda, Xcode, simulators, WeChat / DingTalk / WeCom / QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it back*, with a Safe / Careful badge.
+- **App Caches** — a curated knowledge base (system caches, crash dumps, WeChat / DingTalk / WeCom / QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it back*, with a Safe / Careful badge.
+- **Dev Caches** — the same knowledge base, the tools half of these machines actually fill the disk with: Homebrew, npm / pnpm / yarn, Maven, Gradle, conda, uv, cargo, Ollama models, Xcode archives, DerivedData and every simulator device listed one by one.
 - **Leftovers** — data orphaned by apps you already uninstalled, matched against the bundle IDs of everything still installed. Under-reports rather than over-deletes.
 - **Trash** — session stats, undo stack, and an *Empty* button: outside the sandbox it asks Finder to
   do the emptying, in the App Store build it opens the Trash so you can press ⌘⇧⌫.
@@ -89,9 +101,9 @@ It is built for machines that have been used by a developer for a few years — 
 |---|---|
 | ![Overview](docs/screenshots/en/01-overview.png) | ![Duplicates](docs/screenshots/en/04-duplicates.png) |
 
-| Caches | Leftovers |
+| Dev Caches | Leftovers |
 |---|---|
-| ![Caches](docs/screenshots/en/07-caches.png) | ![Leftovers](docs/screenshots/en/08-leftovers.png) |
+| ![Dev Caches](docs/screenshots/en/07-dev-cache.png) | ![Leftovers](docs/screenshots/en/08-leftovers.png) |
 
 The skin store renders a **live thumbnail** of each theme — mini sidebar, ring gauge, rows and
 buttons, all drawn with that skin's real tokens — so you can see the skeleton before you wear it:
@@ -107,9 +119,9 @@ Six skins, six skeletons. Same page, three of them:
 The UI is bilingual — English and Simplified Chinese, switchable in-app (Skins → language), and it
 follows the system language by default. Same screens in Chinese:
 
-| 空间总览 | 缓存清理 |
+| 空间总览 | 开发缓存 |
 |---|---|
-| ![总览](docs/screenshots/zh/01-overview.png) | ![缓存](docs/screenshots/zh/07-caches.png) |
+| ![总览](docs/screenshots/zh/01-overview.png) | ![开发缓存](docs/screenshots/zh/07-dev-cache.png) |
 
 ## Install
 
@@ -269,6 +281,14 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
 没有端口、不联网、无遥测、无订阅。安装包约 4 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
 
+## 上手三步
+
+「界面截图」一节开头那段中文录屏演的就是这个顺序：
+
+1. 打开**空间总览**：它走整块盘，把结果画成一个环，环旁边那一列就是账。
+2. 点账里的任意一行——它名下是哪几个目录就地摊开，环同时收成一枚小参照盘。
+3. 能整个搬走的那段弧**点两下**：第一下上膛，第二下才进废纸篓。*撤销*原样放回，清空废纸篓始终由访达执行。
+
 ## 为什么选择 DiskWise
 
 清理工具要进入你的家目录，劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。
@@ -292,21 +312,21 @@ DiskWise 走相反的路子：
 ## 功能
 
 **看清空间**
-- **空间总览**：整块盘画成一个环——一段弧就是这一轮真量到的字节，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到 + 系统可清除 + 空闲），那道光带就停在「量到这儿」的边界上。能整个搬走的那一段点两下：第一下上膛，第二下才进废纸篓，3 秒不点自己松开。整页只有一段账：环旁边那一列，行首点一下就**就地摊开**它名下是哪几个目录、哪几处位置、哪几卷账，摊开时环收成一枚小参照盘。「访达显示」和「深挖」挂在摊开的那一行上
+- **空间总览**：整块盘画成一个环——一段弧就是这一轮真量到的字节，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到 + 系统可清除 + 空闲），那道光带就停在「量到这儿」的边界上。能整个搬走的那一段点两下：第一下上膛，第二下才进废纸篓，3 秒不点自己松开。整页只有一段账：环旁边那一列，点这一行就**就地摊开**它名下是哪几个目录、哪几处位置、哪几卷账，摊开时环收成一枚小参照盘。「访达显示」和「深挖」挂在摊开的那一行上
 - **走整盘扫描**：没有范围开关要猜。开源版整趟走整盘（白名单里的系统根、别人的家目录都在内），商店沙盒版走授权能达到的最大范围并把这个边界写在界面上。两边扫的都是整块盘，不是家目录里那几处整洁的角落
 - **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及读不动的那几处。那颗跳「完全磁盘访问权限」设置的按钮只在实测读不到受保护文件时才出现，已经授权过的人不会再被喊一次「去授权」。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
 - **「其他已统计」凑得出来**：点开那一格，这块弧名下的每一处都列在它自己名下，最后一句把没点名的补齐（这里这几处 ＋ 不到 100 MB 的那几处），几段相加就等于弧上那个数——一百多 G 不能只写成一句「信我」
 - **大文件**：按同一批范围根遍历，TOP 可调，可跳过开发目录
 - **很久没动**：同样这些根里，N 天没打开的文件
-- **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组日期最新一份锁定保留
+- **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组日期最新一份锁定保留；住在 venv / site-packages / DerivedData 里的副本不参与比对，单独列成一份名单——删一份，那个环境就缺一块
 
 **开发机专项**
 - **node_modules**：按项目聚合，直接告诉你「这几个仓库共 4.7 GB」
-- **Docker 占用**：Docker Desktop 数据目录只读明细 + 清理指路
+- **Docker 占用**：机器上装了哪家容器运行时（Docker Desktop / OrbStack / Podman / colima）就出一行，量的是那块虚拟机磁盘在这台机器上实际占掉的量；引擎自己报的几段列在下面。**只出不删**——删法各家不一样，展开那一行给指路
 
 **清理**
-- **缓存清理**：知识库覆盖 Homebrew、npm、yarn、Maven、Gradle、conda、Xcode、模拟器、微信 / 钉钉 / 企业微信 / QQ 等。
-  每项都写明「这是什么 / 删了会怎样 / 怎么恢复」，并给安全 / 留意分级
+- **应用缓存**：知识库覆盖系统缓存总目录、崩溃转储、微信 / 钉钉 / 企业微信 / QQ 等。每项都写明「这是什么 / 删了会怎样 / 怎么恢复」，并给安全 / 留意分级
+- **开发缓存**：同一本知识库的另一半——Homebrew、npm / pnpm / yarn、Maven、Gradle、conda、uv、cargo、Ollama 模型、Xcode 归档与 DerivedData，iOS 模拟器逐台列占用与上次启动时间
 - **卸载残留**：以「还装着的 App 的 bundle id」为基准找孤儿，宁可漏报不误删
 - **废纸篓**：体积统计、撤销栈，以及一颗「清空」——直链版由访达执行，商店沙盒版只把废纸篓窗口打开给你按 ⌘⇧⌫
 
@@ -316,15 +336,19 @@ DiskWise 走相反的路子：
 
 ## 界面截图
 
+![空间总览的一轮扫描：环一段段长出来，点账目那一行就地摊开它名下的目录、环同时收成一枚小参照盘，点第一段弧上膛、再点第二段才进废纸篓，撤销原样放回](docs/demo/overview-zh.gif)
+
+*扫描 → 点开一行 → 两下 → 撤销。这屏跑的是造出来的演示目录，屏幕上的数都是编的——顶上那条橙色横幅写的就是这件事。*
+
 中英文双语，可在「外观皮肤」页顶部切换，默认跟随系统。
 
 | 空间总览 | 重复文件 |
 |---|---|
 | ![总览](docs/screenshots/zh/01-overview.png) | ![重复文件](docs/screenshots/zh/04-duplicates.png) |
 
-| 缓存清理 | 卸载残留 |
+| 开发缓存 | 卸载残留 |
 |---|---|
-| ![缓存](docs/screenshots/zh/07-caches.png) | ![残留](docs/screenshots/zh/08-leftovers.png) |
+| ![开发缓存](docs/screenshots/zh/07-dev-cache.png) | ![残留](docs/screenshots/zh/08-leftovers.png) |
 
 皮肤页里每张卡都实时渲染该皮肤下的迷你侧边栏 + 环形图 + 列表行 + 按钮，看得懂骨架再决定穿不穿：
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import DiskCleanerCore
 
 // ── 组件库：所有视觉都从这里出，视图层不许手写色值/圆角/阴影 ────────────────
@@ -446,15 +447,15 @@ struct IconTile: View {
 
 // MARK: - 列表行首的图形
 
-/// 一行开头那一格是什么。
+/// 一行开头那一格是什么。只有两种：这一行背后有一个真实路径，或者它只是一个类别
+/// （Docker `docker system df` 那几行没有路径）。路径那一格再分三档，顺序定死在
+/// `RowIconView.resolveIcon`：归属 App 的真图标 → 各家官方品牌标 → 系统通用图标兜底。
 ///
-/// 排序与配色归这里，取图归 `RowIconView`。三种来源必须分开说：
-/// 有的行背后是一个真实路径（能问到系统图标），有的行只是一个类别（Docker 的
-/// `docker system df` 那几行），有的行连名字都对应不到东西上（取不到图标时的首字母）。
+/// 原来还有第三种兜底"什么都取不到就印首字母"，删掉了：同一屏里首字母色块、类别符号、
+/// 通用文件夹三种东西混着一列，比统一走一张兜底更认不出东西。
 enum RowIcon {
     case path(URL)
     case symbol(String)
-    case letter(String)
 }
 
 /// 行首图形。
@@ -463,8 +464,8 @@ enum RowIcon {
 /// 靠的是形状。LaunchServices 会顺着路径往上找到归属的那个 App，所以
 /// `~/Library/Caches/com.apple.WebKit` 直接拿到 Safari 的图标——不用我们自己猜包名。
 ///
-/// 商店沙盒里取不到某个路径时 `isReadableFile` 就是 false，当场退回首字母那一档：
-/// 这一格宁可不漂亮，也不能画一个「所有行都一样」的通用图标糊弄过去。
+/// 商店沙盒里读不到的路径、以及系统只给通用文件夹的那些目录（`~/.ollama/models` 这类），
+/// 一律照上面那三档往下走，不再各页自己发明兜底。
 struct RowIconView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -476,6 +477,9 @@ struct RowIconView: View {
     /// 要填的是那些**路径里没有包名**的行：`~/Library/Developer/Xcode/DerivedData` 一眼就该是
     /// Xcode 的东西。查不到（没装、或商店版签名带 team 前缀对不上）就照原样退回文件夹。
     var appID: String? = nil
+    /// 没有 .app 可查的工具（只有命令行的那些）用哪家官方品牌标——safety_db 的 `icon` 字段。
+    /// 排在归属 App 之后：装了 Xcode 的行该看到 Xcode，不该看到一张标。
+    var brand: String? = nil
 
     /// 系统图标按路径缓存：同一趟扫描里 200 行问的是同几个目录，而首次解析要跨进程问
     /// IconServices（实测单路径 0–9 ms，命中后 0 ms）。
@@ -484,60 +488,52 @@ struct RowIconView: View {
     var body: some View {
         switch icon {
         case .path(let url):
-            if let img = Self.fileIcon(url, appID: appID) {
+            switch Self.resolveIcon(url, appID: appID, brand: brand) {
+            case .image(let img):
                 Image(nsImage: img)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: side, height: side)
                     .accessibilityHidden(true)
-            } else {
-                letterTile(url.lastPathComponent)
+            case .brand(let slug):
+                BrandTile(slug: slug, side: side)
             }
         case .symbol(let name):
             // 类别符号走「浅底同色」那一档，跟侧栏一个规矩：整列实心彩块会抢过数字那一列
             IconTile(symbol: name, side: side, fill: theme.palette.tint, muted: true)
-        case .letter(let name):
-            letterTile(name)
         }
     }
 
-    private var isDark: Bool { (theme.scheme ?? colorScheme) == .dark }
-
-    /// 取不到真图标时的那一格：首字母 + 名字定色。
-    ///
-    /// 颜色按名字哈希取，所以同一个条目每次扫都还是同一个颜色——用户下次回来能认出它。
-    /// 随机取色就是每趟换一个色，那一列就成了噪点，认不出任何东西。
-    private func letterTile(_ name: String) -> some View {
-        let ch = name.trimmingCharacters(in: .whitespacesAndNewlines).first.map(String.init) ?? "·"
-        return ZStack {
-            theme.tileShape(side).fill(color(for: name))
-            Text(ch.uppercased())
-                .font(.system(size: side * 0.46, weight: .semibold))
-                .foregroundStyle(theme.palette.onTint)
-        }
-        .frame(width: side, height: side)
-        .accessibilityHidden(true)
+    /// 这一格挂什么，三档按顺序判，全项目只有这一处判它（各页不许各定口径）：
+    /// ① 归属 App 的真图标 → ② 条目声明的官方品牌标 → ③ 系统那张通用图。
+    enum IconFace {
+        case image(NSImage)
+        case brand(String)
     }
 
-    private func color(for name: String) -> Color {
-        let ramp = isDark ? Theme.spectrumDark : Theme.spectrumLight
-        return ramp[abs(name.hashValue) % ramp.count]
+    static func resolveIcon(_ url: URL, appID: String? = nil, brand: String? = nil) -> IconFace {
+        if let img = ownerAppIcon(url, appID: appID) { return .image(img) }
+        if let slug = brand, BrandIcons.image(slug) != nil { return .brand(slug) }
+        return .image(systemIcon(url))
     }
 
-    /// 一处路径的真实图标。取不到（没权限、路径已经消失、系统给了空图）就返回 nil，
-    /// 调用方回退到首字母那一档——这一格宁可不漂亮，也不能画一个「所有行都一样」的
-    /// 通用图标糊弄过去。`isReadableFile` 是商店沙盒里的那道闸：读不到的路径不会白跑一趟。
+    /// 系统给这张路径的图——所有行的最后一站。
     ///
     /// 目录本身在访达里就是那只通用文件夹（实测 `~/Library/Developer/Xcode/DerivedData`、
-    /// `~/.Trash` 拿到的图标与空目录逐字节相同），所以先问归属 App 再问系统：
-    /// 见 `ownerAppIcon`。
-    private static func fileIcon(_ url: URL, appID: String? = nil) -> NSImage? {
-        let key = "\(url.path)\u{1}\(appID ?? "")" as NSString
+    /// `~/.Trash`、`~/.ollama/models` 拿到的图标与空目录逐字节相同），所以这一档不承载身份，
+    /// 身份在 ①② 两档就判完了。读不到的路径（商店沙盒）不去白跑一趟跨进程查询，
+    /// 直接给文件夹那张。
+    ///
+    /// 按路径缓存：同一趟扫描里 200 行问的是同几个目录，而首次解析要跨进程问
+    /// IconServices（实测单路径 0–9 ms，命中后 0 ms）。
+    private static func systemIcon(_ url: URL) -> NSImage {
+        let key = url.path as NSString
         if let hit = cache.object(forKey: key) { return hit }
-        guard FileManager.default.isReadableFile(atPath: url.path) else { return nil }
-        let img = ownerAppIcon(url, appID: appID) ?? NSWorkspace.shared.icon(forFile: url.path)
-        guard !img.representations.isEmpty else { return nil }
-        cache.setObject(img, forKey: key)
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            return NSWorkspace.shared.icon(for: UTType.folder)
+        }
+        let img = NSWorkspace.shared.icon(forFile: url.path)
+        if !img.representations.isEmpty { cache.setObject(img, forKey: key) }
         return img
     }
 
@@ -1748,11 +1744,15 @@ struct RingLedgerRow: View {
     /// 这一行上面要不要画那道分隔线（样稿 `.row+.row::before`，第一行没有）。
     var showRule: Bool = true
     var onHover: ((Bool) -> Void)? = nil
+    /// 「点两次才收走」那一档。命中区是行尾那道 `›` 连同它管着的那个数（`armCluster`）；
+    /// 没有下一级的行（`onExpand == nil`）整行左半块也落回这里，那一行本来没别的动作。
     var tap: (() -> Void)? = nil
     /// 这一段已经摊开了没有——只决定行首那个记号朝右还是朝下。
     var expanded: Bool = false
-    /// 行首的 `▸`。nil = 这一段没有下一级，行首留一个空槽把名字对齐在原处。
-    /// 它是**唯一一个不碰两段式确认**的控件：点它只摊明细，不上膛、不搬东西。
+    /// 摊明细，**整行左半块**（记号 + 色块 + 名字 + 条子）都是它的命中区：2026-09-27 他
+    /// 点的就是这里——「只点左边那颗箭头才摊开，体验不好」。那颗 `▸` 于是退回成记号。
+    /// nil = 这一段没有下一级，行首留一个空槽把名字对齐在原处。
+    /// 它**不碰两段式确认**：点它只摊明细，不上膛、不搬东西。
     var onExpand: (() -> Void)? = nil
     /// 行尾那颗「去授权」。整盘账里只有这一处要点开系统设置，而它原本挂在
     /// 「没量到的地方」那段明细里——明细收起来就等于把唯一的入口一起藏了。
@@ -1769,76 +1769,65 @@ struct RingLedgerRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // 行首这个记号说的是「这一段下面还有名字」，跟「点两下收走」是两件事，
-            // 所以两个动作分踞一行两头：最左摊明细，数的左肩才是上膛。
-            // 槽位固定 12pt、不按段给 0/12——六行的名字要对齐在同一条竖线上，
-            // 有箭头的行缩进去、没箭头的顶到边，这一列就读不成一列了。
-            Group {
-                if let onExpand {
-                    Button(action: onExpand) {
+            // 摊明细住在**整行的左半块**，不住那颗 12pt 的箭头：2026-09-27 他点的就是这里
+            // ——「点这一行就要圆环缩小，只点左边箭头才缩小，体验不好」。命中区照 `ItemRow`
+            // 那一套给（箭头 + 名字 + 条子一起算），换页时点的还是同一块地方。
+            Button(action: { (onExpand ?? tap)?() }) {
+                HStack(alignment: .center, spacing: 12) {
+                    // 槽位固定 12pt、不按段给 0/12——六行的名字要对齐在同一条竖线上，
+                    // 有箭头的行缩进去、没箭头的顶到边，这一列就读不成一列了。
+                    if onExpand != nil {
                         ThemeChevron(expanded: expanded, color: theme.palette.inkSecondary)
                             .frame(width: 12, height: 12)
-                            .contentShape(Rectangle())
+                    } else {
+                        Color.clear.frame(width: 12, height: 12)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(expanded ? LF("收起 %@ 的明细", seg.label)
-                                                 : LF("摊开 %@ 的明细", seg.label))
-                } else {
-                    Color.clear.frame(width: 12, height: 12)
+                    // 8×8 的圆角小方块，不是竖条。上一版画成 8×20 的竖条，六行排下来像
+                    // 六根文本光标插在那儿；样稿用它只说一件事——「这一格是哪种档」，
+                    // 靠颜色对位，不靠形状抢戏。
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(seg.color)
+                        .frame(width: 8, height: 8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(seg.label)
+                            .font(theme.bodyFont(.callout))
+                            .foregroundStyle(theme.palette.ink)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if !seg.sub.isEmpty {
+                            // 样稿 `.row .sub b`：小字里只有「还剩多少能搬走」这一个数染灯色，
+                            // 后半句「已搬走 x」保持灰的。全染就没有重音了。
+                            Text(lampRun(seg.sub, seg.reclaim > 0 ? human(seg.reclaim) : "",
+                                         SweepRing.lamp(theme.palette.tint),
+                                         base: theme.palette.inkTertiary))
+                                .font(theme.bodyFont(.caption2))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                        // 定宽 232、不铺满：跟其余六页 `ItemRow` 那道条同一个尺寸，
+                        // 换页时「一格的长度代表多少」不用重新学。
+                        // 颜色走 `ItemRow` 那条老规矩（`DESIGN.md` §6 第 4 条）：灯色只给动得了的，
+                        // 其余一律 `inkTertiary`。**不拿 `seg.color`**——档色是为环上那条大弧调的，
+                        // 「没量到」「可清除」在浅皮下本来就只有 9%~16% 的不透明度，
+                        // 压进 3 磅高的条里就等于没画，一格 42.6 GB 的行会看着像 0。
+                        // 哪一档仍然认得出来：行首那颗 8×8 色块就是档色。
+                        ProportionBar(fraction: fraction,
+                                      color: seg.reclaim > 0 ? SweepRing.lamp(theme.palette.tint)
+                                                             : theme.palette.inkTertiary,
+                                      track: theme.palette.surfaceAlt,
+                                      height: 3, trackWidth: 232)
+                            .padding(.top, 5)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .contentShape(Rectangle())
             }
-            // 8×8 的圆角小方块，不是竖条。上一版画成 8×20 的竖条，六行排下来像
-            // 六根文本光标插在那儿；样稿用它只说一件事——「这一格是哪种档」，
-            // 靠颜色对位，不靠形状抢戏。
-            RoundedRectangle(cornerRadius: 3)
-                .fill(seg.color)
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(seg.label)
-                    .font(theme.bodyFont(.callout))
-                    .foregroundStyle(theme.palette.ink)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if !seg.sub.isEmpty {
-                    // 样稿 `.row .sub b`：小字里只有「还剩多少能搬走」这一个数染灯色，
-                    // 后半句「已搬走 x」保持灰的。全染就没有重音了。
-                    Text(lampRun(seg.sub, seg.reclaim > 0 ? human(seg.reclaim) : "",
-                                 SweepRing.lamp(theme.palette.tint),
-                                 base: theme.palette.inkTertiary))
-                        .font(theme.bodyFont(.caption2))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                // 定宽 232、不铺满：跟其余六页 `ItemRow` 那道条同一个尺寸，
-                // 换页时「一格的长度代表多少」不用重新学。
-                // 颜色走 `ItemRow` 那条老规矩（`DESIGN.md` §6 第 4 条）：灯色只给动得了的，
-                // 其余一律 `inkTertiary`。**不拿 `seg.color`**——档色是为环上那条大弧调的，
-                // 「没量到」「可清除」在浅皮下本来就只有 9%~16% 的不透明度，
-                // 压进 3 磅高的条里就等于没画，一格 42.6 GB 的行会看着像 0。
-                // 哪一档仍然认得出来：行首那颗 8×8 色块就是档色。
-                ProportionBar(fraction: fraction,
-                              color: seg.reclaim > 0 ? SweepRing.lamp(theme.palette.tint)
-                                                     : theme.palette.inkTertiary,
-                              track: theme.palette.surfaceAlt,
-                              height: 3, trackWidth: 232)
-                    .padding(.top, 5)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+            .accessibilityLabel(onExpand == nil ? seg.label
+                : (expanded ? LF("收起 %@ 的明细", seg.label)
+                            : LF("摊开 %@ 的明细", seg.label)))
             Spacer(minLength: 6)
-            // 样稿 `.row.act::after`：只有「按下去真会动那一格」的行带着道 `›`。
-            // 它从前站在行首，那是这行唯一的动作；现在行首让给展开记号了，
-            // 一道 `›` 挪到它管的数旁边——眼睛对着那一列找上膛的是哪行时不必回头。
-            Text(seg.reclaim > 0 ? "›" : "")
-                .font(theme.numeric(size: 15, weight: .regular))
-                .foregroundStyle(SweepRing.lamp(theme.palette.tint).opacity(0.72))
-                .frame(width: 8, alignment: .leading)
-            // 数和单位分两档，见 `SizeNumber`。两档字重再加一档分档：样稿 `.row .gb`
-            // 21px / `:not(.act)` 17px 且退到 ink-2。也就是「动得了的那几行」数更大、
-            // 更亮，「只能看的」更小、更灰——上一版六行全是 17pt regular，
-            // 这一列把所有段说成了同一件事。
-            SizeNumber(shown: seg.sizeShown,
-                       size: seg.reclaim > 0 ? 21 : 17,
-                       color: numberColor)
+            armCluster
             if let onGrant {
                 ThemeButton(kind: .compact, symbol: "lock.open",
                             title: L("去授权")) { onGrant() }
@@ -1864,7 +1853,6 @@ struct RingLedgerRow: View {
         }
         .background(rowBG, in: theme.controlShape())
         .contentShape(Rectangle())
-        .onTapGesture { tap?() }
         .onHover { onHover?($0) }
         .opacity(dim ? 0.32 : 1)
         .animation(theme.animation, value: lit)
@@ -1873,7 +1861,36 @@ struct RingLedgerRow: View {
                                              : LF("点开摊开「%@」的明细", seg.label)))
         .accessibilityElement(children: .combine)
         .accessibilityHint(onExpand == nil ? ""
-                        : LF("行首摊开「%@」的明细；带着那道记号的数点两次才收走", seg.label))
+                        : LF("点这一行摊开「%@」的明细；带着那道记号的数点两次才收走", seg.label))
+    }
+
+    /// 上膛那一档的命中区：那道 `›` 连同它管着的那个数。
+    ///
+    /// 行身整个交给「摊明细」之后，同一处落点不能兼任两件事——「点两下收走」必须有个
+    /// 比整行小的落点，否则浏览明细的手势和动手的手势是同一个。那道 `›` 本来就是标在
+    /// 这个数上的（样稿 `.row.act::after`），命中区跟着它走，眼睛不用重新学位置。
+    /// 环上那条弧仍然是第一个入口，摊开之后环收成 132 pt 参照盘时这里才是。
+    @ViewBuilder private var armCluster: some View {
+        let both = HStack(spacing: 12) {
+            Text(seg.reclaim > 0 ? "›" : "")
+                .font(theme.numeric(size: 15, weight: .regular))
+                .foregroundStyle(SweepRing.lamp(theme.palette.tint).opacity(0.72))
+                .frame(width: 8, alignment: .leading)
+            // 数和单位分两档，见 `SizeNumber`。两档字重再加一档分档：样稿 `.row .gb`
+            // 21px / `:not(.act)` 17px 且退到 ink-2。也就是「动得了的那几行」数更大、
+            // 更亮，「只能看的」更小、更灰——上一版六行全是 17pt regular，
+            // 这一列把所有段说成了同一件事。
+            SizeNumber(shown: seg.sizeShown,
+                       size: seg.reclaim > 0 ? 21 : 17,
+                       color: numberColor)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { tap?() }
+        if seg.reclaim > 0 {
+            both.help(LF("点两次把「%@」移进废纸篓", seg.label))
+        } else {
+            both
+        }
     }
 
     /// 右侧那枚数的颜色，三档：悬停/上膛 > 动得了 > 只能看。

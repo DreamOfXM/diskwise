@@ -10,6 +10,8 @@ import SwiftUI
 //
 // 必须配 DISKWISE_HOME_SHIM（见 build_app/make_demo_home.sh）：
 // 总览页会把 ~/Desktop、~/Documents 连同体积原样晒出去，那是隐私不是演示。
+// 但 shim 只管我们自己的路径解析，管不到 Docker 页：那一页问的是 `docker` 命令背后的
+// 真守护进程，镜像名照实进图。所以 `06-docker` 只能当本机取证用，别搬进 README。
 //
 // DISKWISE_SKIN=<皮肤 id> 指定用哪套皮肤拍。注意这只是给渲染器注入 Theme，
 // 不写解锁记录——`Channel.showsPricing` 为真时进阶皮肤在正常启动路径里依然要解锁才能穿上，
@@ -22,6 +24,8 @@ import SwiftUI
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
 // 要拍「底部那颗全选按下去 / 再按回来」：再加 DISKWISE_PICK=dup 或 dup,caches，
 //   命中的页各补两张 -selected / -deselected。
+// 要拍「点开页顶那句才存在的名单」（sheet 自己一扇窗，父窗那张没有它）：
+//   再加 DISKWISE_SHEET=dup，补 04-duplicates-envlist.png。
 // 要拍「列表页刚进去、一行都还没出来」那张加载态：再加 DISKWISE_MIDSCAN=overview,nodemodules
 //   （页名同 DISKWISE_ONLY），命中的页各补一张 -midscan。
 // 要拍「总览某一行的下一级摊开」：再加 DISKWISE_DRILL='~/Library'，总览那张之后会补一张
@@ -39,6 +43,9 @@ import SwiftUI
 // 前提是别让用户钳制生效，见 `SnapshotWindow`。
 // 要验「切语言当次生效」：再加 DISKWISE_LANG_FLIP=en|zhHans，整套拍完会在同一进程里
 // 当场换一次语言，把皮肤页再拍成 90-skins-after-flip-<码>.png。
+// 要出 README 顶部那张 GIF：改成 DISKWISE_FILM=10（总览页连拍，帧落 <目录>/film/f####.png），
+// 这一趟不逐页出静图。摊开哪一格用 DISKWISE_FILM_DRILL=rest|gap|<路径> 选，
+// 拼图在外面的 ffmpeg 里做，剧本逐拍见 `runFilm`。
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -170,6 +177,29 @@ enum SnapshotMode {
         (ProcessInfo.processInfo.environment["DISKWISE_EXPAND"] ?? "") == "1"
     }
 
+    /// DISKWISE_FILM=<fps>：不逐页出静图，改成把总览页的一段操作连拍成帧序列，
+    /// 落到 `<DISKWISE_SHOTS>/film/f0001.png …`，README 顶部那张 GIF 由这一串帧拼出来。
+    ///
+    /// 为什么不用系统录屏（`screencapture -v`）：那拍的是整屏，别的窗口压上来就进画，
+    /// 而这一串帧和静图走同一个取景（`pngData(window…)`，只取自己这一扇窗），
+    /// 画幅、裁顶、标题带钳制全是同一把尺子——否则 README 上首屏和正文那几张就不是一个界面。
+    static var filmFPS: Double? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_FILM"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let v = Double(raw), v >= 2, v <= 30 else { return nil }
+        return v
+    }
+
+    /// DISKWISE_FILM_DRILL=<rest|gap|某行完整路径>：连拍里「就地摊开一格」那一拍开哪一格。
+    /// 走的是账目行行首那颗 `▸` 的同一条路径（`overviewJump`），所以能用的口令和
+    /// `DISKWISE_JUMP` 完全一样。默认 `rest`：摊「其他已统计」那一格，它不依赖演示树里
+    /// 恰好有哪个目录，换一棵树也不会摊空。
+    private static var filmDrillToken: String {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_FILM_DRILL"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? "rest" : raw
+    }
+
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
     ///
     /// 哈希大文件的那几页要给足预算：一趟 640 MB 的全量哈希能安静好几秒，
@@ -184,6 +214,7 @@ enum SnapshotMode {
         (.dup, "04-duplicates", 20, 120),
         (.nodemodules, "05-node-modules", 15, 90),
         (.docker, "06-docker", 8, 30),
+        (.devcache, "07-dev-cache", 15, 90),
         (.caches, "07-caches", 15, 90),
         (.orphans, "08-leftovers", 15, 90),
         (.trash, "09-trash", 6, 20),
@@ -196,6 +227,15 @@ enum SnapshotMode {
     /// 「勾上去撤不回」是用户报过的缺陷，只有真按一次才照得出来；按的就是那颗按钮的 action。
     private static var pickPanels: Set<String> {
         Set((ProcessInfo.processInfo.environment["DISKWISE_PICK"] ?? "")
+            .split(separator: ",").map { $0.lowercased() })
+    }
+
+    /// DISKWISE_SHEET=dup：这些页在正常那张之后，再把「点开页顶那句才存在」的那份名单
+    /// 单独拍一张（`04-duplicates-envlist.png`）。名单是 sheet，自己一扇窗，
+    /// 父窗那张拍不到它，所以按 sheet 的窗号另问一次窗口服务器。
+    /// 点的仍是页顶那句自己的 action，不是另画一份弹层。
+    private static var sheetPanels: Set<String> {
+        Set((ProcessInfo.processInfo.environment["DISKWISE_SHEET"] ?? "")
             .split(separator: ",").map { $0.lowercased() })
     }
 
@@ -317,6 +357,32 @@ enum SnapshotMode {
                 ? "    ✓ \(name).png\n".data(using: .utf8)!
                 : "    ✗ \(name).png render failed\n".data(using: .utf8)!)
         }
+        /// 名单那张：sheet 是另一扇子窗，父窗的合成结果里没有它，只能按子窗号另问一次。
+        /// SwiftUI 的 sheet 也不挂在父窗的 `childWindows` 上（实测那一读是 0），
+        /// 所以只能在这个进程自己的窗口里找出那扇新出现的。问不到就明说，
+        /// 别写出一张空文件冒充名单。
+        func shootSheet(_ name: String) {
+            let sheet = NSApp.windows.first {
+                $0 !== window && $0.isVisible
+                    && String(describing: type(of: $0)).contains("Sheet")
+            }
+            var ok = false
+            if let sheet, let view = sheet.contentView,
+               let image = (compositedCapture ? windowServerImage(sheet) : nil)
+                    ?? offscreenImage(view: view, paper: paper, scale: sheet.backingScaleFactor),
+               let data = pngData(image, scale: sheet.backingScaleFactor) {
+                let path = (outDir as NSString).appendingPathComponent(name + ".png")
+                ok = (try? data.write(to: URL(fileURLWithPath: path))) != nil
+            }
+            FileHandle.standardError.write(ok
+                ? "    ✓ \(name).png\n".data(using: .utf8)!
+                : "    ✗ \(name).png no sheet window\n".data(using: .utf8)!)
+        }
+        if let fps = filmFPS {
+            runFilm(store: store, window: window, paper: paper, canvas: canvas,
+                    outDir: outDir, fps: fps)
+            exit(0)
+        }
         for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
             store.jumpTo = panel
             if midscanPanels.contains(String(describing: panel)) {
@@ -325,6 +391,13 @@ enum SnapshotMode {
             }
             waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
             shoot(panel == .big && bigDrillDir != nil ? name + "-drilled" : name)
+            if sheetPanels.contains(String(describing: panel)) {
+                store.envListPulse += 1
+                pump(1.6)     // 弹出动画 + 名单首帧
+                shootSheet(name + "-envlist")
+                store.envListPulse += 1   // 再按一次收回去，别把名单挂到下一页上
+                pump(0.6)
+            }
             if pickPanels.contains(String(describing: panel)) {
                 store.selectAllPulse += 1
                 waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 12)
@@ -395,6 +468,66 @@ enum SnapshotMode {
             shoot("90-skins-after-flip-\(flip.rawValue)")
         }
         exit(0)
+    }
+
+    /// 连拍剧本（`DISKWISE_FILM`）。每一拍按的都是页面上那些控件自己的 action：
+    /// 摊开走账目行行首那颗 `▸` 的同一条 `openChildDrill`／`openDrill`，
+    /// 上膛与真搬走的是弧上 `onTapGesture` 的同一条 `tapArc`，
+    /// 放回走废纸篓页那颗「撤销」的同一条 `undoLast`。没有一帧是另画出来的假界面。
+    ///
+    /// ②③ 之间那段 `waitSettled` 不落帧：整盘那一趟要走上百 G，中间全是重复帧，
+    /// 拼进 GIF 只会白占体积。
+    @MainActor
+    private static func runFilm(store: AppStore, window: NSWindow, paper: NSColor,
+                                canvas: NSSize, outDir: String, fps: Double) {
+        let dir = (outDir as NSString).appendingPathComponent("film")
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let tick = 1.0 / fps
+        var frame = 0
+        /// 静置若干秒，每 tick 落一张。
+        func roll(_ seconds: Double) {
+            var left = seconds
+            while left > 0 {
+                pump(tick)
+                left -= tick
+                frame += 1
+                guard let data = pngData(window, paper: paper, canvas: canvas) else {
+                    FileHandle.standardError.write("    ✗ f\(frame) 拍不到\n".data(using: .utf8)!)
+                    continue
+                }
+                try? data.write(to: URL(fileURLWithPath: String(format: "%@/f%04d.png", dir, frame)))
+            }
+        }
+        /// 只推进主循环、不落帧：等布局、等一趟真量完。
+        func gap(_ seconds: Double) { pump(seconds) }
+
+        store.jumpTo = .overview
+        // 开机那一趟在 `run` 开头的 `pump(3)` 里就跑完了，而 `jumpTo` 指到已经在这儿的页面
+        // 不会重扫——不另起一趟，① 那一段就是一排一模一样的帧。
+        // 所以这里走环上那颗「重扫」的同一条 `refresh`：旧账先清空，弧再一条条长回来。
+        waitSettled(window, paper: paper, canvas: canvas, minSeconds: 12, maxSeconds: 300)
+        slowScanFill = true
+        store.overviewRing = "rescan"
+        gap(0.6)
+        roll(4.2)      // ① 扫描中：弧一条条长出来，圆心那句读数在走
+        slowScanFill = false
+        waitSettled(window, paper: paper, canvas: canvas, minSeconds: 12, maxSeconds: 300)
+        roll(1.0)      // ② 量完了：满幅的环 + 旁边那一列账
+        // 每一拍之间都不留 gap：摊开那段动画只有 0.35 秒，先泵半秒再落帧，
+        // 拍到的就只剩动画结束后的那张静图（上一版实测正是这样，6 个状态之间一步跳完）。
+        store.overviewJump = filmDrillToken
+        roll(3.4)      // ③ 就地摊开：明细长出来，环收成小参照盘
+        store.overviewCollapsePulse += 1
+        roll(1.6)      // ④ 收回去：环长回招牌尺寸
+        store.overviewRing = "arm"
+        roll(1.6)      // ⑤ 第一下：那条弧上膛，3.2 秒自动解除的倒计时在走
+        store.overviewRing = "arm"   // 同一条弧的第二下 —— 这才真搬
+        roll(3.0)      // ⑥ 弧让位、账当场重算、顶上那句「已移入废纸篓」
+        let restored = store.undoLast()
+        store.notice = nil
+        roll(1.6)      // ⑦ 撤销放回，账回到原位
+        FileHandle.standardError.write("  film: \(frame) 帧 @ \(fps)fps，放回 \(restored)\n"
+            .data(using: .utf8)!)
     }
 
     /// 走不走窗口服务器的合成路径，由 `run` 开头探一次决定。
@@ -473,6 +606,13 @@ enum SnapshotMode {
         let cropped = NSBitmapImageRep(cgImage: out)
         cropped.size = NSSize(width: CGFloat(out.width) / scale, height: CGFloat(out.height) / scale)
         return cropped.representation(using: .png, properties: [:])
+    }
+
+    /// 把窗口服务器给的一张位图编成 PNG：点尺寸要按倍率折回去，否则图会被按 2x 铺满。
+    private static func pngData(_ image: CGImage, scale: CGFloat) -> Data? {
+        let rep = NSBitmapImageRep(cgImage: image)
+        rep.size = NSSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
+        return rep.representation(using: .png, properties: [:])
     }
 
     /// 窗口服务器里这一扇窗的合成结果。`optionIncludingWindow` 只取自己这一张，

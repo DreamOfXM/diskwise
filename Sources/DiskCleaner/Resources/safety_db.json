@@ -1,16 +1,17 @@
 {
-  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
+  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-08-31",
+  "updated": "2026-09-27",
   "entries": [
     {
-      "name": "Codex 崩溃转储",
-      "what": "Codex 崩溃时生成的 .dmp 报告，只用于上报诊断",
+      "name": "ChatGPT 桌面版崩溃转储",
+      "what": "ChatGPT 桌面版崩溃时生成的 .dmp 报告，只用于上报诊断（目录叫 Codex 是因为这个 App 的包名就是 com.openai.codex）",
       "whatif": "删掉不影响任何功能",
       "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
       "path": "~/Library/Application Support/Codex/Crashpad/pending",
       "level": "safe",
-      "grp": "general"
+      "grp": "general",
+      "app": "com.openai.codex"
     },
     {
       "name": "Qoder 崩溃转储",
@@ -19,7 +20,8 @@
       "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
       "path": "~/Library/Application Support/Qoder/Crashpad/pending",
       "level": "safe",
-      "grp": "general"
+      "grp": "general",
+      "app": "com.qoder.app"
     },
     {
       "name": "Chrome 崩溃转储",
@@ -47,28 +49,20 @@
       "rec": "无需恢复；需要时 nvm install 会重新下载",
       "path": "~/.nvm/.cache",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://github.com/nvm-sh/nvm"
-    },
-    {
-      "name": "npm 缓存",
-      "what": "npm 的内容寻址下载缓存（_cacache）",
-      "whatif": "删掉后下次安装会慢一次",
-      "rec": "无需恢复；npm install 会自动重建缓存",
-      "path": "~/.npm/_cacache",
-      "level": "safe",
-      "grp": "general",
-      "docs": "https://docs.npmjs.com/"
+      "grp": "dev",
+      "docs": "https://github.com/nvm-sh/nvm",
+      "icon": "nvm"
     },
     {
       "name": "npm 缓存目录",
-      "what": "npm 的整个缓存根目录 ~/.npm",
-      "whatif": "删掉后已装的全局包不受影响，缓存会重建",
+      "what": "npm 的整个缓存目录，含 _cacache 那份内容寻址下载缓存",
+      "whatif": "删掉后已装的全局包不受影响，下次安装会重新下载依赖",
       "rec": "无需恢复；npm install 自动重建",
       "path": "~/.npm",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://docs.npmjs.com/"
+      "grp": "dev",
+      "docs": "https://docs.npmjs.com/",
+      "icon": "npm"
     },
     {
       "name": "tnpm 缓存",
@@ -77,7 +71,7 @@
       "rec": "无需恢复；下次安装自动重建",
       "path": "~/.tnpm",
       "level": "safe",
-      "grp": "general"
+      "grp": "dev"
     },
     {
       "name": "npminstall 安装包",
@@ -86,7 +80,7 @@
       "rec": "无需恢复；下次安装自动重建",
       "path": "~/.npminstall_tarball",
       "level": "safe",
-      "grp": "general"
+      "grp": "dev"
     },
     {
       "name": "pnpm store",
@@ -95,8 +89,9 @@
       "rec": "无需恢复；pnpm install 会重新下载缺失的包",
       "path": "~/Library/pnpm/store",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://pnpm.io/"
+      "grp": "dev",
+      "docs": "https://pnpm.io/",
+      "icon": "pnpm"
     },
     {
       "name": "yarn 缓存",
@@ -105,8 +100,9 @@
       "rec": "无需恢复；yarn install 自动重建",
       "path": "~/Library/Caches/Yarn",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://yarnpkg.com/"
+      "grp": "dev",
+      "docs": "https://yarnpkg.com/",
+      "icon": "yarn"
     },
     {
       "name": "bun 缓存",
@@ -115,8 +111,9 @@
       "rec": "无需恢复；bun install 自动重建",
       "path": "~/.bun/install/cache",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://bun.sh/"
+      "grp": "dev",
+      "docs": "https://bun.sh/",
+      "icon": "bun"
     },
     {
       "name": "Gradle 缓存",
@@ -125,18 +122,20 @@
       "rec": "无需恢复；下次构建自动重新下载，离线环境请先确认依赖仓库可用",
       "path": "~/.gradle/caches",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://gradle.org/"
+      "grp": "dev",
+      "docs": "https://gradle.org/",
+      "icon": "gradle"
     },
     {
-      "name": "Maven 仓库",
+      "name": "Maven 依赖仓库",
       "what": "Maven 本地依赖仓库 ~/.m2/repository",
       "whatif": "删掉后首次构建会全量重新下载（可能较慢）",
       "rec": "无需恢复；构建时 Maven 按需重新下载，离线机器需先配置好镜像仓库",
       "path": "~/.m2/repository",
       "level": "warn",
-      "grp": "general",
-      "docs": "https://maven.apache.org/"
+      "grp": "dev",
+      "docs": "https://maven.apache.org/",
+      "icon": "apachemaven"
     },
     {
       "name": "pip 缓存",
@@ -145,8 +144,9 @@
       "rec": "无需恢复；pip install 自动重建",
       "path": "~/Library/Caches/pip",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://pip.pypa.io/"
+      "grp": "dev",
+      "docs": "https://pip.pypa.io/",
+      "icon": "python"
     },
     {
       "name": "Homebrew 缓存",
@@ -155,8 +155,9 @@
       "rec": "无需恢复；重装时 brew 会重新下载",
       "path": "~/Library/Caches/Homebrew",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://brew.sh/"
+      "grp": "dev",
+      "docs": "https://brew.sh/",
+      "icon": "homebrew"
     },
     {
       "name": "conda 包缓存",
@@ -165,8 +166,9 @@
       "rec": "无需恢复；conda 会按需重新下载",
       "path": "~/.conda/pkgs",
       "level": "safe",
-      "grp": "general",
-      "docs": "https://docs.conda.io/"
+      "grp": "dev",
+      "docs": "https://docs.conda.io/",
+      "icon": "anaconda"
     },
     {
       "name": "Xcode DerivedData",
@@ -175,7 +177,7 @@
       "rec": "无需恢复；下次打开项目 Xcode 自动重建",
       "path": "~/Library/Developer/Xcode/DerivedData",
       "level": "safe",
-      "grp": "general",
+      "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
@@ -186,31 +188,32 @@
       "rec": "无法直接恢复；如有上架/留存需求请先备份，或用同一代码提交重新打包",
       "path": "~/Library/Developer/Xcode/Archives",
       "level": "warn",
-      "grp": "general",
+      "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {
-      "name": "iOS DeviceSupport",
+      "name": "Xcode iOS DeviceSupport",
       "what": "真机调试时拷贝的旧系统版本调试符号",
       "whatif": "删掉后连旧系统真机调试要重新生成",
       "rec": "无需恢复；连接对应系统的真机时 Xcode 会自动重新生成",
       "path": "~/Library/Developer/Xcode/iOS DeviceSupport",
       "level": "warn",
-      "grp": "general",
+      "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {
-      "name": "模拟器缓存",
-      "what": "CoreSimulator 的临时缓存",
-      "whatif": "删掉后模拟器下次启动会重建",
-      "rec": "无需恢复；模拟器自动重建",
-      "path": "~/Library/Developer/CoreSimulator/Caches",
-      "level": "safe",
-      "grp": "general",
+      "name": "Xcode 模拟器设备",
+      "what": "每台 iOS 模拟器的整机镜像，连同里面已装的 App 数据与登录态",
+      "whatif": "删掉的模拟器下次启动是台空机器，里面的 App 和数据一起没了",
+      "rec": "无法直接恢复；需在 Xcode 里重新创建模拟器",
+      "path": "~/Library/Developer/CoreSimulator/Devices",
+      "level": "warn",
+      "grp": "dev",
       "app": "com.apple.dt.Xcode",
-      "docs": "https://developer.apple.com/xcode/"
+      "docs": "https://developer.apple.com/xcode/",
+      "icon": "xcode"
     },
     {
       "name": "iOS 设备备份",
@@ -219,7 +222,7 @@
       "rec": "已删的备份无法恢复；重新用数据线连接设备可再做一次全新备份",
       "path": "~/Library/Application Support/MobileSync/Backup",
       "level": "warn",
-      "grp": "general"
+      "grp": "dev"
     },
     {
       "name": "Docker 数据",
@@ -338,6 +341,193 @@
       "path": "~/Library/Containers/com.tencent.WeWork/Data/Library/Application Support/WXWork/*/Cache",
       "level": "warn",
       "grp": "cn_app"
+    },
+    {
+      "name": "Ollama 模型",
+      "what": "Ollama 拉取的大模型权重，单个模型常常几十 GB",
+      "whatif": "删掉的模型要重新联网下载才能再用",
+      "rec": "无需恢复；ollama pull 模型名 重新下载",
+      "path": "~/.ollama/models",
+      "level": "warn",
+      "grp": "dev",
+      "icon": "ollama",
+      "docs": "https://docs.ollama.com/"
+    },
+    {
+      "name": "uv 下载缓存",
+      "what": "uv 为 Python 依赖下载的包与预编译轮子",
+      "whatif": "删掉后下次装环境会重新下载，慢一次",
+      "rec": "无需恢复；uv 下次运行自动重建",
+      "path": "~/.cache/uv",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "uv",
+      "docs": "https://docs.astral.sh/uv/reference/cli/#uv-cache-clean"
+    },
+    {
+      "name": "Codex CLI 运行时装机",
+      "what": "Codex CLI 自己下载的 Node 运行时与依赖",
+      "whatif": "删掉后 codex 下次启动要重新拉一遍运行时",
+      "rec": "无需恢复；再次运行 codex 会自动装回",
+      "path": "~/.cache/codex-runtimes",
+      "level": "warn",
+      "grp": "dev",
+      "icon": "openai",
+      "docs": "https://developers.openai.com/codex/cli"
+    },
+    {
+      "name": "Gradle 版本下载",
+      "what": "gradlew 按项目声明的版本下载下来的 Gradle 发行包",
+      "whatif": "删掉后下次构建会重新下载对应版本",
+      "rec": "无需恢复；下次执行 ./gradlew 自动重下",
+      "path": "~/.gradle/wrapper",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "gradle",
+      "docs": "https://docs.gradle.org/current/userguide/gradle_wrapper.html"
+    },
+    {
+      "name": "chrome-devtools-mcp 浏览器内核",
+      "what": "chrome-devtools-mcp 为驱动浏览器下载的 Chrome for Testing",
+      "whatif": "删掉后这个 MCP 下次启动会重新下载浏览器",
+      "rec": "无需恢复；下次启动自动重新下载",
+      "path": "~/.cache/chrome-devtools-mcp",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "googlechrome",
+      "docs": "https://github.com/ChromeDevTools/chrome-devtools-mcp"
+    },
+    {
+      "name": "Hugging Face 模型缓存",
+      "what": "transformers / datasets 下载的模型与数据集，单个可达几十 GB",
+      "whatif": "删掉的模型要重新下载才能再用，受限模型还得再登录一次",
+      "rec": "无需恢复；按模型仓库名重新下载",
+      "path": "~/.cache/huggingface",
+      "level": "warn",
+      "grp": "dev",
+      "icon": "huggingface",
+      "docs": "https://huggingface.co/docs/huggingface_hub/guides/manage-cache"
+    },
+    {
+      "name": "Whisper 模型缓存",
+      "what": "openai-whisper 下载的语言模型权重",
+      "whatif": "删掉后下次转写会重新下载模型",
+      "rec": "无需恢复；再次调用 whisper 自动下载",
+      "path": "~/.cache/whisper",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "openai",
+      "docs": "https://github.com/openai/whisper"
+    },
+    {
+      "name": "cargo 注册表",
+      "what": "cargo 拉取的 crates.io 索引与依赖源码",
+      "whatif": "删掉后下次构建 Rust 项目要重新下载依赖",
+      "rec": "无需恢复；cargo build 自动重建",
+      "path": "~/.cargo/registry",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "rust",
+      "docs": "https://doc.rust-lang.org/cargo/guide/why-cargo-directory.html"
+    },
+    {
+      "name": "IntelliJ IDEA 缓存",
+      "what": "IntelliJ IDEA 建的索引、本地历史与编译缓存",
+      "whatif": "删掉后首次打开项目要重建索引，工程配置不在这里",
+      "rec": "无需恢复；IDE 打开项目自动重建",
+      "path": "~/Library/Caches/JetBrains/IntelliJIdea*",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "intellijidea",
+      "docs": "https://www.jetbrains.com/help/idea/directories-used-by-the-ide-to-store-settings-caches-plugins-and-logs.html"
+    },
+    {
+      "name": "PyCharm 缓存",
+      "what": "PyCharm 建的索引、本地历史与编译缓存",
+      "whatif": "删掉后首次打开项目要重建索引，工程配置不在这里",
+      "rec": "无需恢复；IDE 打开项目自动重建",
+      "path": "~/Library/Caches/JetBrains/PyCharm*",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "pycharm",
+      "docs": "https://www.jetbrains.com/help/pycharm/directories-used-by-the-ide-to-store-settings-caches-plugins-and-logs.html"
+    },
+    {
+      "name": "Android Studio 缓存",
+      "what": "Android Studio 的索引、编译缓存与日志",
+      "whatif": "删掉后首次打开项目要重建索引",
+      "rec": "无需恢复；IDE 自动重建",
+      "path": "~/Library/Caches/Google/AndroidStudio*",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "androidstudio",
+      "docs": "https://developer.android.com/studio/intro/studio-config"
+    },
+    {
+      "name": "Android 虚拟机镜像",
+      "what": "Android 虚拟机（AVD）的系统镜像与里面存的数据",
+      "whatif": "这些虚拟机连同已装的 App 数据一起没了",
+      "rec": "无法直接恢复；需在 Device Manager 重新创建",
+      "path": "~/.android/avd",
+      "level": "warn",
+      "grp": "dev",
+      "icon": "androidstudio",
+      "docs": "https://developer.android.com/studio/run/emulator-commandline"
+    },
+    {
+      "name": "Android SDK",
+      "what": "sdkmanager 装的 Android 平台、构建工具与系统镜像",
+      "whatif": "删掉后所有安卓项目都构建不了，要重装整套 SDK",
+      "rec": "无法直接恢复；需用 sdkmanager 重新安装",
+      "path": "~/Library/Android/sdk",
+      "level": "warn",
+      "grp": "dev",
+      "icon": "androidstudio",
+      "docs": "https://developer.android.com/tools"
+    },
+    {
+      "name": "Go 模块缓存",
+      "what": "go 下载的依赖模块源码",
+      "whatif": "删掉后下次构建会重新下载依赖",
+      "rec": "无需恢复；go mod download 自动重建",
+      "path": "~/go/pkg/mod",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "go",
+      "docs": "https://go.dev/ref/mod#module-cache"
+    },
+    {
+      "name": "Go 构建缓存",
+      "what": "go 编译产生的中间产物",
+      "whatif": "删掉后首次构建慢一次",
+      "rec": "无需恢复；go build 自动重建",
+      "path": "~/Library/Caches/go-build",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "go",
+      "docs": "https://pkg.go.dev/cmd/go#hdr-Build_cache"
+    },
+    {
+      "name": "CocoaPods 缓存",
+      "what": "CocoaPods 下载的 pod 源码压缩包",
+      "whatif": "删掉后下次 pod install 会重新下载",
+      "rec": "无需恢复；pod install 自动重下",
+      "path": "~/Library/Caches/CocoaPods",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "cocoapods",
+      "docs": "https://guides.cocoapods.org/using/repo.html"
+    },
+    {
+      "name": "SwiftPM 缓存",
+      "what": "Swift Package Manager 克隆下来的依赖仓库副本",
+      "whatif": "删掉后首次解析依赖要重新克隆",
+      "rec": "无需恢复；Xcode 或 swift build 会自动重新获取",
+      "path": "~/Library/Caches/org.swift.swiftpm",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "swift",
+      "docs": "https://www.swift.org/documentation/package-manager/"
     }
   ]
 }

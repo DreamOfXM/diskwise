@@ -45,17 +45,19 @@ final class ScanStore: ObservableObject {
     let dup = DupModel()
     let nodemodules = NMModel()
     let docker = DockerModel()
-    let caches = CachesModel()
+    let caches = CachesModel(groupKeys: ["general", "cn_app"])
+    let devcache = CachesModel(groupKeys: ["dev"])
     let orphans = OrphansModel()
 
     init() {
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
         // 两个模型都由这里持有，所以接线放在这一层，不让 OverviewModel 去摸 store。
-        overview.bind(caches: caches)
+        overview.bind(caches: [caches, devcache])
         // 侧栏那几格容量要跟着各页变，而各页的模型是 8 个独立的 ObservableObject：
         // 把它们的 willChange 转发上来，持有 ScanStore 的那一层才重画。
         forward(overview); forward(big); forward(old); forward(dup)
         forward(nodemodules); forward(docker); forward(caches); forward(orphans)
+        forward(devcache)
     }
 
     private var bag = Set<AnyCancellable>()
@@ -78,11 +80,14 @@ final class ScanStore: ObservableObject {
         case .nodemodules: return nodemodules.started ? nodemodules.totalBytes : nil
         case .docker:      return docker.started ? docker.totalBytes : nil
         // 缓存页只量得出体积的那些行才算：没量出来的那格印的是「统计中…」，加不进任何账。
-        case .caches:      return caches.started
-                                ? caches.items.reduce(Int64(0)) { $0 + max(0, $1.size ?? 0) } : nil
+        case .caches, .devcache: return cacheAmount(panel == .devcache ? devcache : caches)
         case .orphans:     return orphans.started ? orphans.totalBytes : nil
         case .overview, .trash, .appearance, .feedback: return nil
         }
+    }
+
+    private func cacheAmount(_ model: CachesModel) -> Int64? {
+        model.started ? model.items.reduce(Int64(0)) { $0 + max(0, $1.size ?? 0) } : nil
     }
 }
 
@@ -107,6 +112,13 @@ final class AppStore: ObservableObject {
     /// 而「勾上 170 项之后撤得回来」这件事只有真按一次才照得出来。
     /// 按下的就是那颗按钮自己的 action，不是另画的假界面。
     @Published var selectAllPulse = 0
+    /// 让画面上那一页把「不参与比对的组」那份名单弹出来：每 +1 就点一次页顶那句。
+    /// 同样只有截图链路会写（`DISKWISE_SHEET`）。名单只在点开后才存在，而这一路没有键鼠，
+    /// 按的仍是那句 `EnvCopiesClause` 自己的 action。
+    @Published var envListPulse = 0
+    /// 把总览那一屏当前摊开的明细收回去。行首那颗 `▸` 的收起路径就是再点一次同一行，
+    /// 截图这一路点不到它，所以每 +1 让视图自己走一遍同一颗 `setDrill(nil)`。
+    @Published var overviewCollapsePulse = 0
     /// 让总览页对环上某一条弧**真点一下**：`arm` = 挑一条动得了的弧（上膛或搬走，
     /// 取决于它此刻是否已经上膛），`refuse` = 挑一条动不了的弧看它怎么解释自己。
     /// 只有截图链路会写（`DISKWISE_RING`），走的仍是弧上 `onTapGesture` 那个
@@ -154,7 +166,7 @@ final class AppStore: ObservableObject {
 }
 
 enum AppPanel: Hashable, CaseIterable {
-    case overview, big, old, dup, nodemodules, docker, caches, orphans, trash, appearance, feedback
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback
 
     var symbol: String {
         switch self {
@@ -164,6 +176,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .dup: return "square.on.square"
         case .nodemodules: return "shippingbox"
         case .docker: return "cube"
+        case .devcache: return "hammer"
         case .caches: return "sparkles"
         case .orphans: return "app.badge"
         case .trash: return "trash"
@@ -181,7 +194,8 @@ enum AppPanel: Hashable, CaseIterable {
         case .dup: return "重复文件"
         case .nodemodules: return "node_modules"
         case .docker: return "Docker 占用"
-        case .caches: return "缓存清理"
+        case .devcache: return "开发缓存"
+        case .caches: return "应用缓存"
         case .orphans: return "卸载残留"
         case .trash: return "废纸篓"
         case .appearance: return "外观皮肤"
@@ -230,7 +244,7 @@ struct ContentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 sideSection(L("看清空间"), [.overview, .big, .old, .dup])
-                sideSection(L("开发机专项"), [.nodemodules, .docker])
+                sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
                 sideSection(L("清理"), [.caches, .orphans, .trash])
                 sideSection(L("关于"), [.appearance, .feedback])
             }
@@ -337,6 +351,7 @@ struct ContentView: View {
         case .dup: DupView(model: scans.dup)
         case .nodemodules: NMView(model: scans.nodemodules)
         case .docker: DockerView(model: scans.docker)
+        case .devcache: CachesView(model: scans.devcache, page: .dev)
         case .caches: CachesView(model: scans.caches)
         case .orphans: OrphansView(model: scans.orphans)
         case .trash: TrashView()

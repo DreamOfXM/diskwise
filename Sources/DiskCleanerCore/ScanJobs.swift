@@ -112,6 +112,63 @@ public struct DupGroup: Identifiable {
     public var waste: Int64 { size * Int64(max(0, files.count - 1)) }
 }
 
+/// 一组内容相同、其中至少一份住在受管环境里的副本。
+///
+/// `files` 只有被摘出去的那几份：同组剩下的自由副本照旧进 `DupGroup`，
+/// 两边加起来才是这一组的全部内容，哪一份都不会只在一处出现、另一处凭空消失。
+public struct EnvDupGroup: Identifiable {
+    public let id = UUID()
+    public var size: Int64
+    public var files: [URL]
+    /// 这些副本所在的环境根，去重后按路径排：名单要说「住在几个环境里」
+    public var envs: [String]
+    public var bytes: Int64 { size * Int64(files.count) }
+}
+
+public struct DupScanResult {
+    public var groups: [DupGroup]
+    public var excluded: [EnvDupGroup]
+}
+
+/// 这份文件住在哪个受管环境里，取不到返回 nil。
+///
+/// 判据只看路径，不碰文件系统：Python 虚拟环境、pipx、node_modules、Xcode 构建区
+/// 里的每一份副本都是那个环境自己装的、自己要用的，删一份那个环境就缺一块。
+/// 它跟「同一份内容在两个项目目录里各存了一份」不是一回事，所以整批摘出去，
+/// 不进重复比对。要回收那块地，得卸掉整个环境。
+public func managedEnv(of url: URL) -> String? {
+    let comps = url.pathComponents
+    guard comps.first == "/", comps.count > 2 else { return nil }
+    let last = comps.count - 1        // 最后一颗是文件名，不当标记
+    // 环境根 = 标记那颗（或它的名字那颗）为止的前缀
+    func root(_ end: Int) -> String {
+        let upto = min(max(end, 1), last)
+        let body = comps[1..<upto]
+        return body.isEmpty ? "/" : "/" + body.joined(separator: "/")
+    }
+    var i = 1
+    while i < last {
+        switch comps[i] {
+        case "node_modules", "venv", ".venv":
+            return root(i + 1)
+        case "DerivedData":
+            // 构建区按工程分格子，环境根要连那一格一起吃下去
+            return root(i + 2)
+        case "venvs" where i >= 2 && comps[i - 1] == "pipx":
+            return root(i + 2)
+        case "site-packages":
+            // .../lib/python3.x/site-packages/…：环境根在 lib 的上一层
+            if i >= 3, comps[i - 1].hasPrefix("python"), comps[i - 2] == "lib" {
+                return root(i - 2)
+            }
+            return root(i)
+        default:
+            i += 1
+        }
+    }
+    return nil
+}
+
 private func md5Hex(_ data: Data) -> String {
     Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
@@ -156,10 +213,11 @@ public func shortDate(_ d: Date) -> String {
     return f.string(from: d)
 }
 
-public func findDupGroups(_ rows: [FileRow]) -> [DupGroup] {
+public func findDupGroups(_ rows: [FileRow]) -> DupScanResult {
     var bySize: [Int64: [URL]] = [:]
     for r in rows { bySize[r.size, default: []].append(r.url) }
     var groups: [DupGroup] = []
+    var excluded: [EnvDupGroup] = []
     for (sz, urls) in bySize where urls.count > 1 {
         var byPart: [String: [URL]] = [:]
         for u in urls {
@@ -183,11 +241,23 @@ public func findDupGroups(_ rows: [FileRow]) -> [DupGroup] {
                         ? fileDate($0) > fileDate($1)
                         : $0.path < $1.path
                 }
-                groups.append(DupGroup(size: sz, files: ordered))
+                // 环境自带的那些先摘出去：它们不是「多出来的一份」，是某个环境的
+                // 一块零件。摘完之后不够两份的，这一组就没有可回收的副本了。
+                var free: [URL] = []
+                var owned: [URL] = []
+                for u in ordered {
+                    if managedEnv(of: u) == nil { free.append(u) } else { owned.append(u) }
+                }
+                if free.count > 1 { groups.append(DupGroup(size: sz, files: free)) }
+                if !owned.isEmpty {
+                    let envs = Set(owned.compactMap { managedEnv(of: $0) }).sorted()
+                    excluded.append(EnvDupGroup(size: sz, files: owned, envs: envs))
+                }
             }
         }
     }
-    return groups.sorted { $0.waste > $1.waste }
+    return DupScanResult(groups: groups.sorted { $0.waste > $1.waste },
+                         excluded: excluded.sorted { $0.bytes > $1.bytes })
 }
 
 // ══ 卸载残留：以已安装 App 为基准，找 App 没了、数据还在的孤儿 ══
@@ -352,7 +422,30 @@ public struct NMProject: Identifiable {
     public var nmCount: Int
     public var date: String
     public var partial: Bool
+    /// 这份依赖是谁装的（`npm` / `pnpm` / `yarn` / `bun`）。认不出来就是 nil，界面挂通用图。
+    public var manager: String?
     public var selected = false
+}
+
+/// 这一份 `node_modules` 是谁装出来的。先认目录里的内部标记，认不出才看项目根的锁文件。
+///
+/// 内部标记优先是有理由的：锁文件会说谎——项目改投 pnpm 之后 `package-lock.json`
+/// 常常还躺在仓库里，而 `node_modules/.pnpm` 是真把依赖写进盘的那个管理器留下的痕迹。
+/// 这一行报的是「这些字节是谁落下来的」，不是「这个项目现在声称用谁」。
+/// 本机实测（2026-09-27）八处 `node_modules`：`.pnpm` 两处、`.package-lock.json` 六处，
+/// 与各自的 `pnpm-lock.yaml` / `package-lock.json` 一一对上。
+private func nodePackageManager(nmDir: String, projectDir: String) -> String? {
+    func has(_ dir: String, _ name: String) -> Bool {
+        FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent(name))
+    }
+    if has(nmDir, ".pnpm") || has(nmDir, ".modules.yaml") { return "pnpm" }
+    if has(nmDir, ".package-lock.json") { return "npm" }
+    if has(nmDir, ".yarn-integrity") || has(nmDir, ".yarn-state.yml") { return "yarn" }
+    if has(projectDir, "pnpm-lock.yaml") { return "pnpm" }
+    if has(projectDir, "yarn.lock") { return "yarn" }
+    if has(projectDir, "bun.lockb") || has(projectDir, "bun.lock") { return "bun" }
+    if has(projectDir, "package-lock.json") { return "npm" }
+    return nil
 }
 
 /// node_modules 只在用户区找，不跟着「整盘」开关走。
@@ -388,8 +481,8 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
         progress?.walk(files: kids.count, bytes: 0, in: d)
     }
     // 第二段：并行统计，聚合到项目级
-    var projects: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool)] = [:]
-    await withTaskGroup(of: (proj: String, size: Int64, mt: Date, partial: Bool)?.self) { group in
+    var projects: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool, mgr: String?)] = [:]
+    await withTaskGroup(of: (proj: String, size: Int64, mt: Date, partial: Bool, mgr: String?)?.self) { group in
         for nm in nmDirs {
             group.addTask {
                 if Task.isCancelled { return nil }
@@ -408,16 +501,18 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
                 }
                 let sz = await dirSize(u)
                 let mt = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return (proj, sz, mt, false)
+                return (proj, sz, mt, false, nodePackageManager(nmDir: nm, projectDir: proj))
             }
         }
         for await r in group {
             guard let r = r else { continue }
-            var e = projects[r.proj] ?? (0, 0, .distantPast, false)
+            var e = projects[r.proj] ?? (0, 0, .distantPast, false, nil)
             e.size += r.size
             e.nms += 1
             e.mtime = max(e.mtime, r.mt)
             if r.partial { e.partial = true }
+            // 一个项目里可能有多处 node_modules（monorepo）：第一个认出来的管理器就够
+            if e.mgr == nil { e.mgr = r.mgr }
             projects[r.proj] = e
         }
     }
@@ -425,37 +520,136 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
     f.dateFormat = "yyyy-MM-dd"
     return projects.map { (proj, e) in
         NMProject(project: proj, size: e.size, nmCount: e.nms,
-                  date: f.string(from: e.mtime), partial: e.partial)
+                  date: f.string(from: e.mtime), partial: e.partial, manager: e.mgr)
     }.sorted { $0.size > $1.size }
 }
 
-// ══ Docker：只读命令明细（不代删，只指路）；没跑则回退粗粒度 ══
+// ══ iOS 模拟器：一台一行（设备名 / 系统 / 最后启动 / 占盘）══
 
-/// Docker 条目的种类——措辞归界面，这里只给分类和数字
+/// 一台模拟器的账。
+public struct SimDevice: Identifiable {
+    /// UDID，也就是那台设备在 `Devices/` 下的目录名
+    public let id: String
+    /// 设备自己报的名字（`iPhone 17`），不是我们编的
+    public var name: String
+    /// 系统版本（`iOS 26.5`）；`device.plist` 读不出来时给空串，界面就不印这一格
+    public var os: String
+    /// 最后一次启动。从没启动过的台子这一格是 nil——那种最该先动。
+    public var lastBooted: Date?
+    public var size: Int64
+    public var path: String
+}
+
+/// 逐台量模拟器。只在用户摊开「Xcode 模拟器设备」那一行时跑，不进常规扫描。
+///
+/// 为什么这一行非要逐台：本机实测（2026-09-27）26 台里近 7 天动过的 17 台占了 16.9 GB，
+/// 而 7 天没动的那 8 台加起来只有 139 MB。别处那条「留着新的、删旧的」的默认规则
+/// 在这里几乎省不出空间，只能把每台摆出来让人自己挑。
+public func scanSimulators(under dir: URL) async -> [SimDevice] {
+    let fm = FileManager.default
+    guard let kids = try? fm.contentsOfDirectory(
+        at: dir, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+    else { return [] }
+    // 一台模拟器 = 一个装着 `device.plist` 的目录。认这个而不是认 UUID 形状：
+    // 同一层还散着 `Caches`、`.simdeviceinfo` 之类的东西，按形状认会把不是台子的算进来。
+    let devices = kids.filter {
+        (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            && fm.fileExists(atPath: $0.appendingPathComponent("device.plist").path)
+    }
+    var out: [SimDevice] = []
+    await withTaskGroup(of: SimDevice?.self) { group in
+        for d in devices {
+            group.addTask {
+                if Task.isCancelled { return nil }
+                let sz = await dirSize(d)
+                let info = NSDictionary(contentsOf: d.appendingPathComponent("device.plist"))
+                let udid = d.lastPathComponent
+                return SimDevice(
+                    id: udid,
+                    name: info?["name"] as? String ?? udid,
+                    os: simRuntimeName(info?["runtime"] as? String),
+                    lastBooted: info?["lastBootedAt"] as? Date,
+                    size: sz, path: d.path)
+            }
+        }
+        for await r in group { if let r = r { out.append(r) } }
+    }
+    return out.sorted { $0.size > $1.size }
+}
+
+/// `com.apple.CoreSimulator.SimRuntime.iOS-26-5` → `iOS 26.5`。
+/// 认不出来（新写法、读不到）就原样给空串，不硬凑一个版本号出来。
+private func simRuntimeName(_ raw: String?) -> String {
+    guard let tail = raw?.split(separator: ".").last else { return "" }
+    let parts = tail.split(separator: "-")
+    guard parts.count >= 2, let head = parts.first else { return "" }
+    return "\(head) \(parts.dropFirst().joined(separator: "."))"
+}
+
+// ══ Docker 占用：一行一个运行时（磁盘实占），引擎答得上来就附它自己的账本；不代删，只指路 ══
+
+/// 装在这台机器上的容器运行时。Core 只认「是哪家、数据落在哪个目录、.app 的包名」，
+/// 名字与措辞归界面。
+///
+/// 为什么不能只找 Docker：OrbStack 也提供 `docker` 命令、也实现同一个引擎接口。
+/// 这台机器实测（2026-09-27）`/usr/local/bin/docker` 是软链进 `/Applications/OrbStack.app` 的，
+/// 机器上根本没装 Docker Desktop，而 OrbStack 那块虚拟机磁盘实占 22.8 GB。
+/// 只认 Docker 的话，这一页在这里既报不出这 22.8 GB，又会把清理指路写到一款没装的 App 上。
+public enum DockerRuntime: String, CaseIterable {
+    case dockerDesktop, orbstack, podman, colima
+
+    /// 这一家把数据落在哪。目录不存在就返回 nil——没装就不该有这一行。
+    public var dataDir: URL? {
+        let rel: String
+        switch self {
+        case .dockerDesktop: rel = "Library/Containers/com.docker.docker"
+        case .orbstack:      rel = "Library/Group Containers/HUAQ24HBR6.dev.orbstack"
+        case .podman:        rel = ".local/share/containers/storage"
+        case .colima:        rel = ".colima"
+        }
+        let url = homeDir().appendingPathComponent(rel)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// .app 的包名，行首那一格靠它挂真图标。
+    ///
+    /// OrbStack 非得自己报：它的组容器目录叫 `HUAQ24HBR6.dev.orbstack`，
+    /// 顺着路径找包名会找到那串 team 前缀，查到的是不存在的东西（它真实包名是 `dev.kdrag0n.MacVirt`）。
+    /// Podman / colima 通常只是命令行，没有必装的 .app，留 nil 让界面往下走通用兜底。
+    public var bundleID: String? {
+        switch self {
+        case .dockerDesktop: return "com.docker.docker"
+        case .orbstack:      return "dev.kdrag0n.MacVirt"
+        case .podman, .colima: return nil
+        }
+    }
+}
+
+/// 条目的种类——措辞归界面，这里只给分类和数字
 public enum DockerKind: String {
+    /// 一行一个运行时：那块虚拟机磁盘在这台机器上实际占掉的量
+    case runtime
     case dfImages, dfContainers, dfVolumes, dfCache
     case image, danglingImage
-    case rawDir, other
+    case other
 
     /// 这一类的字节**计不计进页头那个总数**。
     ///
-    /// `docker image ls` 列出的单个镜像，体积本来就躺在 `docker system df` 的「镜像」那一段里，
-    /// 再进一次加法就是同一段字节数两遍。明细行照样要列出来（那是这一页唯一能报出名字的东西），
-    /// 但它们是**账本里的批注**，不是四笔账之外的第五笔。
-    /// 回退模式（Docker 没在跑）按子目录粗分，那些目录互不包含，所以全都算。
-    public var countsInTotal: Bool {
-        switch self {
-        case .image, .danglingImage:                      return false
-        case .dfImages, .dfContainers, .dfVolumes,
-             .dfCache, .rawDir, .other:                   return true
-        }
-    }
+    /// 页头那个数答的是「容器这一类吃掉这块盘多少」，那只有真躺在盘上的字节算数：
+    /// `docker system df` 报的是引擎自己的账，镜像按逻辑大小列、共享层被各镜像重复计入。
+    /// 这台机器实测（2026-09-27）四个段相加 38.4 GB，而 OrbStack 那块磁盘实占 22.8 GB——
+    /// 两副面孔同桌相加就是把同一段字节数两遍。段和镜像明细照样列（那是唯一能报出镜像名的地方），
+    /// 但它们是账本里的批注，不是磁盘上多出来的第五第六笔。
+    public var countsInTotal: Bool { self == .runtime }
 }
 
 public struct DockerItem: Identifiable {
     public let id = UUID()
     public var kind: DockerKind
-    /// 镜像的 仓库:tag、悬空镜像的 ID、回退模式的子目录名——真实数据，不翻译
+    /// 这一行属于哪家运行时。引擎答得上来才有归属；认不出那家（比如自己编的 CLI）就 nil，
+    /// 界面给一句通用指路，不谎称是 Docker Desktop。
+    public var runtime: DockerRuntime? = nil
+    /// 镜像的 仓库:tag、悬空镜像的 ID、运行时的标识——真实数据，不翻译
     public var title: String
     public var size: Int64
     public var total: String?
@@ -466,8 +660,8 @@ public struct DockerItem: Identifiable {
     public var reclaimable: Int64?
     /// 同一格里的占比（`54%`），Docker 算的，原样带过来不重算
     public var reclaimableShare: String?
-    /// 回退模式（Docker 没在跑）下那个子目录的真实路径。有它，行首才挂得出访达里的
-    /// 那个文件夹图标；`docker system df` 那几行背后没有路径，就只能挂类别符号。
+    /// 运行时那一行的数据目录。有它，行首才挂得出那家 App 的真图标；
+    /// `docker system df` 那几段背后没有路径可对——虚拟盘里没有一个文件给图标服务读。
     public var path: URL? = nil
 
     public var countsInTotal: Bool { kind.countsInTotal }
@@ -523,15 +717,51 @@ private func dockerCLI() -> String? {
     return nil
 }
 
+/// 现在这个 `docker` 命令背后是哪家。看的是软链真身，不是命令名——
+/// OrbStack 把 `/usr/local/bin/docker` 直接链进自己的 .app（本机实测落到
+/// `/Applications/OrbStack.app/Contents/MacOS/xbin/docker`），两家用的命令名一模一样。
+/// 这一格认错，页面上「去 Docker Desktop 里清」那句指路就把人往一款没装的 App 支使。
+private func engineOwnerRuntime() -> DockerRuntime? {
+    guard let cli = dockerCLI() else { return nil }
+    let real = URL(fileURLWithPath: cli).resolvingSymlinksInPath().path.lowercased()
+    if real.contains("orbstack") { return .orbstack }
+    if real.contains("docker.app") { return .dockerDesktop }
+    return nil
+}
+
+/// 一行一个运行时，量的是各家数据目录在这块盘上的实占。
+///
+/// 走 `dirSize` 而不是文件大小：它按 `st_blocks × 512` 累加，取到的正是稀疏文件
+/// 真占住的那部分。OrbStack 那块 `data.img.raw` 逻辑大小 494 GB、实占 22.8 GB
+/// （本机实测 2026-09-27），它自家 README 就写着「看到 8 TB 别慌，那不是它占的空间」——
+/// 印逻辑大小等于替人撒谎。
+private func runtimeDiskRows() async -> [DockerItem] {
+    let installed = DockerRuntime.allCases.compactMap { r in r.dataDir.map { (r, $0) } }
+    var out: [(Int, DockerItem)] = []
+    await withTaskGroup(of: (Int, DockerItem)?.self) { group in
+        for (i, pair) in installed.enumerated() {
+            group.addTask {
+                if Task.isCancelled { return nil }
+                let sz = await dirSize(pair.1)
+                guard sz > 0 else { return nil }
+                return (i, DockerItem(kind: .runtime, runtime: pair.0,
+                                      title: pair.0.rawValue, size: sz, path: pair.1))
+            }
+        }
+        for await r in group { if let r = r { out.append(r) } }
+    }
+    return out.sorted { $0.0 < $1.0 }.map(\.1)
+}
+
 public func scanDocker() async -> [DockerItem] {
-    let base = homeDir().appendingPathComponent("Library/Containers/com.docker.docker")
-    // CLI 在且守护进程在跑：分类明细。沙盒版不走这条路——起外部可执行文件在沙盒里本就不确定，
-    // 而这一页要答的「Docker 占了多少」按目录统计同样答得出，只是粒度粗一点。
+    var detail: [DockerItem] = []
+    let engine: DockerRuntime? = HomeAccess.runsSandboxed ? nil : engineOwnerRuntime()
+    // ① 引擎自己的账本：CLI 在且守护进程答得上来。沙盒版不走这条路——起外部可执行文件
+    // 在沙盒里本就不确定，而这一页要答的「占了这块盘多少」按磁盘实占同样答得出。
     if !HomeAccess.runsSandboxed,
        let cli = dockerCLI(),
        let info = runCmd(cli, ["info", "--format", "{{.ServerVersion}}"], timeout: 4),
        !info.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        var items: [DockerItem] = []
         let df = runCmd(cli, ["system", "df", "--format", "{{json .}}"]) ?? ""
         for line in df.split(separator: "\n") {
             guard let d = line.data(using: .utf8),
@@ -540,8 +770,8 @@ public func scanDocker() async -> [DockerItem] {
             let kind: DockerKind = ["Images": .dfImages, "Containers": .dfContainers,
                                     "Local Volumes": .dfVolumes, "Build Cache": .dfCache][t] ?? .other
             let rec = (row["Reclaimable"] as? String).map(parseDockerReclaimable)
-            items.append(DockerItem(
-                kind: kind, title: t,
+            detail.append(DockerItem(
+                kind: kind, runtime: engine, title: t,
                 size: parseDockerSize(row["Size"] as? String ?? ""),
                 total: row["TotalCount"] as? String,
                 active: row["Active"] as? String,
@@ -556,32 +786,22 @@ public func scanDocker() async -> [DockerItem] {
             let repo = row["Repository"] as? String ?? ""
             let sz = parseDockerSize(row["Size"] as? String ?? "")
             if repo.isEmpty || repo == "<none>" {
-                imgItems.append(DockerItem(kind: .danglingImage,
+                imgItems.append(DockerItem(kind: .danglingImage, runtime: engine,
                                            title: row["ID"] as? String ?? "", size: sz))
             } else {
-                imgItems.append(DockerItem(kind: .image,
+                imgItems.append(DockerItem(kind: .image, runtime: engine,
                                            title: "\(repo):\(row["Tag"] as? String ?? "")", size: sz))
             }
         }
-        items += imgItems.sorted { $0.size > $1.size }.prefix(60)
-        return items
+        detail += imgItems.sorted { $0.size > $1.size }.prefix(60)
     }
-    // 回退：按子目录粗分（真实路径，可走废纸篓但标粗粒度）
-    guard let kids = try? FileManager.default.contentsOfDirectory(
-        at: base, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
-        return []
-    }
-    var items: [DockerItem] = []
-    await withTaskGroup(of: DockerItem?.self) { group in
-        for k in kids {
-            group.addTask {
-                if Task.isCancelled { return nil }
-                let sz = await dirSize(k)
-                guard sz > 0 else { return nil }
-                return DockerItem(kind: .rawDir, title: k.lastPathComponent, size: sz, path: k)
-            }
-        }
-        for await r in group { if let r = r { items.append(r) } }
-    }
-    return items.sorted { $0.size > $1.size }
+    // ② 磁盘的账：运行时那一行排在最前面，页头那个「共 X」就是它们相加
+    let disks = await runtimeDiskRows()
+    guard disks.isEmpty else { return disks + detail }
+    // 引擎答了、机器上却找不到任何一家的数据目录（DOCKER_HOST 指向远端之类）。
+    // 这时候没有磁盘实占那一行可以落账，就把段相加顶上去——页头写 0 是更坏的谎。
+    guard !detail.isEmpty else { return [] }
+    let sections = detail.filter { $0.kind != .image && $0.kind != .danglingImage }
+    return [DockerItem(kind: .runtime, runtime: engine, title: engine?.rawValue ?? "",
+                       size: sections.reduce(Int64(0)) { $0 + $1.size })] + detail
 }

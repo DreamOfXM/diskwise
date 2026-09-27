@@ -25,7 +25,21 @@ let _dbURL = _cands.compactMap { p -> URL? in
 }.first
 let entries = loadSafetyEntries(from: _dbURL)
 check(entries.count > 20, "知识库条目 \(entries.count) > 20")
-check(entries.contains { $0.name == "npm 缓存" }, "知识库含 npm 缓存")
+check(entries.contains { $0.name == "npm 缓存目录" }, "知识库含 npm 缓存目录")
+
+// 1.5 品牌标：safety_db 里每个 `icon` 都要有对应的图，否则那一格静默退回通用文件夹，
+//     而「退回通用文件夹」正是这一档要消灭的东西——拼错 slug 是不会有人发现的。
+let _brandDir = "Sources/DiskCleaner/Resources/BrandIcons"
+let brandSlugs = Set(entries.compactMap { $0.icon })
+let shippedSlugs = Set(
+    (try? FileManager.default.contentsOfDirectory(atPath: _brandDir))?.compactMap { f in
+        f.hasSuffix("@2x.png") || !f.hasSuffix(".png") ? nil : String(f.dropLast(4))
+    } ?? [])
+for slug in brandSlugs.subtracting(shippedSlugs).sorted() {
+    check(false, "品牌标 \(slug) 在库里没有对应的 PNG")
+}
+check(!brandSlugs.isEmpty && brandSlugs.isSubset(of: shippedSlugs),
+      "库里声明的 \(brandSlugs.count) 个品牌标全部有图（打包 \(shippedSlugs.count) 个）")
 
 // 2. 路径可移植展开（用 homePath() 而不是 NSHomeDirectory()：沙盒会改写后者）
 let home = homePath()
@@ -449,15 +463,28 @@ check(contentsUnionSize([(cach, 3_000_000_000), (cach, 3_000_000_000)]) == 3_000
       "同一条路径出现两次只算一次")
 check(contentsUnionSize([]) == 0, "一个都没勾是 0，不是 nil 也不是负数")
 
-// Docker 那一页的页头原先把「四段合计」和「镜像明细」加成一笔，同一段镜像的字节数了两遍
-// （2026-09-26 实拍：页头 41.2 GB，四段自己相加就是 41.2 GB）。分类归 Core，界面只管列。
-check(DockerKind.dfImages.countsInTotal && DockerKind.dfContainers.countsInTotal
-        && DockerKind.dfVolumes.countsInTotal && DockerKind.dfCache.countsInTotal,
-      "docker system df 那四段是页头那个数的全部来源")
-check(!DockerKind.image.countsInTotal && !DockerKind.danglingImage.countsInTotal,
-      "镜像明细不进阶式：那些字节已经躺在「镜像 · 合计」里")
-check(DockerKind.rawDir.countsInTotal && DockerKind.other.countsInTotal,
-      "回退模式（Docker 没在跑）按互不包含的子目录粗分，那些都得算")
+// 容器页：页头那个数答的是「容器这一类吃掉这块盘多少」，所以进展式的只有一行一个运行时的磁盘实占。
+// 以前是 `docker system df` 四段相加（2026-09-26 实拍：页头 41.2 GB 就是四段之和），可那是引擎
+// 自己报的逻辑大小：本机实测（2026-09-27）OrbStack 四段相加 38.4 GB，同一块磁盘实占只有 22.8 GB。
+// 两本账同桌相加就是把同一段字节数两遍，所以段和镜像明细一并降级成批注。
+check(DockerKind.runtime.countsInTotal,
+      "页头那个数只由「一行一个运行时」的磁盘实占构成")
+check([DockerKind.dfImages, .dfContainers, .dfVolumes, .dfCache, .other,
+       .image, .danglingImage].allSatisfy { !$0.countsInTotal },
+      "引擎报的账和镜像明细都不进展式：它们与磁盘实占那行量的是同一块盘")
+
+// 一行一个运行时，包名得由运行时自己报：OrbStack 的数据目录叫
+// `~/Library/Group Containers/HUAQ24HBR6.dev.orbstack`，顺着路径找包名找到的是 team 前缀，
+// 那样行首永远挂不上它真正的图标（真包名是 dev.kdrag0n.MacVirt，2026-09-27 实测 Info.plist）。
+check(DockerRuntime.orbstack.bundleID == "dev.kdrag0n.MacVirt"
+        && DockerRuntime.dockerDesktop.bundleID == "com.docker.docker"
+        && DockerRuntime.podman.bundleID == nil && DockerRuntime.colima.bundleID == nil,
+      "四家运行时的归属包名：能查到 App 的两家各自报对，命令行那两家不硬凑")
+check(DockerRuntime.allCases.allSatisfy { d in
+          guard let p = d.dataDir?.path else { return true }
+          return p.hasPrefix(homePath() + "/")
+      },
+      "哪家装了，它的数据目录就在这台机器的家目录里——不报系统区，也不报别人家")
 
 // Docker 报的 Reclaimable 是一串它自己格式化的字（`13.04GB (54%)`，1024 进制、单位粘在数字上）。
 // 直接印出来就和这一页其余各行的十进制两档数字是两种口径，所以先拆成字节 + 占比再交给界面。
@@ -657,7 +684,7 @@ let sem2 = DispatchSemaphore(value: 0)
 Task {
     let r = await walkFiles(dirs: [dbase])
     check(r.rows.count == 5 && r.matched == 5, "遍历到 5 个文件")
-    let gs = findDupGroups(r.rows)
+    let gs = findDupGroups(r.rows).groups
     check(gs.count == 1 && gs[0].files.count == 3, "检出 1 组重复（a/b/e），c、d 不在其中")
     // files[0] 就是界面上那颗「保留」。备份/导出目录按日期递增，留最旧等于删最新备份
     check(gs[0].files.first?.lastPathComponent == "b.txt",
@@ -676,6 +703,62 @@ Task {
     sem2.signal()
 }
 sem2.wait()
+
+// 7b. 受管环境（venv / site-packages / node_modules / DerivedData）里的副本不参与比对：
+//     那些是某个环境自己装的零件，删一份那个环境就缺一块，要回收得卸掉整个环境。
+let ebase = fm.temporaryDirectory.appendingPathComponent("envtest-\(UUID().uuidString)")
+func mk(_ rel: String, _ text: String) -> URL {
+    let u = ebase.appendingPathComponent(rel)
+    try! fm.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try! Data(text.utf8).write(to: u)
+    return u
+}
+let payload = "同一份 wheel 里的二进制"
+mk("Documents/setup.bin", payload)
+mk("proj/venv/lib/python3.12/site-packages/pkg/setup.bin", payload)
+mk("web/node_modules/esbuild/bin/setup.bin", payload)
+mk("Library/Developer/Xcode/DerivedData/App-abc/Build/setup.bin", payload)
+let semEnv = DispatchSemaphore(value: 0)
+Task {
+    // 先只放一份自由副本：凑不成一组，就不该报「可回收」
+    var rows = (await walkFiles(dirs: [ebase])).rows
+    let only = findDupGroups(rows)
+    check(rows.count == 4, "四份内容相同的东西都遍历到了（实得 \(rows.count) 条）")
+    check(only.groups.isEmpty,
+          "只剩一份自由副本，凑不成一组，就不报「可回收」（实得 \(only.groups.count) 组）")
+    check(only.excluded.count == 1 && only.excluded[0].files.count == 3,
+          "三份环境副本归进名单同一组（实得 \(only.excluded.count) 组 / \(only.excluded.first?.files.count ?? 0) 份）")
+    check(Set(only.excluded.first?.envs ?? []) ==
+          Set([ebase.appendingPathComponent("proj/venv").path,
+               ebase.appendingPathComponent("web/node_modules").path,
+               ebase.appendingPathComponent("Library/Developer/Xcode/DerivedData/App-abc").path]),
+          "名单报得出这三份各自住在哪个环境里")
+    // 再加一份自由副本：自由的那两份照旧成组，环境那三份只在名单里出现
+    mk("Downloads/setup.bin", payload)
+    rows = (await walkFiles(dirs: [ebase])).rows
+    let mixed = findDupGroups(rows)
+    check(mixed.groups.count == 1 && mixed.groups[0].files.count == 2,
+          "摘掉环境副本后，两份自由副本仍算一组（实得 \(mixed.groups.first?.files.count ?? 0) 份）")
+    check(mixed.groups.first?.files.allSatisfy { managedEnv(of: $0) == nil } == true,
+          "主列表里不会出现任何住在环境里的路径")
+    check(mixed.excluded.first?.files.count == 3, "被摘出去的三份照旧列进名单")
+    try? fm.removeItem(at: ebase)
+    semEnv.signal()
+}
+semEnv.wait()
+
+// 7c. managedEnv 认的是哪一层：环境根 = 标记那颗本身，site-packages 要往上退到 lib 的上一层
+func envOf(_ p: String) -> String? { managedEnv(of: URL(fileURLWithPath: p)) }
+check(envOf("/Users/x/Documents/a.bin") == nil, "普通文档不是环境里的零件")
+check(envOf("/Users/x/a/node_modules/esbuild/bin/b") == "/Users/x/a/node_modules", "node_modules 归到那一层")
+check(envOf("/Users/x/p/venv/lib/python3.12/site-packages/pkg/b") == "/Users/x/p/venv", "venv 里的包归到 venv")
+check(envOf("/Users/x/.browser-use-env/lib/python3.12/site-packages/b") == "/Users/x/.browser-use-env", "点开头的手搓环境同样认")
+check(envOf("/Users/x/opt/miniconda3/envs/dl/lib/python3.11/site-packages/b") == "/Users/x/opt/miniconda3/envs/dl", "conda 环境归到自己那个")
+check(envOf("/Users/x/Library/Python/3.9/lib/python/site-packages/playwright/driver/node") == "/Users/x/Library/Python/3.9", "系统 python 的用户站点目录归到版本号那层")
+check(envOf("/Users/x/.local/pipx/venvs/playwright/lib/python3.14/site-packages/b") == "/Users/x/.local/pipx/venvs/playwright", "pipx 环境归到工具名那一层")
+check(envOf("/Users/x/Library/Developer/Xcode/DerivedData/App-abc/Build/b") == "/Users/x/Library/Developer/Xcode/DerivedData/App-abc", "DerivedData 归到具体那一个 App")
+check(envOf("/Users/x/node_modules") == nil, "环境名字本身不能算一份副本")
+check(envOf("/relative/venv/lib/python3.12/site-packages/b") == "/relative/venv", "相对路径也照规则走")
 
 // 8. 总览行内摊开下一级：点开一行报的是这一层的子目录，界面上还要拿
 //    「父行那一格 − 摊出来的这几格」报剩下的量，所以子层之和不能超过父行，
@@ -704,6 +787,43 @@ Task {
     sem3.signal()
 }
 sem3.wait()
+
+// 9. 模拟器逐台摊开：一台 = 一个装着 `device.plist` 的目录，名字与系统都从那一份里取。
+//    认 plist 而不是认 UUID 形状：同一层还散着 Caches 之类的目录，按形状认会把不是台子的算进来。
+let simbase = fm.temporaryDirectory.appendingPathComponent("simtest-\(UUID().uuidString)")
+func makeSim(_ udid: String, _ plist: [String: Any]?, mb: Int) {
+    let d = simbase.appendingPathComponent(udid)
+    try! fm.createDirectory(at: d.appendingPathComponent("data"), withIntermediateDirectories: true)
+    if let p = plist {
+        try! (p as NSDictionary).write(to: d.appendingPathComponent("device.plist"))
+    }
+    if mb > 0 {
+        try! Data(count: mb * 1024 * 1024).write(to: d.appendingPathComponent("data/img.bin"))
+    }
+}
+let booted = Date(timeIntervalSince1970: 1_700_000_000)
+makeSim("AAAA", ["name": "iPhone 17",
+                 "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+                 "lastBootedAt": booted], mb: 3)
+makeSim("BBBB", ["name": "iPad Pro",
+                 "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0"], mb: 1)
+makeSim("CCCC", nil, mb: 2)                                   // 没有 plist：不是台子
+try! fm.createDirectory(at: simbase.appendingPathComponent("Caches"), withIntermediateDirectories: true)
+let sem4 = DispatchSemaphore(value: 0)
+Task {
+    let sims = await scanSimulators(under: simbase)
+    check(sims.map(\.id) == ["AAAA", "BBBB"],
+          "一台模拟器 = 一个装着 device.plist 的目录，空目录与 Caches 都不算（得 \(sims.map(\.id))）")
+    check(sims.first?.name == "iPhone 17" && sims.first?.os == "iOS 26.5",
+          "台子叫什么、跑哪个系统，都取设备自己那份 plist，不是我们猜的（\(sims.first?.name ?? "-") · \(sims.first?.os ?? "-")）")
+    check(sims.first?.lastBooted == booted && sims.last?.lastBooted == nil,
+          "启动过的那台带着日期，从没启动过的就是 nil，不编一个日期出来")
+    check(sims.allSatisfy { $0.size > 0 } && sims.first!.size > sims.last!.size,
+          "占盘从大到小排：摊开这一行就是为了先看谁在吃盘")
+    try? fm.removeItem(at: sbase)
+    sem4.signal()
+}
+sem4.wait()
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
