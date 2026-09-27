@@ -14,8 +14,10 @@ Thanks for taking a look. Two things up front:
   ever unlinked. If you find yourself writing `removeItem`, stop.
 - Paths matched by `isProtected()` (the home directory itself, `~/Library`, …) can never be removed
   as a whole; their children can.
-- Emptying the Trash is always handed to Finder (`emptyTrashViaFinder`, AppleScript) so macOS asks
-  for confirmation once more.
+- Emptying the Trash is always performed *by* Finder. Outside the sandbox the app asks Finder to do
+  it (`emptyTrashViaFinder`, AppleScript). In the App Store sandbox macOS refuses that event
+  outright — no consent prompt is ever shown — so the app instead opens the Trash in Finder and the
+  user empties it there. Either way, this app never unlinks anything itself.
 - The Docker page is read-only. Images and volumes live inside a virtual disk with no per-item
   path, so the app points at Docker Desktop instead of pretending to prune.
 
@@ -75,11 +77,15 @@ Screenshot them. `SnapshotMode` renders every page to PNG without needing screen
 permission, and it runs against a synthetic home folder so no real files appear:
 
 ```bash
-bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome
+bash build_app/make_demo_home.sh /tmp/DiskWiseDemoHome   # writes ~55 GB — once, not per run
 DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   DISKWISE_DEMO_USAGE=96:16 DISKWISE_SKIN=dawn DISKWISE_LANG=en \
   ./build_app/DiskWise.app/Contents/MacOS/DiskCleaner
 ```
+
+The README images are that output downscaled to 1500 px wide, from `DISKWISE_WIN=1280x800`
+(the skins grid needs `1280x920`) — keep those two numbers so a re-shoot lands on the same
+canvas and the README tables don't start wrapping.
 
 Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
 

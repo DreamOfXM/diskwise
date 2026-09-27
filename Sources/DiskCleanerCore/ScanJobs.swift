@@ -34,7 +34,8 @@ public struct WalkResult {
 /// - `top`：只留最大的前 N 条，攒到 4N 就收缩一次。不封顶的话一个 Documents 目录
 ///   就能往内存里塞几十万个 FileRow。
 public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
-                      top: Int = 0, skipNames: Set<String> = []) async -> WalkResult {
+                      top: Int = 0, skipNames: Set<String> = [],
+                      progress: ScanProgress? = nil) async -> WalkResult {
     var out: [FileRow] = []
     var matched = 0
     let cutoff = olderThan.map { $0.timeIntervalSince1970 }
@@ -54,6 +55,8 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
     while let (dir, rootDev, skip) = stack.popLast() {
         if Task.isCancelled { break }
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
+        var dFiles = 0
+        var dBytes: Int64 = 0
         for name in items {
             if name == ".Trash" || skipNames.contains(name) { continue }
             let p = (dir as NSString).appendingPathComponent(name)
@@ -71,6 +74,10 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             if n % 20000 == 0 && Task.isCancelled { break }
             let sz = Int64(st.st_blocks) * 512
             let mt = Double(st.st_mtimespec.tv_sec)
+            // 读数记的是「检查过」，不是「命中」：过滤条件挡掉的那些同样真的被看过，
+            // 只报命中的话，一个装满小文件的目录会显示成什么都没发生。
+            dFiles += 1
+            dBytes += sz
             guard sz >= minSize, cutoff == nil || mt < cutoff! else { continue }
             matched += 1
             out.append(FileRow(url: URL(fileURLWithPath: p), size: sz,
@@ -80,6 +87,7 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
                 out = Array(out.prefix(top))
             }
         }
+        progress?.walk(files: dFiles, bytes: dBytes, in: dir)
     }
     out.sort { $0.size > $1.size }
     if top > 0 { out = Array(out.prefix(top)) }
@@ -194,6 +202,10 @@ public struct OrphanItem: Identifiable {
     public var level: String   // safe | warn
     /// 从包名猜出来的应用名，可能为空；是品牌名，界面查词表
     public var guess: String
+    /// 残留目录里的文件个数与最近一次改动，展开行用。一个 2 GB 的残留里躺着 3 个文件
+    /// 还是 40 万个，决定用户敢不敢勾——只有字节数时这两种看起来是一回事。
+    public var files: Int = 0
+    public var newest: Date? = nil
     public var selected = false
 }
 
@@ -236,7 +248,7 @@ private func splitTokens(_ s: String) -> [String] {
     s.lowercased().split { ". -_".contains($0) }.map(String.init).filter { $0.count >= 4 }
 }
 
-public func scanOrphans() async -> (items: [OrphanItem], appCount: Int) {
+public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanItem], appCount: Int) {
     // 1. 盘点已安装 App
     var ids = Set<String>(), toks = Set<String>(), names = Set<String>()
     let home = homePath()
@@ -315,13 +327,12 @@ public func scanOrphans() async -> (items: [OrphanItem], appCount: Int) {
             group.addTask {
                 if Task.isCancelled { return nil }
                 let u = URL(fileURLWithPath: c.path)
-                var isDir: ObjCBool = false
-                FileManager.default.fileExists(atPath: c.path, isDirectory: &isDir)
-                let sz: Int64 = isDir.boolValue ? await dirSize(u) : fileSize(u)
-                guard sz > 0 else { return nil }
+                let st = await pathStat(u, progress: progress)
+                guard st.bytes > 0 else { return nil }
                 let g = guess(c.stem)
                 return OrphanItem(
-                    name: c.stem, loc: c.label, path: u, size: sz, level: c.level, guess: g)
+                    name: c.stem, loc: c.label, path: u, size: st.bytes, level: c.level,
+                    guess: g, files: st.files, newest: st.newest)
             }
         }
         for await r in group {
@@ -350,7 +361,7 @@ public struct NMProject: Identifiable {
 /// 一处是包管理器自己的全局目录（`/opt/homebrew/lib/node_modules` 那类），删它等于拆掉
 /// 命令行工具，而且 brew 有自己的清理方式。为了这一处把整棵 /Library 走一遍，
 /// 换来的是几分钟空转 + 一个勾不得的条目。
-public func findNodeModules() async -> [NMProject] {
+public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] {
     let home = homePath()
     let roots = [URL(fileURLWithPath: home), URL(fileURLWithPath: applicationsDir())]
         .filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -358,7 +369,6 @@ public func findNodeModules() async -> [NMProject] {
     var nmDirs: [String] = []
     // 每个根记自己的卷号：跨卷守卫要按根比
     var stack = roots.map { ($0.path, deviceOf($0)) }
-    var visited = 0
     while let (d, rootDev) = stack.popLast() {
         if Task.isCancelled { break }
         guard let kids = try? FileManager.default.contentsOfDirectory(atPath: d) else { continue }
@@ -373,7 +383,9 @@ public func findNodeModules() async -> [NMProject] {
             if let dev = rootDev, st.st_dev != dev { continue }
             stack.append((p, rootDev))
         }
-        visited += 1
+        // 这一趟数的是目录项而不是文件：整棵家目录翻下来一个 node_modules 都可能没撞上，
+        // 但「正在看 ~/Projects/foo/src」这句话是真的在往前走的证据。
+        progress?.walk(files: kids.count, bytes: 0, in: d)
     }
     // 第二段：并行统计，聚合到项目级
     var projects: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool)] = [:]
@@ -424,6 +436,20 @@ public enum DockerKind: String {
     case dfImages, dfContainers, dfVolumes, dfCache
     case image, danglingImage
     case rawDir, other
+
+    /// 这一类的字节**计不计进页头那个总数**。
+    ///
+    /// `docker image ls` 列出的单个镜像，体积本来就躺在 `docker system df` 的「镜像」那一段里，
+    /// 再进一次加法就是同一段字节数两遍。明细行照样要列出来（那是这一页唯一能报出名字的东西），
+    /// 但它们是**账本里的批注**，不是四笔账之外的第五笔。
+    /// 回退模式（Docker 没在跑）按子目录粗分，那些目录互不包含，所以全都算。
+    public var countsInTotal: Bool {
+        switch self {
+        case .image, .danglingImage:                      return false
+        case .dfImages, .dfContainers, .dfVolumes,
+             .dfCache, .rawDir, .other:                   return true
+        }
+    }
 }
 
 public struct DockerItem: Identifiable {
@@ -434,7 +460,17 @@ public struct DockerItem: Identifiable {
     public var size: Int64
     public var total: String?
     public var active: String?
-    public var reclaimable: String?
+    /// Docker 自己报的「这一类里还能清掉多少」，已经换算成字节。
+    /// 界面不能直接印 Docker 给的那串字：它写的是 `13.04GB`（1024 进制、单位粘在数字上），
+    /// 和这一页其余各行的十进制两档数字同桌就是两种口径。
+    public var reclaimable: Int64?
+    /// 同一格里的占比（`54%`），Docker 算的，原样带过来不重算
+    public var reclaimableShare: String?
+    /// 回退模式（Docker 没在跑）下那个子目录的真实路径。有它，行首才挂得出访达里的
+    /// 那个文件夹图标；`docker system df` 那几行背后没有路径，就只能挂类别符号。
+    public var path: URL? = nil
+
+    public var countsInTotal: Bool { kind.countsInTotal }
 }
 
 private func runCmd(_ exe: String, _ args: [String], timeout: TimeInterval = 20) -> String? {
@@ -460,6 +496,19 @@ private func parseDockerSize(_ s: String) -> Int64 {
         if let v = Double(t.dropLast(suf.count)) { return Int64(v * m) }
     }
     return 0
+}
+
+/// `docker system df` 的 Reclaimable 一格写成 `13.04GB (54%)`，也可能只写 `5.651GB`。
+/// 字节段并进本工具的口径，占比原样留着——自己按 13.04/23.91 重算一遍，
+/// 会和 Docker 屏幕上那个数对不上，而这一页唯一能引的数就是 Docker 报的那几个。
+public func parseDockerReclaimable(_ s: String) -> (bytes: Int64, share: String?) {
+    let t = s.trimmingCharacters(in: .whitespaces)
+    let head = String(t.prefix { $0 != "(" && !$0.isWhitespace })
+    let tail = t.dropFirst(head.count).trimmingCharacters(in: .whitespaces)
+    guard tail.hasPrefix("("), tail.hasSuffix(")") else {
+        return (parseDockerSize(head), tail.isEmpty ? nil : tail)
+    }
+    return (parseDockerSize(head), String(tail.dropFirst().dropLast()))
 }
 
 private func dockerCLI() -> String? {
@@ -490,12 +539,14 @@ public func scanDocker() async -> [DockerItem] {
                   let t = row["Type"] as? String else { continue }
             let kind: DockerKind = ["Images": .dfImages, "Containers": .dfContainers,
                                     "Local Volumes": .dfVolumes, "Build Cache": .dfCache][t] ?? .other
+            let rec = (row["Reclaimable"] as? String).map(parseDockerReclaimable)
             items.append(DockerItem(
                 kind: kind, title: t,
                 size: parseDockerSize(row["Size"] as? String ?? ""),
                 total: row["TotalCount"] as? String,
                 active: row["Active"] as? String,
-                reclaimable: row["Reclaimable"] as? String))
+                reclaimable: rec?.bytes,
+                reclaimableShare: rec?.share))
         }
         let imgs = runCmd(cli, ["image", "ls", "--format", "{{json .}}"]) ?? ""
         var imgItems: [DockerItem] = []
@@ -527,7 +578,7 @@ public func scanDocker() async -> [DockerItem] {
                 if Task.isCancelled { return nil }
                 let sz = await dirSize(k)
                 guard sz > 0 else { return nil }
-                return DockerItem(kind: .rawDir, title: k.lastPathComponent, size: sz)
+                return DockerItem(kind: .rawDir, title: k.lastPathComponent, size: sz, path: k)
             }
         }
         for await r in group { if let r = r { items.append(r) } }

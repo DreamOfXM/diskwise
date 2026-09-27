@@ -11,19 +11,31 @@ import Darwin
 
 public struct DirScan {
     public var bytes: Int64
+    /// 这一棵子里数到的文件个数（不含目录本身、不含符号链接和跨卷）。
+    /// 展开行里那句「4 812 个文件」用它：只有字节数的话，13 GB 的缓存和 13 GB 的
+    /// 一个镜像文件在界面上长得一样，而前者能一条条清、后者不能。
+    public var files: Int
+    /// 这一棵子里最近一次改动的时间。整个「这一页的账」和行内副标题都靠它判断
+    /// 「还在用」还是「落灰」，所以量字节的那一趟必须顺手把它记下来。
+    public var newest: Date?
     /// 缺「完全磁盘访问权限」的目录（errno=EPERM）
     public var needFullDiskAccess: [String]
     /// 只有管理员能读的目录（errno=EACCES）
     public var needAdmin: [String]
 
-    public init(bytes: Int64 = 0, needFullDiskAccess: [String] = [], needAdmin: [String] = []) {
+    public init(bytes: Int64 = 0, files: Int = 0, newest: Date? = nil,
+                needFullDiskAccess: [String] = [], needAdmin: [String] = []) {
         self.bytes = bytes
+        self.files = files
+        self.newest = newest
         self.needFullDiskAccess = needFullDiskAccess
         self.needAdmin = needAdmin
     }
 
     public mutating func merge(_ other: DirScan) {
         bytes += other.bytes
+        files += other.files
+        if let n = other.newest { newest = max(newest ?? n, n) }
         needFullDiskAccess.append(contentsOf: other.needFullDiskAccess)
         needAdmin.append(contentsOf: other.needAdmin)
     }
@@ -59,7 +71,7 @@ public func fullDiskAccessGranted() -> Bool {
     return false
 }
 
-public func dirSizeReport(_ url: URL) async -> DirScan {
+public func dirSizeReport(_ url: URL, progress: ScanProgress? = nil) async -> DirScan {
     var out = DirScan()
     var seen = Set<String>()   // 硬链接去重（dev+ino）
     var stack = [url.path]
@@ -76,6 +88,8 @@ public func dirSizeReport(_ url: URL) async -> DirScan {
             }
             continue
         }
+        var dFiles = 0
+        var dBytes: Int64 = 0
         for name in items {
             if name == ".Trash" { continue }
             let p = (dir as NSString).appendingPathComponent(name)
@@ -95,15 +109,34 @@ public func dirSizeReport(_ url: URL) async -> DirScan {
                 seen.insert(key)
             }
             out.bytes += Int64(st.st_blocks) * 512
+            out.files += 1
+            dFiles += 1
+            dBytes += Int64(st.st_blocks) * 512
+            let mt = Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec))
+            if out.newest == nil || mt > out.newest! { out.newest = mt }
             ticks += 1
             if ticks % 5000 == 0 && Task.isCancelled { break }
         }
+        progress?.walk(files: dFiles, bytes: dBytes, in: dir)
     }
     return out
 }
 
 public func dirSize(_ url: URL) async -> Int64 {
     await dirSizeReport(url).bytes
+}
+
+/// 一处路径的三件套：占盘字节、文件个数、最近一次改动。
+///
+/// 各页统计一个条目时统一走这里，别再各自 `dirSize` + `fileSize` 拼——那三页最后
+/// 会在展开行里要同样的数，而目录和单文件的拿法根本不同（一个要遍历，一个只要 lstat）。
+public func pathStat(_ url: URL, progress: ScanProgress? = nil) async -> DirScan {
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return DirScan() }
+    if isDir.boolValue { return await dirSizeReport(url, progress: progress) }
+    let mt: Date? = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+        .contentModificationDate
+    return DirScan(bytes: fileSize(url), files: 1, newest: mt)
 }
 
 /// 一个目录的下一级，按占盘从大到小取前 `limit` 个。环形上「其他已统计」那一块
@@ -352,29 +385,133 @@ public func volumeSplit(diskUsed: Int64) -> VolumeSplit? {
     return volumeSplit(apfsPlist: plist, diskUsed: diskUsed)
 }
 
-/// 环形的账：前 3 大 + 其余量到的 + 这一轮没量到的，三块加起来正好是已用。
+/// 环形的账：前 3 大 + 其余量到的 + 这一轮没量到的 + 本次移进废纸篓的，
+/// 四块加起来正好等于整块盘的已用。
 ///
 /// 拆成纯函数是因为这块的错法是「图看着挺满、数字全是编的」：分段一旦加起来不等于
 /// 已用，环形就成了装饰而不是账本。自检不用像素、不用真盘就能把这条钉住。
 public struct RingSplit {
+    /// 前三名**此刻**的体积（已经扣掉被搬走的那部分）
     public var topSum: Int64
-    /// 量到了、但没挤进前 3 的部分（列表封顶 20，剩下的都归这里）
+    /// 量到了、但没挤进前 3 的部分（列表封顶 20，剩下的都归这里），同样已扣
     public var restMeasured: Int64
     /// 这一轮没量到：密封系统卷、VM 卷、以及读不动的目录
     public var untouched: Int64
+    /// 量完这一轮之后，被本工具搬进废纸篓、还没让位的字节。
+    /// 它单列成一条弧，是因为这些人刚做过一个动作——账上看不见就等于没发生。
+    public var trash: Int64
 
-    public init(topSum: Int64 = 0, restMeasured: Int64 = 0, untouched: Int64 = 0) {
+    public init(topSum: Int64 = 0, restMeasured: Int64 = 0, untouched: Int64 = 0,
+                trash: Int64 = 0) {
         self.topSum = topSum
         self.restMeasured = restMeasured
         self.untouched = untouched
+        self.trash = trash
     }
 }
 
-/// `covered` 是这一轮量完的合计，`topSum` 是列表前三。顺序不成立（前三比总量还大、
-/// 或者盘的账比量到的还小）就返回 nil：宁可退回单块灰，也不画一张加起来不等于已用的图。
-public func ringSplit(covered: Int64, used: Int64, topSum: Int64) -> RingSplit? {
-    guard covered > 0, used >= covered, topSum >= 0, topSum <= covered else { return nil }
-    return RingSplit(topSum: topSum, restMeasured: covered - topSum, untouched: used - covered)
+/// `covered` 是这一轮量完的合计，`topSum` 是列表前三**量到当时**的合计。顺序不成立
+/// （前三比总量还大、或者盘的账比量到的还小）就返回 nil：宁可退回单块灰，
+/// 也不画一张加起来不等于已用的图。
+///
+/// `movedOutTop` / `movedOutRest` 是量完之后被搬进废纸篓的字节，按它原本落在哪一条弧分开给。
+/// 搬走不等于腾出：`used` 一个字节都没变，所以这些字节只能**在弧之间挪家**——
+/// 从原来那条弧上减掉、加到「本次移入」这条弧上。「没量到」仍按 `已用 − 量到` 算：
+/// 废纸篓本来就躺在已用里，量它的那一轮也认过它，再挪一次就是记两遍账。
+public func ringSplit(covered: Int64, used: Int64, topSum: Int64,
+                      movedOutTop: Int64 = 0, movedOutRest: Int64 = 0) -> RingSplit? {
+    let outTop = max(0, movedOutTop), outRest = max(0, movedOutRest)
+    guard covered > 0, used >= covered, topSum >= 0, topSum <= covered,
+          outTop <= topSum, outRest <= covered - topSum else { return nil }
+    let untouched = used - covered
+    let top = topSum - outTop
+    let rest = covered - topSum - outRest
+    guard top >= 0, rest >= 0, untouched >= 0 else { return nil }
+    return RingSplit(topSum: top, restMeasured: rest, untouched: untouched, trash: outTop + outRest)
+}
+
+/// 本次会话搬进废纸篓的账，按「它原本站在环形哪条弧上」归好。
+public struct RingLedger {
+    /// 前三名各自被搬走多少（键 = 热点的真实路径）
+    public var perTop: [String: Int64] = [:]
+    /// 前三名之外那些目录各自被搬走多少（含没进列表的小目录：它们也在那条弧上）
+    public var perOther: [String: Int64] = [:]
+    /// 归不到任何一条弧上的：源目录这轮压根没量到，那些字节本来就不在图上
+    public var unattributed: Int64 = 0
+    /// 被水位线作废掉的：源目录在那笔之后重新量过了，那些字节已经不在它的尺寸里，
+    /// 再扣一遍就是扣两次
+    public var absorbed: Int64 = 0
+
+    public var topOut: Int64 { perTop.values.reduce(0) { $0 + $1 } }
+    /// 「其他已统计」那条弧被搬走多少
+    public var restOut: Int64 { perOther.values.reduce(0) { $0 + $1 } }
+    /// 环形上「本次移入废纸篓」那条弧的体积
+    public var trashArc: Int64 { topOut + restOut }
+
+    /// 某个目录名下被搬走了多少——弧上、列表里那一行、尾巴那句对账要用同一个数。
+    public func out(of path: String) -> Int64 { perTop[path] ?? perOther[path] ?? 0 }
+}
+
+/// 把「本次移入废纸篓」的每一笔记到它原本所在的那条弧上。
+///
+/// 为什么要归位而不是直接取 `store.trashedBytes`：环形上每条弧都是**这一轮量到的某个目录**，
+/// 搬走一个字节就得从那条弧上减掉，否则一圈加起来就不是整块盘了。归不进去的那些
+/// （源目录没被这一轮量到）**不进环形**——它们的字节本来就没在图上占地方，
+/// 硬加一段就是凭空多出来一块。
+///
+/// 归属认**最长匹配**：`~/A` 和 `~/A/B` 都在列表时，删掉 `~/A/B/x.mov` 记在 `~/A/B` 那条弧上，
+/// 不在父目录那条弧上再记一遍（父目录量到的那一轮本来就含着它）。
+///
+/// `voidedUpTo` 是每条弧的**水位线**：`[弧的路径: 量完它那一刻已有几笔记录]`。
+/// 下标小于水位的记录作废——那一轮量出来的尺寸本来就不含搬走的字节（它们在废纸篓，
+/// 而环形不量废纸篓），这笔账要还记着，就会把「~/X 剩下的 5G」画成「废纸篓的 5G」：
+/// 加起来仍是整块盘，名字却全是错的。水位之上的记录照扣，因为那是量完之后又搬走的。
+///
+/// 为什么用「第几笔」而不是「哪些目录量过了」：记录是只往尾巴上追加的（撤销和清空
+/// 都只削尾巴），所以下标就是时间顺序。用集合记「量过了」会把**量完之后**新搬走的那些
+/// 一起作废掉——清完一轮再点重新扫描，环上就再也长不出废纸篓那条弧。
+public func ringMoveLedger(records: [(original: String, bytes: Int64)],
+                           topPaths: [String], otherPaths: [String],
+                           voidedUpTo: [String: Int] = [:]) -> RingLedger {
+    func standardized(_ p: String) -> String {
+        URL(fileURLWithPath: p).standardizedFileURL.path
+    }
+    func belongs(_ item: String, _ dir: String) -> Bool {
+        item == dir || item.hasPrefix(dir + "/")
+    }
+    // 每条记录都要跟几串路径比，所以先各标准化一次拿在手里——一趟重复文件清理能留下
+    // 几百条记录，在循环里现造 URL 等于每笔账重建几百次路径。
+    let tops = topPaths.map(standardized)
+    let others = otherPaths.map(standardized)
+    var out = RingLedger()
+    for (i, r) in records.enumerated() {
+        let item = standardized(r.original)
+        var topAt = -1, topLen = -1, otherAt = -1, otherLen = -1
+        for (j, p) in tops.enumerated() where belongs(item, p) && p.count > topLen {
+            topAt = j; topLen = p.count
+        }
+        for (j, p) in others.enumerated() where belongs(item, p) && p.count > otherLen {
+            otherAt = j; otherLen = p.count
+        }
+        // 归到哪条弧先定，再拿那条弧的水位判这笔作不作废——顺序反了就会拿父目录的水位
+        // 去作废儿子名下那笔还活着的账。
+        let owner: String?
+        if topAt >= 0, topLen >= otherLen { owner = topPaths[topAt] }
+        else if otherAt >= 0 { owner = otherPaths[otherAt] }
+        else { owner = nil }
+        if let owner {
+            if i < (voidedUpTo[owner] ?? 0) {
+                out.absorbed += r.bytes
+            } else if topAt >= 0, topLen >= otherLen {
+                out.perTop[owner, default: 0] += r.bytes
+            } else {
+                out.perOther[owner, default: 0] += r.bytes
+            }
+        } else {
+            out.unattributed += r.bytes
+        }
+    }
+    return out
 }
 
 /// 起一个系统自带的小工具并收 stdout。失败回 nil，不抛。
@@ -394,7 +531,7 @@ private func runTool(_ path: String, _ args: [String]) -> String? {
 
 // ── 移入废纸篓 + 撤销（只进废纸篓是铁律：全 App 唯一删除路径）──
 
-public struct TrashRecord {
+public struct TrashRecord: Equatable {
     public var original: URL
     public var inTrash: URL
     public var size: Int64
@@ -419,6 +556,9 @@ public enum TrashError: Error {
     case finderRefused(String)
     /// 系统没放行本工具指挥访达（自动化权限），跟「访达自己不肯干」是两回事
     case automationDenied(String)
+    /// 指令压根没送到访达：沙盒掐住了这条发送，或访达当时不收事件。
+    /// 报「访达拒绝执行」是错怪访达——它没收到过任何东西。
+    case finderUnreachable(String)
     /// 访达弹了自己的确认框并且被点了「取消」——不是故障，别按失败说
     case finderCanceled(String)
 
@@ -432,6 +572,7 @@ public enum TrashError: Error {
         case .noFinderScript: return "无法创建访达指令"
         case .finderRefused: return "访达拒绝执行"
         case .automationDenied: return "没有控制访达的权限"
+        case .finderUnreachable: return "指令没能送到访达"
         case .finderCanceled: return "访达的确认被取消了"
         }
     }
@@ -440,7 +581,8 @@ public enum TrashError: Error {
     public var detail: String {
         switch self {
         case .protected(let s), .outsideAllowed(let s), .failed(let s),
-             .finderRefused(let s), .automationDenied(let s), .finderCanceled(let s): return s
+             .finderRefused(let s), .automationDenied(let s), .finderUnreachable(let s),
+             .finderCanceled(let s): return s
         case .noTrashLocation, .noFinderScript: return ""
         }
     }
@@ -508,6 +650,7 @@ public func finderError(number: Int, message: String) -> TrashError {
     let detail = message.isEmpty ? "AppleScript 错误 \(number)" : "\(message)（错误 \(number)）"
     switch number {
     case -1743, -1744: return .automationDenied(detail)   // 事件没被 TCC 放行
+    case -600, -609: return .finderUnreachable(detail)    // 事件压根没送到访达，不是它不肯干
     case -128: return .finderCanceled(detail)             // 访达自己的确认框被点了取消
     default: return .finderRefused(detail)
     }

@@ -35,24 +35,26 @@ every release ships the DMG's SHA-256.
 
 ## Why this exists
 
-Cleaning up a Mac's disk means deleting things from places you care about. The right balance between
-"helpful" and "safe" is why I built DiskWise.
+A disk cleaner has to read a lot of your machine before it can tell you anything useful. Most of
+them are closed-source, ship a background daemon, and treat `rm -rf` as a feature.
 
-Here's how the experience flows inside the app:
+We go the other way:
 
-- **Trust through explanations.** Each row in the cache list says what it is, what happens if you
-  delete it, and how to get it back. Not every entry has this level of detail — only the ones we
-  understand well enough to write down.
+| | DiskWise |
+|---|---|
+| Delete path | **One** — `FileManager.trashItem`. Everything lands in the Trash. |
+| Undo | Yes, per operation, for the whole session. |
+| Protected paths | Home itself, `~/Library`, and friends can never be removed wholesale. |
+| Emptying the Trash | Finder does it, never this app. Direct build: the app asks Finder and you confirm once more. App Store build: the sandbox refuses that event, so the button opens the Trash and you press ⌘⇧⌫. |
+| Docker images | Read-only. Virtual disks have no per-image path, so the app points instead of pretending. |
+| Network | None. No updater, no analytics, no ads. |
+| Price | Nothing. Every feature and all six skins ship unlocked in this build. |
+| Runtime | A single `.app`. No Python, no port, no daemon. |
 
-- **Control stays at your fingertips.** Every selection shows an estimated reclaimable size before
-  you confirm; if the numbers aren't ready, the "select all" button stays disabled. When you click
-  **Clean**, a confirmation dialog appears and nothing happens unless you say yes. All deletions go
-  to the Trash, which stays undoable until *you* empty it, and the Trash's empty action always
-  goes through Finder once more.
-
-- **Chinese developers come first.** On a typical Chinese dev machine, WeChat/DingTalk/WeCom caches
-  often occupy tens of gigabytes. The UI is bilingual from day one, and the knowledge base covers
-  those apps explicitly because they're central to our workflows.
+The cache list explains each entry it can — what it is, what happens if you delete it, how it comes
+back. We only write that text for entries we actually understand, so some rows carry it and some
+don't. WeChat, DingTalk and WeCom are covered, because on many machines those three alone hold tens
+of gigabytes.
 
 It is built for machines that have been used by a developer for a few years — the ones where
 `node_modules`, Docker volumes, Xcode `DerivedData`, and ten GB of caches quietly took over.
@@ -60,13 +62,13 @@ It is built for machines that have been used by a developer for a few years — 
 ## What you get
 
 **See the space**
-- **Overview** — a segmented ring gauge whose slices add up to the whole volume (top folders + everything else counted + not measured + purgeable + free), plus the fattest folders, each with *Reveal* and *Dig in*.
+- **Overview** — the volume drawn as one ring: a slice is a block of bytes this pass actually measured, the slices add up to the whole disk (top folders + everything else counted + not measured + purgeable + free), and the light band sits exactly on the edge of what's been measured so far. A slice you can move away whole takes two taps — the first arms it, the second sends it to the Trash, and it lets go on its own after 3 seconds. There's one list, the ledger beside the ring: open a row and its detail unfolds right there — the folders under it, the places behind *Other counted*, the volumes behind *Not measured* — while the ring steps back to a small reference dial. *Reveal* and *Dig in* sit on the row you opened.
 - **Whole-disk sweep** — no scope to guess at: the open-source build walks the whole volume (whitelisted system roots included, other users' homes included), the sandboxed Mac App Store build walks everything its grant can reach and says so. Either way it covers the volume, not just the tidy corners of your home folder.
 - **An honest coverage line** — the overview states how much of your used space it actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on Full Disk Access — and the *Grant access* button only appears when a real read of a protected file says the permission is actually missing. Every number is decimal, so it matches Finder and About This Mac byte for byte.
-- **The "Other counted" slice adds up** — a boundary line sits directly above the rows that make that arc, and the line below the list spells it out part by part (those rows, the folders behind *Show the rest*, and the small ones under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
+- **The "Other counted" slice adds up** — open that row and every place behind the arc is listed under it, and the last line spells the total out part by part (the rows listed, plus the ones under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
 - **Large Files** — top N across the same roots, dev directories skippable.
 - **Long Untouched** — files you haven't opened in N days, across the same roots.
-- **Duplicates** — size → partial hash → full hash, grouped, oldest copy locked so you can't nuke the only one.
+- **Duplicates** — size → partial hash → full hash, grouped, the newest copy in each group locked so you can't nuke the only one.
 
 **Dev machine specials**
 - **node_modules** — project sweep grouped per project, so you see "these 3 checkouts cost 4.7 GB".
@@ -75,7 +77,8 @@ It is built for machines that have been used by a developer for a few years — 
 **Clean up**
 - **Caches** — a curated knowledge base (Homebrew, npm, yarn, Maven, Gradle, conda, Xcode, simulators, WeChat / DingTalk / WeCom / QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it back*, with a Safe / Careful badge.
 - **Leftovers** — data orphaned by apps you already uninstalled, matched against the bundle IDs of everything still installed. Under-reports rather than over-deletes.
-- **Trash** — session stats, undo stack, and an *Empty* button that routes through Finder.
+- **Trash** — session stats, undo stack, and an *Empty* button: outside the sandbox it asks Finder to
+  do the emptying, in the App Store build it opens the Trash so you can press ⌘⇧⌫.
 
 **Personalize**
 - **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes typeface, corner radius, elevation, motion signature and chart palette. Morning Fog, Graphite, Mint, Polar Night, Aurora Glass, Ink & Paper — all six are in the box.
@@ -277,7 +280,7 @@ DiskWise 走相反的路子：
 | 删除路径 | **全 App 只有一条** —— `FileManager.trashItem`，一律进废纸篓 |
 | 撤销 | 支持，按操作、整会话可退 |
 | 保护路径 | 家目录本体、`~/Library` 等整体不可删，子项可以 |
-| 清空废纸篓 | 交给**访达**执行，系统会再问你一次 |
+| 清空废纸篓 | 动手的永远是**访达**，本工具从不自己永久删除。直链版：请访达清空，访达会让你确认一次。商店沙盒版：这条指令被系统掐掉（实测连授权框都不弹），同一颗按钮改成打开废纸篓窗口，你按 ⌘⇧⌫ |
 | Docker 镜像 | 只读。虚拟盘没有独立路径，App 只指路不代删 |
 | 联网 | 无。不自动更新、不统计、无广告 |
 | 收费 | 无。功能全开，六套皮肤全部随包可用 |
@@ -289,10 +292,10 @@ DiskWise 走相反的路子：
 ## 功能
 
 **看清空间**
-- **空间总览**：分段环形仪表，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到的地方 + 系统可清除 + 空闲）；下面列最占地方的文件夹，每行「访达显示 / 深挖」
+- **空间总览**：整块盘画成一个环——一段弧就是这一轮真量到的字节，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到 + 系统可清除 + 空闲），那道光带就停在「量到这儿」的边界上。能整个搬走的那一段点两下：第一下上膛，第二下才进废纸篓，3 秒不点自己松开。整页只有一段账：环旁边那一列，行首点一下就**就地摊开**它名下是哪几个目录、哪几处位置、哪几卷账，摊开时环收成一枚小参照盘。「访达显示」和「深挖」挂在摊开的那一行上
 - **走整盘扫描**：没有范围开关要猜。开源版整趟走整盘（白名单里的系统根、别人的家目录都在内），商店沙盒版走授权能达到的最大范围并把这个边界写在界面上。两边扫的都是整块盘，不是家目录里那几处整洁的角落
 - **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及读不动的那几处。那颗跳「完全磁盘访问权限」设置的按钮只在实测读不到受保护文件时才出现，已经授权过的人不会再被喊一次「去授权」。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
-- **「其他已统计」凑得出来**：这块弧对应的那几行上面有一条分界线把它们框住，列表下面那句再把它逐段摊开（那几行 + 「展开其余」里那几处 + 不到 100 MB 的小目录），一百多 G 不能只写成一句「信我」
+- **「其他已统计」凑得出来**：点开那一格，这块弧名下的每一处都列在它自己名下，最后一句把没点名的补齐（这里这几处 ＋ 不到 100 MB 的那几处），几段相加就等于弧上那个数——一百多 G 不能只写成一句「信我」
 - **大文件**：按同一批范围根遍历，TOP 可调，可跳过开发目录
 - **很久没动**：同样这些根里，N 天没打开的文件
 - **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组日期最新一份锁定保留
@@ -305,7 +308,7 @@ DiskWise 走相反的路子：
 - **缓存清理**：知识库覆盖 Homebrew、npm、yarn、Maven、Gradle、conda、Xcode、模拟器、微信 / 钉钉 / 企业微信 / QQ 等。
   每项都写明「这是什么 / 删了会怎样 / 怎么恢复」，并给安全 / 留意分级
 - **卸载残留**：以「还装着的 App 的 bundle id」为基准找孤儿，宁可漏报不误删
-- **废纸篓**：体积统计、撤销栈、走访达的清空按钮
+- **废纸篓**：体积统计、撤销栈，以及一颗「清空」——直链版由访达执行，商店沙盒版只把废纸篓窗口打开给你按 ⌘⇧⌫
 
 **个性化**
 - **外观皮肤**：6 套。关键点是它们**不是换色**——每套各自改字体面、圆角、材质分层、动效签名、图表配色。

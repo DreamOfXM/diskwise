@@ -159,6 +159,29 @@ extension Theme {
         display(style)
     }
 
+    /// 按样稿那个字号直接排正文，只借皮肤的 face、权重显式给。
+    ///
+    /// 系统的 `.callout` 在 macOS 上是 11 pt，而样稿的 `.lede` 写 15 px、`.btn` 写 13 px：
+    /// 招牌那一屏的导语比下面的正文还小一档，层级当场倒过来。
+    func prose(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        switch face {
+        case .system: return .system(size: size, weight: weight)
+        case .rounded: return .system(size: size, weight: weight, design: .rounded)
+        case .serif: return .system(size: size, weight: weight, design: .serif)
+        }
+    }
+
+    /// 环形圆心那个大数：字号由环的直径反推，不是挑一个顺眼的档。
+    func numeric(size: CGFloat, weight: Font.Weight? = nil) -> Font {
+        let design: Font.Design
+        switch face {
+        case .system: design = .default
+        case .rounded: design = .rounded
+        case .serif: design = .serif
+        }
+        return .system(size: size, weight: weight ?? displayWeight, design: design)
+    }
+
     var animation: Animation {
         switch motion {
         case .still: return .easeOut(duration: 0.12)

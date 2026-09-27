@@ -11,9 +11,13 @@ public struct SafetyEntry: Decodable {
     public var level: String          // safe | warn
     public var grp: String?
     public var docs: String?
+    /// 归属 App 的包名。只给「路径里查不出包名、但确实属于某个 App」的条目用
+    /// （`~/Library/Developer/Xcode/**` 这类），行首那一格靠它挂 App 图标。
+    /// 商店版签名带 team 前缀的 App（钉钉那种）不填——对不上就不对，宁可不挂。
+    public var app: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, what, whatif, rec, path, level, grp, docs
+        case name, what, whatif, rec, path, level, grp, docs, app
     }
 
     public init(from decoder: Decoder) throws {
@@ -26,6 +30,7 @@ public struct SafetyEntry: Decodable {
         level = (try? c.decode(String.self, forKey: .level)) ?? "safe"
         grp = try? c.decode(String.self, forKey: .grp)
         docs = try? c.decode(String.self, forKey: .docs)
+        app = try? c.decode(String.self, forKey: .app)
     }
 }
 
@@ -86,6 +91,15 @@ public struct CacheItem: Identifiable {
     public var entry: SafetyEntry
     public var resolvedPaths: [URL] = []
     public var size: Int64? = nil      // nil = 统计中
+    /// 每条解析路径各自的体积。`size` 是它们的和，够缓存页那一行用，但不够总览用：
+    /// 总览要把这一条拆到环形不同的弧上去归账，只能拿到「一共 3.7 GB」就归不了。
+    public var pathSizes: [String: Int64] = [:]
+    /// 这一条目下的文件个数与最近一次改动，给展开行用。
+    ///
+    /// 只有字节数的那一版，13 GB 的一堆缓存和 13 GB 的单个镜像在界面上长得一样，
+    /// 而前者可以一条条判、后者不能。个数和日期是「这一处到底装着什么」的另外两条信息。
+    public var files: Int = 0
+    public var newest: Date? = nil
     public var selected = false
 
     public init(entry: SafetyEntry, resolvedPaths: [URL] = [], size: Int64? = nil, selected: Bool = false) {
@@ -123,6 +137,162 @@ public let MB: Int64 = 1_000 * kB
 public let GB: Int64 = 1_000 * MB
 public let TB: Int64 = 1_000 * GB
 
+private let hUnits = ["KB", "MB", "GB", "TB", "PB"]
+private let hScales: [Int64] = [kB, MB, GB, TB, 1_000 * TB]
+
+/// 这个数该用哪个单位印：跟 `human()` 走的是同一条台阶，两处必须一起动。
+private func hUnitIndex(_ v: Int64) -> Int {
+    var u = 0
+    while u < hUnits.count - 1 && v >= 1000 * hScales[u] { u += 1 }
+    return u
+}
+
+/// `parts` 是不是真能被收成「加得起来的一列」：有东西、没有负数、而且逐字节加起来
+/// 正好等于 `total`。最后这条是命门——不等就说明调用方给的不是同一个集合，
+/// 那时候补差数就是编数。
+private func partsAddUp(_ parts: [Int64], _ total: Int64) -> Bool {
+    total > 0 && parts.contains(where: { $0 > 0 })
+        && parts.allSatisfy { $0 >= 0 } && parts.reduce(Int64(0), +) == total
+}
+
+/// 最大余数法：每行先向下取到 0.1 个单位，再把缺的那几格按余数从大到小补回去。
+/// 每行仍与真值差不到 0.1 个单位，这一列却加得起来。调用方先过 `partsAddUp`。
+private func apportionTenths(_ parts: [Int64], _ total: Int64, unit u: Int) -> [String] {
+    let div = Double(hScales[u]) / 10.0          // 一格 = 0.1 个单位
+    let exact = parts.map { Double($0) / div }
+    var cells = exact.map { Int($0.rounded(.down)) }
+    let short = Int((Double(total) / div).rounded()) - cells.reduce(0, +)
+    if short > 0 {
+        let order = exact.indices.sorted { a, b in
+            let ra = exact[a] - Double(cells[a]), rb = exact[b] - Double(cells[b])
+            return ra == rb ? a < b : ra > rb
+        }
+        for i in order.prefix(short) { cells[i] += 1 }
+    }
+    let suffix = " " + hUnits[u]
+    return cells.map { String(format: "%.1f%@", Double($0) / 10.0, suffix) }
+}
+
+/// 一组「加起来必须等于总数」的字节，收成同一单位、一位小数，而且**印出来的这几行
+/// 相加正好等于印出来的那个总数**。
+///
+/// 为什么不能各自 `human()`：每行独立四舍五入会各自往上飘。实拍过一屏
+/// 「12.0 + 6.3 + 4.2 = 22.5」而圆心写着 22.4——同一屏两本账，用户第一个抓的就是这个。
+///
+/// 三种情况整体退回逐行 `human()`——宁可各说各的，也不许凑出一个数：
+/// 1. 各行之和不等于 `total`：调用方给的不是同一个集合，补差数就是编数；
+/// 2. 有任何一行落在别的单位（总数是 GB、这行显示成 MB）：那一列本来就不能相加；
+/// 3. 一行都没有。
+public func addableHuman(_ parts: [Int64], total: Int64) -> [String] {
+    let plain = parts.map(human)
+    guard partsAddUp(parts, total) else { return plain }
+    let u = hUnitIndex(total)
+    let suffix = " " + hUnits[u]
+    guard parts.allSatisfy({ $0 == 0 || human($0).hasSuffix(suffix) }) else { return plain }
+    return apportionTenths(parts, total, unit: u)
+}
+
+/// 跟 `addableHuman` 同一件事，但**整列强行统一到总数那个单位**：那一列允许某一行
+/// 落在 MB（因为它本来就不相加），这一列不行——屏幕上明写着「各段之和」，
+/// 那就得真加得起来，而里面混着一行 501.6 MB 时 `addableHuman` 会整列退回逐行四舍五入，
+/// 2026-09-25 真机实拍到的正是这个：那一列印出来加成 494.5，右边写着 494.4。
+///
+/// 被分摊到 0 格的那一行（有地方、却不到一个最小刻度）印 `< 0.1`：它确实占着盘，
+/// 印成 `0.0` 等于让这一行从这一列里消失，用户按行数就加不回来了。
+/// 只在「各行根本不是同一笔账」时整体退回逐行 `human()`（见 `partsAddUp`）。
+public func addableHumanColumn(_ parts: [Int64], total: Int64) -> [String] {
+    addableHumanColumn(parts, total: total, inRulerOf: total)
+}
+
+/// 同上，但那一列的**单位由屏幕上另一个数定**。
+///
+/// 废纸篓的操作记录就是一个例子：列里最大一条只有 20 MB，右上角那张「本次移入」却按
+/// 整个废纸篓的体量印成 GB。各选各的单位，同一屏就是两把尺；给这一列传进去的
+/// `ruler` 就是那张卡用的那个数，于是列加起来的和**正好等于卡上那串字**。
+public func addableHumanColumn(_ parts: [Int64], total: Int64, inRulerOf ruler: Int64) -> [String] {
+    let plain = parts.map(human)
+    guard partsAddUp(parts, total) else { return plain }
+    let u = hUnitIndex(max(1, ruler))
+    let out = apportionTenths(parts, total, unit: u)
+    let zero = "0.0 " + hUnits[u]
+    return zip(parts, out).map { byte, shown in
+        byte > 0 && shown == zero ? belowTickle(u) : shown
+    }
+}
+
+private let hUnitScale: [String: Double] = ["B": 1, "KB": 1e3, "MB": 1e6,
+                                            "GB": 1e9, "TB": 1e12, "PB": 1e15]
+
+/// 一串 `human()` 印出来的字背后的字节数；认不出来（不是「数字 空格 单位」）返回 nil。
+private func shownBytes(_ s: String) -> Int64? {
+    let p = s.split(separator: " ")
+    guard p.count == 2, let v = Double(p[0]), let sc = hUnitScale[String(p[1])]
+    else { return nil }
+    return Int64((v * sc).rounded())
+}
+
+/// 把屏幕上**已经印出来的那几串数**加起来，印成它们的和；认不出任何一串时返回 nil。
+///
+/// 为什么不拿字节相加再四舍五入：2026-09-25 圆心实拍那一屏印的是「可用 14.2」
+/// 「可回收 18.6」「全部清空后可用 32.7」——真值各自偏低（14.1x ＋ 18.5x = 32.7x），
+/// 字节加法一步没错，错在那三个**印出来的数**加不起来。人核对的是屏幕上那三串字，
+/// 差的那 0.1 要记在「每一项都各自四舍五入过」上，不能记在两个口径上。
+public func sumShown(_ shown: [String]) -> String? {
+    var t = Int64(0)
+    for s in shown {
+        guard let b = shownBytes(s) else { return nil }
+        t += b
+    }
+    return human(t)
+}
+
+/// 同上，减法版：「整块盘 494.4 − 可用 14.2」印出来的「已用」必须是 480.2，
+/// 而不是各拿字节四舍五入之后凑出来的那个数（两者可以差 0.1）。
+public func diffShown(_ whole: String, _ part: String) -> String? {
+    guard let a = shownBytes(whole), let b = shownBytes(part), a >= b else { return nil }
+    return human(a - b)
+}
+
+/// 会被印成 `0.0` 的那个阈值：不到半个最小刻度。
+private func roundsToZero(_ v: Int64, unit u: Int) -> Bool {
+    Double(v) < Double(hScales[u]) * 0.05
+}
+
+/// 一行有地方、却不到这一列的最小刻度时印成什么。
+///
+/// 不能印 `0.0`：那一行当场从这一列里消失了，用户按行数加不回来，而且「0.0 GB」
+/// 读起来像「这里没量到」。`< 0.1` 说的是同一件事，但它承认自己占着地方。
+private func belowTickle(_ u: Int) -> String { "< 0.1 " + hUnits[u] }
+
+/// 一个数按第 `u` 档单位印：正好为 0 印 `0.0`（那是真没有），
+/// 有地方却不到最小刻度印 `< 0.1`，其余一位小数。
+private func printAt(_ v: Int64, unit u: Int) -> String {
+    let suffix = " " + hUnits[u]
+    if v == 0 { return String(format: "0.0%@", suffix) }
+    if roundsToZero(v, unit: u) { return belowTickle(u) }
+    return String(format: "%.1f%@", Double(v) / Double(hScales[u]), suffix)
+}
+
+/// 一组数**印成同一个单位**、各留一位小数，但**不做分摊**。
+///
+/// 用它的地方是那些「这一组不是加得起来的账」的场合：Docker 的镜像明细已经算在
+/// 上面那段「· 合计」里，废纸篓两块卡的「本次移入」也躺在「现在」那个数里面。
+/// 它们不能相加，但并排印的时候必须同一把尺——25.7 GB 挨着 501.6 MB，两行就没法比大小。
+public func unifiedHuman(_ values: [Int64]) -> [String] {
+    let u = hUnitIndex(values.max() ?? 0)
+    return values.map { printAt($0, unit: u) }
+}
+
+/// 单个数按「总数为 `total` 的那一列」同一把尺印出来。
+///
+/// 底部清理条那句「已选 X」跟上面那一列是同一个量的两种口径：一列全是 GB 而底下冒出
+/// 一个 400.0 MB，读的人得先心算一次才能知道自己选的是这页的大头还是零头。
+/// 单位的台阶取 `total` 那个（跟 `addableHumanColumn` 同一句 `hUnitIndex`），
+/// 所以传进来的 `total` 就是上面那一列的合计。
+public func human(_ bytes: Int64, inRulerOf total: Int64) -> String {
+    printAt(max(0, bytes), unit: hUnitIndex(max(1, total)))
+}
+
 // ── 受保护路径：整体不允许移入废纸篓（里面的子项可以）──
 
 public func protectedPaths() -> Set<String> {
@@ -152,4 +322,75 @@ public func isDeletable(_ url: URL) -> Bool {
     let home = homePath()
     let apps = applicationsDir()
     return p == home || p.hasPrefix(home + "/") || p == apps || p.hasPrefix(apps + "/")
+}
+
+/// 这一处**整块**能不能搬进废纸篓：`isDeletable` 说「这个位置归本工具管」，
+/// `isProtected` 说「这一处整块不许动」，两道都得过。
+///
+/// 判据必须跟 `trashItem` 走同一条，否则界面上会开出空头支票：`~/Library` 在家目录里，
+/// 只查 `isDeletable` 那一行就标成「能删」，而真点下去 `trashItem` 是拒绝的。
+/// 环形上那道「点我，能收走」的亮沿读的正是这条，标错一次那一格就是骗人点击。
+public func isReclaimableWhole(_ url: URL) -> Bool {
+    isDeletable(url) && !isProtected(url)
+}
+
+// ── 环形那本「可回收」账的目标集 ──
+//
+// 环形只认整段可搬，实测一台机器上就报成「96 GB 里 6.3 GB 动得了」，而同一 App 的
+// 缓存页能清 22 GB。招牌画面那个数是产品的承诺，少报三倍跟报错了没区别。
+// 所以可回收量必须落到**具体一处一处**的目标上，而不是「这一整段」。
+
+/// 一个点名能搬走的东西：路径 + 它此刻占着多少。
+public struct ReclaimTarget: Equatable, Hashable {
+    public let path: String
+    public let size: Int64
+
+    public init(path: String, size: Int64) {
+        self.path = path
+        self.size = size
+    }
+
+    public var url: URL { URL(fileURLWithPath: path) }
+}
+
+/// 「其余」这个桶的归账键：不属于任何一条具名弧的可回收处都归到它下面。
+///
+/// 它住 Core 而不是界面里，是因为它和 `reclaimBucket` 是一对约定——自检要能钉住
+/// 「回 nil 的那些最终去了哪儿」，而 SelfTest 只依赖 Core、摸不到 App target。
+/// 用一个不可能当路径的串：真目录永远不会撞上它。
+public let reclaimRestKey = "__rest__"
+
+/// 收成互不嵌套的一组：父项已经计入，就不该再把子项加第二遍。
+///
+/// 知识库的条目本来就互相套着（`~/Library/Caches` 与它下面的 `~/Library/Caches/Homebrew`
+/// 是同一段字节）。缓存页靠「未勾选就不加总」躲开这件事，环形要加总，只能先去嵌套。
+public func dropNested(_ paths: [String]) -> [String] {
+    let sorted = Set(paths).sorted()
+    return sorted.filter { p in
+        !sorted.contains { q in
+            q != p && (p == q || p.hasPrefix(q + "/"))
+        }
+    }
+}
+
+/// 一批路径**实际**占了多少字节：互相套着的只留最外面那个。
+///
+/// 每个 `bytes` 都是那条路径整棵子树的量，父的数本来就含着子，把子再加一遍就是数两遍。
+/// 所以先去嵌套、再只加留下来的那几个。缓存页的全选合计走这里，
+/// 别按条目自己的 `size` 相加——`~/Library/Caches` 和它下面的 `Caches/Home` 是同一段字节。
+public func contentsUnionSize(_ sizes: [(path: String, bytes: Int64)]) -> Int64 {
+    let byPath = Dictionary(sizes.map { ($0.path, $0.bytes) }, uniquingKeysWith: { a, _ in a })
+    return dropNested(Array(byPath.keys)).reduce(Int64(0)) { $0 + (byPath[$1] ?? 0) }
+}
+
+/// 一批桶路径里谁离得最近算谁的：给 `path` 找**最长**的那个祖先前缀。
+///
+/// 用最长而不是第一个，是因为环形同时有 `~/Library` 和 `~/Library/Developer` 这样的父子桶，
+/// 归到父桶会让子桶那一段被计两次。
+public func reclaimBucket(of path: String, in buckets: [String]) -> String? {
+    var best: String? = nil
+    for b in buckets where path == b || path.hasPrefix(b + "/") {
+        if best == nil || b.count > best!.count { best = b }
+    }
+    return best
 }

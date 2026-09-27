@@ -86,8 +86,12 @@ PLIST
 }
 
 # ── 包管理器与构建缓存（缓存清理页）──
+# 体积是有讲究的：真机上开发机的前三名往往是 ~/Library + 几个几十 G 的模型/构建缓存
+# （本机实测：Library 74 GB、Desktop 56 GB、.ollama 17 GB、.omlx 13 GB、.gradle 7 GB），
+# 缓存类目录必须能挤进环形的前三条弧，否则环上那道「点我，能收走」的亮沿在这套数据上
+# 永远画不出来，两段式确认就没法截图、也没法验收。
 mk "$H/.npm/_cacache/index-v5/blob-00.bin" 1700
-mk "$H/.gradle/caches/modules-2/files-2.1/android-all.jar" 2400
+mk "$H/.gradle/caches/modules-2/files-2.1/android-all.jar" 6000
 mk "$H/.m2/repository/com/example/platform/artifacts.jar" 1100
 mk "$H/Library/Caches/Homebrew/download-cache.tar.gz" 1300
 mk "$H/Library/Caches/Yarn/v6/npm-packages.bin" 700

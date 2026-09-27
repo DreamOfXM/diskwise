@@ -2,7 +2,9 @@ import SwiftUI
 import DiskCleanerCore
 
 // ── 缓存清理：知识库驱动，每项解释 + 勾选 + 只进废纸篓 ──
-// 注意：知识库条目路径互相有重叠，未勾选项一律不做加总展示（UI 已守此规矩）。
+//
+// 知识库条目之间路径互相套着（`~/Library/Caches` 底下就躺着 `Caches/Homebrew`），
+// 所以任何「合起来多少」都必须走 `contentsUnionSize`，不能按条目自己的 size 相加。
 //
 // safety_db.json 里的 name/what/whatif/rec 是中文原文，也就是本地化 key——
 // 英文译文全在 en.lproj 那张表里，构建时用 l10n_tool 逐条核对覆盖率。
@@ -39,27 +41,60 @@ private func cacheRowSub(_ item: CacheItem) -> String? {
     return parts.joined(separator: " · ")
 }
 
+/// 这一行亮不亮「动得了」那一档。体积还没量出来的不亮（那是「还不知道」，
+/// 不是「能删」）；标「留意」的也不亮——全选不碰它，就不该给批量带走的暗示。
+private func cacheLit(_ it: CacheItem) -> Bool {
+    (it.size ?? 0) > 0 && it.entry.level != "warn"
+}
+
+/// 一组条目名下所有解析路径各自的字节（父目录那个数本来就含着它下面的子目录）。
+private func pathSizes(of items: [CacheItem]) -> [(path: String, bytes: Int64)] {
+    items.flatMap { $0.pathSizes.map { (path: $0.key, bytes: $0.value) } }
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class CachesModel: ObservableObject {
     @Published var items: [CacheItem] = []
     @Published var scanning = false
     @Published private(set) var started = false
+    /// 现场读数：这一页慢在逐个缓存目录量体积，27 条能走一两分钟。
+    private(set) var progress = ScanProgress()
     private var task: Task<Void, Never>? = nil
 
     var selected: [CacheItem] { items.filter { $0.selected && $0.size != nil } }
-    var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
 
-    /// 体积还没统计出来的行不给全选：选了也不知道能腾出多少，确认框里会写成一个假数。
+    /// 勾了的这些条目**实际**占多少：路径互相套着的只数最外面那层。
+    ///
+    /// 按条目各自的 `size` 相加会虚高 —— 演示树上全选打印过 38.6 GB，
+    /// 而真实能腾出的是 33.1 GB，差的 5.5 GB 全是同一份字节被数了两遍。
+    var selectedBytes: Int64 { contentsUnionSize(pathSizes(of: selected)) }
+
+    /// 「全选」这一按到底能带走多少，给卡下面那句对账话用。
+    var selectableBytes: Int64 { contentsUnionSize(pathSizes(of: openItems)) }
+
+    /// 全选只管「勾得动又不催你自己判」的那批：标「留意」的要用户自己过目，
+    /// 一键把它带走等于替用户拍了他该拍的板。体积没量出来的也不能选——
+    /// 选了也不知道能腾出多少，确认框里会写成一个假数。
+    private var openItems: [CacheItem] { items.filter(cacheLit) }
+
     var selectAll: SelectAll? {
-        let open = items.filter { ($0.size ?? 0) > 0 }
+        let open = openItems
         guard !open.isEmpty else { return nil }
         return SelectAll(allSelected: open.allSatisfy(\.selected),
                          unselectable: items.count - open.count) { on in
-            for i in self.items.indices where (self.items[i].size ?? 0) > 0 {
+            let ids = Set(open.map(\.id))
+            for i in self.items.indices where ids.contains(self.items[i].id) {
                 self.items[i].selected = on
             }
         }
+    }
+
+    /// 有几条目的路径正套在别的条目底下。0 就不说，非 0 必须说：
+    /// 那一列相加比底部那个数大，用户第一个怀疑的就是数字是编的。
+    var overlapCount: Int {
+        let kept = Set(dropNested(pathSizes(of: items).map(\.path)))
+        return items.filter { !$0.pathSizes.keys.allSatisfy(kept.contains) }.count
     }
 
     func load(force: Bool = false) {
@@ -67,6 +102,7 @@ final class CachesModel: ObservableObject {
         task?.cancel()
         started = true
         scanning = true
+        progress = ScanProgress()
         task = Task {
             let entries = loadSafetyEntries(from: safetyDBURL())
             var list: [CacheItem] = []
@@ -79,25 +115,26 @@ final class CachesModel: ObservableObject {
             // 常规缓存排前面
             list.sort { ($0.groupKey != "general" ? 1 : 0, $0.entry.name) < ($1.groupKey != "general" ? 1 : 0, $1.entry.name) }
             self.items = list
-            // 并行统计大小
-            await withTaskGroup(of: (UUID, Int64).self) { group in
+            // 并行统计大小。逐路径记账而不只留一个和：总览那条环形要把同一条目的
+            // 几处缓存拆到不同的弧上去归账，只有一个总数就拆不开。
+            await withTaskGroup(of: (UUID, [String: DirScan]).self) { group in
                 for it in list {
                     group.addTask {
-                        var s: Int64 = 0
+                        var per: [String: DirScan] = [:]
                         for p in it.resolvedPaths {
                             if Task.isCancelled { break }
-                            var isDir: ObjCBool = false
-                            if FileManager.default.fileExists(atPath: p.path, isDirectory: &isDir) {
-                                s += isDir.boolValue ? await dirSize(p) : fileSize(p)
-                            }
+                            per[p.path] = await pathStat(p, progress: self.progress)
                         }
-                        return (it.id, s)
+                        return (it.id, per)
                     }
                 }
-                for await (id, sz) in group {
+                for await (id, per) in group {
                     if Task.isCancelled { break }
                     if let i = self.items.firstIndex(where: { $0.id == id }) {
-                        self.items[i].size = sz
+                        self.items[i].pathSizes = per.mapValues(\.bytes)
+                        self.items[i].size = per.values.reduce(Int64(0)) { $0 + $1.bytes }
+                        self.items[i].files = per.values.reduce(0) { $0 + $1.files }
+                        self.items[i].newest = per.values.compactMap(\.newest).max()
                     }
                 }
             }
@@ -132,11 +169,10 @@ struct CachesView: View {
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在翻你的缓存目录，稍等…"))
+                        LoadingRow(text: L("正在翻你的缓存目录，稍等…"), progress: model.progress)
                     } else {
                         Text(LF("%d 项可查", model.items.count))
                     }
-                    ThemeBadge(text: L("条目路径有重叠，未勾选不做加总"), tone: .neutral)
                 } trailing: {
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.load(force: true) }, stop: { model.stop() })
@@ -146,47 +182,97 @@ struct CachesView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            if !model.scanning && model.items.isEmpty {
+            if model.scanning && model.items.isEmpty {
+                ScanSkeleton()
+            } else if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "tray", title: L("知识库没加载出来"),
                            hint: L("点右上角重新扫描，还不行就提个 Issue"))
                     .frame(maxHeight: .infinity)
             } else {
+                PageLedger(tiers: tiers, rows: measured.count, note: ledgerNote)
                 List($model.items) { $item in
                     ItemRow(selected: $item.selected,
+                            icon: rowIcon(item.resolvedPaths, "sparkles"),
+                            appID: item.entry.app,
                             name: L(item.entry.name),
                             sub: cacheRowSub(item),
-                            sizeText: item.size.map { human($0) } ?? L("统计中…"),
+                            sizeText: item.size == nil ? L("统计中…") : (shown[item.id] ?? human(item.size ?? 0)),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: ItemBadge(text: item.entry.level == "warn" ? L("留意") : L("安全"),
                                              tone: item.entry.level == "warn" ? .warn : .safe),
-                            selectable: item.size != nil && item.size != 0) {
+                            selectable: (item.size ?? 0) > 0,
+                            lit: cacheLit(item),
+                            showRule: model.items.first?.id != item.id,
+                            preopen: SnapshotMode.expandFirstRow
+                                && model.items.first?.id == item.id) {
                         ExplainLine(key: L("这是什么"), value: L(item.entry.what))
                         ExplainLine(key: L("删了会怎样"), value: L(item.entry.whatif))
                         ExplainLine(key: L("怎么恢复"), value: L(item.entry.rec))
+                        if let what = contentsLine(item.files, item.newest) {
+                            ExplainLine(key: L("内容"), value: what)
+                        }
                         ForEach(item.resolvedPaths, id: \.self) { p in
                             PathLine(path: p.path)
                         }
                     }
-                    .themedRow()
                 }
-                .themedList()
+                .ledgerCard()
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: errorText, selection: model.selectAll) { confirmClean = true }
+                     bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
+                     errorText: errorText, hint: barHint,
+                     selection: model.selectAll) { confirmClean = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { model.load() }
-        .alert(L("确认清理？"), isPresented: $confirmClean) {
-            Button(L("取消"), role: .cancel) {}
-            Button(L("移入废纸篓"), role: .destructive) { clean() }
-        } message: {
-            Text(LF("将 %1$@（%2$@）移入废纸篓，随时可撤销。真正释放空间需要之后清空废纸篓。",
-                    cnt(model.selected.count, "项"), human(model.selectedBytes)))
+        .confirmTrash(isPresented: $confirmClean,
+                      text: LF("将 %1$@（%2$@）移入废纸篓。",
+                               cnt(model.selected.count, "项"),
+                               human(model.selectedBytes, inRulerOf: listedTotal))) {
+            clean()
         }
     }
 
     private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
+
+    /// 量出体积的那些行——「合计」和「这一列」说的是同一批行，没量出来的不算进去。
+    /// 算进去会怎样：那一格印的是「统计中…」，加不出数，合计却把它当成 0。
+    private var measured: [(id: UUID, bytes: Int64, lit: Bool)] {
+        model.items.compactMap { it in
+            guard let sz = it.size, sz > 0 else { return nil }
+            return (id: it.id, bytes: sz, lit: cacheLit(it))
+        }
+    }
+
+    private var listedTotal: Int64 { measured.reduce(Int64(0)) { $0 + $1.bytes } }
+
+    private var shown: [UUID: String] {
+        sizeColumn(measured.map { (key: $0.id, bytes: $0.bytes) })
+    }
+
+    /// 两档：亮着的（动得了）和标「留意」的。`listedSplitOf` 里那堆"不亮"的在这一页
+    /// 全是「留意」——体积没量出来的行根本进不了 `measured`，所以不会有第三档。
+    private var tiers: [LedgerTier] {
+        let sp = listedSplitOf(measured, bytes: { $0.bytes }, lit: { $0.lit })
+        return [LedgerTier(label: L("动得了"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("留意"), bytes: sp.viewOnly, tone: .warn)]
+    }
+
+    private var ledgerNote: String? {
+        // 那一列相加会比底部那个数大，而两个数同屏——不说清是哪几条套着，
+        // 用户只会认定其中一个在编。
+        model.overlapCount > 0
+            ? LF("%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。",
+                 model.overlapCount, human(model.selectableBytes))
+            : nil
+    }
+
+    private var barHint: String? {
+        model.overlapCount > 0
+            ? LF("%1$d 条路径套在别的条目底下，合计只数最外面那层", model.overlapCount)
+            : L("合计按条目各自的大小相加")
+    }
 
     private func clean() {
         errorText = nil

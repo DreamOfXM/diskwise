@@ -118,6 +118,12 @@ check(finderError(number: -1743, message: "").reasonKey == "没有控制访达�
       "-1743 归成「没放行自动化」")
 check(finderError(number: -128, message: "User canceled.").reasonKey == "访达的确认被取消了",
       "-128 归成「被取消」，不当故障报")
+// -600 实测来自沙盒版：发往访达的事件被系统掐掉，访达压根没收到，
+// 说成「访达拒绝执行」是把责任推给了访达。
+check(finderError(number: -600, message: "Application isn’t running.").reasonKey == "指令没能送到访达",
+      "-600 归成「没送到访达」，不冤枉访达拒绝")
+check(finderError(number: -609, message: "").reasonKey == "指令没能送到访达",
+      "-609（目标连接已断）同案")
 check(finderError(number: -10010, message: "err").reasonKey == "访达拒绝执行",
       "其它错误号仍算访达拒绝")
 check(finderError(number: -1743, message: "Not authorized").detail.contains("-1743"),
@@ -234,6 +240,365 @@ check(ringSplit(covered: 500_000_000_000, used: 400_000_000_000, topSum: 0) == n
       "量到的比整块盘的已用还多时不拆")
 check(ringSplit(covered: 60_000_000_000, used: 400_000_000_000, topSum: 80_000_000_000) == nil,
       "前三名比整趟量到的还大时不拆")
+
+// 4h. 搬进废纸篓不等于腾出空间：used 一个字节都没变，那些字节只能在弧之间挪家。
+//     这条要是算错，环形就会「点一下少一圈」——图上凭空消失的字节比报多个数更糟。
+let mvTop: Int64 = 40_000_000_000, mvRest: Int64 = 7_000_000_000
+if let r = ringSplit(covered: ringCovered, used: ringUsed, topSum: 100_000_000_000,
+                     movedOutTop: mvTop, movedOutRest: mvRest) {
+    check(r.topSum + r.restMeasured + r.untouched + r.trash == ringUsed,
+          "搬走之后四块加起来仍等于已用（字节只挪家、不掉盘）")
+    check(r.trash == mvTop + mvRest, "「本次移入废纸篓」= 从各条弧上减掉的合计")
+    check(r.topSum == 60_000_000_000 && r.restMeasured == 190_000_000_000,
+          "前三与「其他已统计」各自减掉自己名下被搬走的那部分")
+    check(r.untouched == 77_500_000_000, "没量到的那块不因搬动而变：废纸篓本来就已在已用里")
+} else {
+    check(false, "搬走一部分后环形该拆得开")
+}
+// 报不出来的账就不画：搬走的比那条弧本身还大，说明两本账对不上
+check(ringSplit(covered: ringCovered, used: ringUsed, topSum: 100_000_000_000,
+                movedOutTop: 120_000_000_000) == nil,
+      "前三名名下搬走的比它们量到的还多时不拆")
+check(ringSplit(covered: ringCovered, used: ringUsed, topSum: 100_000_000_000,
+                movedOutRest: 300_000_000_000) == nil,
+      "「其他已统计」名下搬走的超过它自己时不拆")
+
+// 4i. 搬走的每一笔记在哪条弧上：认最长匹配，父子两条弧不许各记一遍，
+//     归不进去的那些必须单列——它们不许偷偷变成一条凭空多出来的弧。
+let ledRecords: [(original: String, bytes: Int64)] = [
+    (home + "/.ollama/models/q3.bin", 30_000_000_000),   // 前三名下
+    (home + "/.ollama", 4_000_000_000),                  // 目录本身被整个搬走
+    (home + "/tmpcase/thing.bin", 2_000_000_000),        // 「其他已统计」名下
+    (home + "/Deep/nested/x.mkv", 5_000_000_000),        // 父在前三、子在其余 → 记更深的那条
+    (home + "/Solo/a.mov", 6_000_000_000),               // 只在前三名下
+    ("/Volumes/Other/x.raw", 9_000_000_000)              // 这一轮压根没量到
+]
+let led = ringMoveLedger(records: ledRecords,
+                         topPaths: [home + "/.ollama", home + "/Deep", home + "/Solo"],
+                         otherPaths: [home + "/tmpcase", home + "/Deep/nested"])
+check(led.perTop[home + "/.ollama"] == 34_000_000_000, "同一目录名下的多笔记在它自己那条弧上")
+check(led.perTop[home + "/Solo"] == 6_000_000_000, "只在前三名下的记进前三")
+check(led.perTop[home + "/Deep"] == nil, "父目录那条弧不替儿子记账（否则同一块字节记两遍）")
+check(led.perOther[home + "/tmpcase"] == 2_000_000_000
+        && led.perOther[home + "/Deep/nested"] == 5_000_000_000,
+      "「其他已统计」里也要点得出是哪几个目录被搬走——列表逐行复述时按这个减")
+check(led.topOut == 40_000_000_000 && led.restOut == 7_000_000_000,
+      "父子都认得时只记最深的那条")
+check(led.out(of: home + "/Deep/nested") == 5_000_000_000
+        && led.out(of: home + "/.ollama") == 34_000_000_000
+        && led.out(of: "/Volumes/Other") == 0,
+      "同一个查询口覆盖前三名与其余，动不到的回 0")
+check(led.unattributed == 9_000_000_000, "这轮没量到的位置删掉的，归不进环形")
+check(led.topOut + led.restOut + led.unattributed + led.absorbed
+        == ledRecords.reduce(Int64(0)) { $0 + $1.bytes },
+      "每一笔字节恰好落进一个桶——不多记也不漏记")
+check(led.trashArc == 47_000_000_000, "环上那条「本次移入」= 能归到弧上的合计")
+if let r = ringSplit(covered: ringCovered, used: ringUsed, topSum: 100_000_000_000,
+                     movedOutTop: led.topOut, movedOutRest: led.restOut) {
+    check(r.topSum + r.restMeasured + r.untouched + r.trash == ringUsed,
+          "账本喂进分段函数后四块仍等于已用")
+    check(r.trash == 47_000_000_000,
+          "环上只有 47 GB 那段是搬进来的——归不进弧的 9 GB 不许凭空变成弧")
+} else {
+    check(false, "这本账该拆得开")
+}
+
+// 4j. 清完一轮再点「重新扫描」：重新量到的尺寸里已经不含搬走的字节了（它们在废纸篓，
+//     环形不量废纸篓），这笔账这时候要还记着，就会把「~/X 剩下的 5G」画成
+//     「废纸篓的 5G」——一圈加起来还是整块盘，名字却全是错的。所以量过那条弧之后
+//     落下水位线，水位线以下的旧账当场作废。
+//     记录只往尾巴上追加，所以下标就是时间顺序：水位线之上那些是**量完之后**又搬走的。
+let led2 = ringMoveLedger(records: ledRecords,
+                          topPaths: [home + "/.ollama", home + "/Deep", home + "/Solo"],
+                          otherPaths: [home + "/tmpcase", home + "/Deep/nested"],
+                          voidedUpTo: [home + "/.ollama": 2])
+check(led2.perTop[home + "/.ollama"] == nil, "重新量过的目录，旧账不许再扣第二遍")
+check(led2.absorbed == 34_000_000_000, "作废的那 34 GB 明写在 absorbed 里，不是悄悄消失")
+check(led2.perTop[home + "/Solo"] == 6_000_000_000, "没重量过的目录照旧记账")
+check(led2.topOut + led2.restOut + led2.unattributed + led2.absorbed
+        == ledRecords.reduce(Int64(0)) { $0 + $1.bytes },
+      "重量过的、归不进弧的、还在弧上的，三类加起来仍是全部记录")
+// 量完之后又搬走的那些必须**还**在弧上：这一条正是「用集合记哪些目录量过了」的旧写法
+// 会做错的地方——它会把 8 GB 那笔一起作废掉，于是清空一轮后再删，环上永远长不出废纸篓弧。
+let ledLate = ringMoveLedger(records: ledRecords + [(home + "/.ollama/cache.bin", 8_000_000_000)],
+                             topPaths: [home + "/.ollama", home + "/Deep", home + "/Solo"],
+                             otherPaths: [home + "/tmpcase", home + "/Deep/nested"],
+                             voidedUpTo: [home + "/.ollama": 2])
+check(ledLate.perTop[home + "/.ollama"] == 8_000_000_000,
+      "重量完成之后新搬走的那笔仍然要扣在那条弧上（环上就此长出废纸篓那段）")
+check(ledLate.absorbed == 34_000_000_000 && ledLate.trashArc == 21_000_000_000,
+      "作废的与作数的各归各：环上那段 21 GB = 新的 8 + Solo 6 + 其余 7")
+// 整轮重扫：每条弧都刷新了自己的水位线 → 环上那条弧当场归零（一格不剩，因为已并进热点弧）
+let ledAll = ringMoveLedger(records: ledRecords,
+                            topPaths: [home + "/.ollama", home + "/Deep", home + "/Solo"],
+                            otherPaths: [home + "/tmpcase", home + "/Deep/nested"],
+                            voidedUpTo: [home + "/.ollama": 6, home + "/Deep": 6,
+                                         home + "/Solo": 6, home + "/tmpcase": 6,
+                                         home + "/Deep/nested": 6])
+check(ledAll.trashArc == 0 && ledAll.unattributed == 9_000_000_000,
+      "整轮重量过后环上不再单列搬走的，只有没量到的那 9 GB 仍在环外")
+check(ledAll.absorbed == 47_000_000_000,
+      "整轮重量过后作废的是全部能归弧的 47 GB，那 9 GB 走的是 unattributed 不是作废")
+
+// 4k. 环形几何：「这一点归哪一段」决定的是第二下要把哪个目录搬进废纸篓。
+//     算错的代价是删错东西，所以这段数学住在 Core 的 `RingGeometry.swift`，
+//     在这里逐段断言，而不是只能靠真鼠标一遍遍试。（上一版它长在 `SweepRing` 里，
+//     于是「无论点哪儿都是左上角有反应」只能由用户报出来。）
+//     注意锁的口径：这里判的是**落点 → 段号**；弧画在哪个角度由截图对，单元测试管不着。
+let ringVals: [Int64] = [23_200_000_000, 9_100_000_000, 6_300_000_000,
+                         26_100_000_000, 15_300_000_000, 16_000_000_000]   // 演示数据集那六格
+let ringDia: Double = 340
+let ringBand = ringDia * 0.145
+let ringRIn = ringDia / 2 - ringBand, ringROut = ringDia / 2
+let segs = ringArcs(values: ringVals)
+check(segs.count == 6, "六段都画得出来（含空闲那段）")
+check(abs(segs.reduce(0) { $0 + $1.span } - 1.0) < 1e-9, "各段占比加起来正好一圈")
+check(segs.allSatisfy { $0.from < $0.to }, "每段都是正宽度：发丝缝不吃掉整段")
+check(ringArcs(values: [10, 0, 10]).count == 2, "值为 0 的不占一段")
+check(ringArcs(values: [-5, 10]).count == 1 && ringArcs(values: [-5, 10])[0].span == 1,
+      "负数当 0 处理，不吞占比也不产生整段")
+check(ringArcs(values: [0, 0]).isEmpty, "整圈没东西时一段都不画")
+// 归属区间必须无缝铺满一圈：命中层比的正是它，中间露一道缝就是死区，
+// 多叠一段就是点错了人。
+check(segs.first?.claimFrom == 0 && segs.last?.claimTo == 1
+        && zip(segs, segs.dropFirst()).allSatisfy { $0.0.claimTo == $0.1.claimFrom }
+        && segs.allSatisfy { $0.from >= $0.claimFrom && $0.to <= $0.claimTo },
+      "各段的归属区间首尾相接铺满一圈，画出来那截收在自己归属区间里")
+
+/// 环心坐标系里、12 点钟顺时针 `deg` 度、半径 `r` 的那个点的段号。
+func at(_ deg: Double, _ r: Double, reveal: Double = 1) -> Int? {
+    let a = deg * .pi / 180
+    return ringArcIndex(x: ringDia / 2 + r * sin(a), y: ringDia / 2 - r * cos(a),
+                        diameter: ringDia, rIn: ringRIn, rOut: ringROut,
+                        arcs: segs, reveal: reveal)
+}
+
+// 绝对角度锚点：96 GB 折成一圈就是 0→87→121.125→144.75→242.625→300→360。
+// 写死数而不是从 `segs` 反算，才拦得住「原点或旋向跑偏」——那种错在自证式的断言里是隐形的。
+check(at(45, 145) == 0 && at(100, 145) == 1 && at(130, 145) == 2
+        && at(200, 145) == 3 && at(270, 145) == 4 && at(330, 145) == 5,
+      "六段各占自己那截角度，且顺时针排在 12 点钟之后")
+let bounds: [(Double, Int)] = [(87, 0), (121.125, 1), (144.75, 2), (242.625, 3), (300, 4)]
+var edgeBad = [String]()
+for (deg, i) in bounds where at(deg - 3, 145) != i || at(deg + 3, 145) != i + 1 {
+    edgeBad.append(String(format: "%.3f", deg))
+}
+check(edgeBad.isEmpty,
+      "五道段界两侧 3° 各自归隔壁，不串段" + (edgeBad.isEmpty ? "" : "（出错：\(edgeBad.joined(separator: " "))）"))
+check(at(0.05, 145) == 0 && at(359.95, 145) == 5, "12 点钟那道缝两头都有归属")
+
+var dead = [String]()
+var deadCount = 0
+for deg in stride(from: 0.0, through: 359.9, by: 0.2) where at(deg, 145) == nil {
+    if dead.count < 3 { dead.append(String(format: "%.1f", deg)) }
+    deadCount += 1
+}
+check(deadCount == 0, "整圈 1800 个采样点无一死区" + (dead.isEmpty ? "" : "（首批无主角度：\(dead)）"))
+
+// 半径：带子以外一律不算。上一版按 frame 方框收事件，孔里与环外都会点到弧上。
+check(at(45, 60) == nil && at(45, 179) == nil, "孔里与环外都不认领")
+check(at(45, 119) != nil && at(45, 171) != nil, "带的内外沿各 1pt 仍在带里")
+check(at(45, 117) == nil && at(45, 173) == nil, "越出外沿 1pt 就交给隔壁层（圆心那格取消）")
+
+// 入场那 0.9 秒：弧是压缩着画的（`trim(from:·reveal)`），落点必须跟着**画出来的**那段走。
+check(at(45, 145, reveal: 0) == nil, "一圈还没画时整环都不接受悬停")
+check(at(185, 145, reveal: 0.5) == nil, "半圈时未画到的那半边不提前接受悬停")
+check(at(120, 145, reveal: 0.5) == 3, "半圈时 120° 落的是压缩后压在那儿的段，不是最终归它的第 1 段")
+check(at(120, 145, reveal: 1) == 1, "画完之后同一点回到它自己的段")
+
+// 细段：0.6° 的发丝缝在 4 TB 盘上是 6.7 GB，比缝还窄的那段过去算出 from > to，
+// 于是既看不见也点不着——写死减缝不行，得按占比收。
+let thin = ringArcs(values: [999_000_000_000, 500_000_000])
+check(thin.count == 2 && thin[1].from < thin[1].to, "0.05% 的细段量窄于缝也要留得下")
+let thinMid = (thin[1].from + thin[1].to) / 2 * 360
+let thinHit = ringArcIndex(x: ringDia / 2 + 145 * sin(thinMid * .pi / 180),
+                           y: ringDia / 2 - 145 * cos(thinMid * .pi / 180),
+                           diameter: ringDia, rIn: ringRIn, rOut: ringROut, arcs: thin)
+check(thinHit == 1, "细段在自己的中点上点得着")
+
+var midBad = [String]()
+for (i, s) in segs.enumerated() where at((s.from + s.to) / 2 * 360, 145) != i {
+    midBad.append("\(i)")
+}
+check(midBad.isEmpty, "每段的角度中点都归回自己" + (midBad.isEmpty ? "" : "（错位：\(midBad)）"))
+
+// 4l. 「还能腾出」这个数由缓存知识库拼出来，靠的是 Core 那两个纯函数。
+//     它们决定圆心那个数与按钮真搬走的量是不是同一批字节：归错一次，人按下去就会发现
+//     「说好的 22 GB 只搬回来 9 GB」——招牌画面报的数一旦复核不上，这一屏就再没人信。
+let cach = home + "/Library/Caches", brew = home + "/Library/Caches/Homebrew"
+check(dropNested([brew, cach, home + "/.npm"]) == [home + "/.npm", cach],
+      "父项已计入就不重复加子项，剩下的按路径定死顺序（同一批输入必须每次出同一串）")
+check(dropNested([cach, cach]) == [cach], "同一条路径出现两次只算一次")
+check(dropNested([cach, home + "/Library/CachesX"]) == [cach, home + "/Library/CachesX"],
+      "名字像儿子但不是儿子的不许被吃掉：比的是路径段，不是字符串前缀")
+check(dropNested([brew, cach, home + "/Library/Caches/Google", home + "/.npm"])
+        == [home + "/.npm", cach],
+      "父、子、孙三代套在一起也只留最外那一层：同一段字节不许按三遍")
+
+// 缓存页那一列的每一行都是「整棵子树」的量，所以全选合计不能按行相加：
+// `~/Library/Caches` 3.0 GB 里本来就躺着 `Caches/Homebrew` 0.8 GB，
+// 相加会报 3.8 GB，而用户按下去只搬回来 3.0 GB——这一格差多少，招牌那屏就失信多少。
+check(contentsUnionSize([(cach, 3_000_000_000), (brew, 800_000_000)]) == 3_000_000_000,
+      "父子同勾只算父那份：0.8 GB 已经在 3.0 GB 里面")
+check(contentsUnionSize([(cach, 3_000_000_000), (brew, 800_000_000),
+                         (home + "/.npm", 500_000_000)]) == 3_500_000_000,
+      "不相交的那一段照加，被套住的那一段不重复计")
+check(contentsUnionSize([(brew, 800_000_000)]) == 800_000_000,
+      "只勾了孙子那一行时按孙子自己那一份算，不把父行的 3.0 GB 顺带算进去")
+check(contentsUnionSize([(cach, 3_000_000_000), (cach, 3_000_000_000)]) == 3_000_000_000,
+      "同一条路径出现两次只算一次")
+check(contentsUnionSize([]) == 0, "一个都没勾是 0，不是 nil 也不是负数")
+
+// Docker 那一页的页头原先把「四段合计」和「镜像明细」加成一笔，同一段镜像的字节数了两遍
+// （2026-09-26 实拍：页头 41.2 GB，四段自己相加就是 41.2 GB）。分类归 Core，界面只管列。
+check(DockerKind.dfImages.countsInTotal && DockerKind.dfContainers.countsInTotal
+        && DockerKind.dfVolumes.countsInTotal && DockerKind.dfCache.countsInTotal,
+      "docker system df 那四段是页头那个数的全部来源")
+check(!DockerKind.image.countsInTotal && !DockerKind.danglingImage.countsInTotal,
+      "镜像明细不进阶式：那些字节已经躺在「镜像 · 合计」里")
+check(DockerKind.rawDir.countsInTotal && DockerKind.other.countsInTotal,
+      "回退模式（Docker 没在跑）按互不包含的子目录粗分，那些都得算")
+
+// Docker 报的 Reclaimable 是一串它自己格式化的字（`13.04GB (54%)`，1024 进制、单位粘在数字上）。
+// 直接印出来就和这一页其余各行的十进制两档数字是两种口径，所以先拆成字节 + 占比再交给界面。
+check(parseDockerReclaimable("13.04GB (54%)") == (Int64(13.04 * Double(1 << 30)), "54%"),
+      "带占比的那种写法：字节段换算，占比原样带过来")
+check(parseDockerReclaimable("5.651GB").share == nil,
+      "Build Cache 只写体积不写占比，不能凭空编一个 0% 出来")
+check(parseDockerReclaimable("0B (0%)").bytes == 0,
+      "一格 0 就是 0，界面据此决定这句话要不要说")
+
+let arcs = [home + "/Library", home + "/Movies", reclaimRestKey]
+check(reclaimBucket(of: brew, in: arcs) == home + "/Library", "归到最长的那个祖先前缀")
+check(reclaimBucket(of: home + "/Library", in: arcs) == home + "/Library", "自己就是一条弧时归自己")
+check(reclaimBucket(of: home + "/Documents/x", in: arcs) == nil,
+      "不属于任何一条弧的必须回 nil，由调用方落到「其余」——不许硬塞进某条弧把它撑大")
+check(reclaimBucket(of: home + "/Library/Caches", in: [home + "/Library/CachesX",
+                                                       home + "/Library"]) == home + "/Library",
+      "两条弧都能包住时认那条真的包住的（前缀像不算包住）")
+
+// 4m. 同一屏那几行「可回收」必须加得起来。圆心写 22.4、三行相加却是 22.5，
+//     用户的第一反应就是「这软件连自己的数都对不上」——2026-09-25 实拍到的就是这个。
+//     钉的是最大余数法：先各自向下取到 0.1，缺的那几格发给最接近进位的那几行。
+func tenths(_ s: String) -> Int { Int((Double(s.split(separator: " ").first ?? "") ?? -1) * 10) }
+let drift: [Int64] = [11_960_000_000, 6_300_000_000, 4_180_000_000]
+check(drift.map(human) == ["12.0 GB", "6.3 GB", "4.2 GB"],
+      "各自四舍五入确实会飘：这三行单独印就是 12.0 + 6.3 + 4.2")
+let fixed = addableHuman(drift, total: drift.reduce(0, +))
+check(fixed.map(tenths).reduce(0, +) == tenths(human(drift.reduce(0, +))),
+      "收成同一列之后三行相加正好等于圆心那个总数（\(fixed) 加起来 = \(human(22_440_000_000))）")
+check(fixed.allSatisfy { $0.hasSuffix(" GB") },
+      "整列还在同一个单位上，没为了凑数把某一行换成 MB")
+var driftOK = true
+for i in fixed.indices {
+    let shown = (Double(fixed[i].dropLast(3)) ?? -1) * Double(GB)
+    if abs(shown - Double(drift[i])) > 100_000_000 { driftOK = false }
+}
+check(driftOK, "补的那几格每行离真值都不超过 0.1 个单位：加得起来不是靠把某一行改离谱")
+check(addableHuman([12_000_000_000, 6_300_000_000], total: 30_000_000_000)
+        == ["12.0 GB", "6.3 GB"],
+      "各行之和对不上总数时整体退回逐行 human——宁可各说各的，也不许凑出一列加得起来的假账")
+check(addableHuman([900_000_000, 800_000_000, 300_000_000], total: 2_000_000_000)
+        == ["900.0 MB", "800.0 MB", "300.0 MB"],
+      "有一行落在别的单位（总数是 GB、这行是 MB）就不跨单位凑：那一列本来就不能相加")
+check(addableHuman([22_440_000_000], total: 22_440_000_000) == ["22.4 GB"],
+      "只有一行时它就得等于总数本身")
+
+// 4n. 环形旁边那一列右边明写着「各段之和 494.4 GB」——那是一句算术承诺，
+//     各行印出来的数必须真加得出它。可这一列里混着一行「系统可清除 501.6 MB」，
+//     上面那条不跨单位凑的规矩于是让整列退回逐行四舍五入。2026-09-25 真机实拍：
+//     那七行印出来加成 494.5，右边写着 494.4。
+func asBytes(_ s: String) -> Int64 {
+    let p = s.split(separator: " ")
+    let mult = ["B": 1.0, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12, "PB": 1e15]
+    return Int64(((Double(p.first ?? "") ?? 0) * (mult[String(p.last ?? "")] ?? 0)).rounded())
+}
+let ringCol: [Int64] = [78_240_000_000, 76_060_000_000, 60_270_000_000, 222_050_000_000,
+                        43_530_000_000, 501_600_000, 13_790_000_000]
+let ringTotal = ringCol.reduce(Int64(0), +)
+check(addableHuman(ringCol, total: ringTotal) == ringCol.map(human),
+      "有一行落在 MB 时 addableHuman 依旧不跨单位凑（上面那条规矩原样留着）")
+check(ringCol.map(human).map(asBytes).reduce(Int64(0), +) != asBytes(human(ringTotal)),
+      "逐行 human 确实加不出总数：这就是实拍到的那 0.1 漂移，不是我们凭空担心的")
+let colFixed = addableHumanColumn(ringCol, total: ringTotal)
+check(colFixed.allSatisfy { $0.hasSuffix(" GB") },
+      "整列统一到总数的单位，那一行 501.6 MB 印成 0.5 GB（\(colFixed)）")
+check(colFixed.map(asBytes).reduce(Int64(0), +) == asBytes(human(ringTotal)),
+      "印出来的这几行相加正好等于「各段之和」那句（\(colFixed) 加起来 = \(human(ringTotal))）")
+check(zip(colFixed, ringCol).allSatisfy { abs(Double(asBytes($0.0) - $0.1)) <= 100_000_000 },
+      "统一单位没把任何一行改离谱：每行离真值都不超过 0.1 个单位")
+check(addableHumanColumn([494_300_000_000, 20_000_000], total: 494_320_000_000)
+        == ["494.3 GB", "< 0.1 GB"],
+      "被分摊到 0 格的那一行印「< 0.1」而不是 0.0：它确实占着盘，印 0.0 等于这一行消失了")
+check(asBytes("494.3 GB") + 0 == asBytes(human(494_320_000_000)),
+      "改成印 < 0.1 之后这一列仍然加得起来：那一行本来就贡献 0 格")
+check(addableHumanColumn([494_300_000_000, 40_000_000, 30_000_000],
+                         total: 494_370_000_000)
+        == ["494.3 GB", "0.1 GB", "< 0.1 GB"],
+      "两行都小到不足一个刻度时不退成两个 0.0：余数大的那行拿到那一格（0.1），另一行印 < 0.1，"
+      + "整列照样加得起来（\(addableHumanColumn([494_300_000_000, 40_000_000, 30_000_000], total: 494_370_000_000))）")
+check(addableHumanColumn([12_000_000_000], total: 13_000_000_000) == ["12.0 GB"],
+      "各行之和对不上总数时同样退回：不许为了凑上「各段之和」去补一个不存在的数")
+
+// 废纸篓那一屏：操作记录相加等于「本次移入」，可那一页的展示级数字是**整个废纸篓**，
+// 单位由它定。不指定这把尺，就会出现「1.3 GB」旁边挂着一列「900.0 MB」——
+// 同一屏两把尺，规矩 2 与规矩 7 互相打架。
+let trashRec: [Int64] = [780_000_000, 460_000_000]
+let trashed = trashRec.reduce(Int64(0), +)
+check(addableHumanColumn(trashRec, total: trashed, inRulerOf: 1_300_000_000)
+        == ["0.8 GB", "0.4 GB"],
+      "列的单位跟着屏上那个大数，不跟着自己那段（\(addableHumanColumn(trashRec, total: trashed, inRulerOf: 1_300_000_000))）")
+check(addableHumanColumn(trashRec, total: trashed, inRulerOf: 1_300_000_000).map(asBytes)
+        .reduce(Int64(0), +) == asBytes(human(trashed)),
+      "换了尺照样加得起来：0.8 + 0.4 = 1.2，正是「本次移入」那个数")
+check(addableHumanColumn([645_900, 87_900_000], total: 88_545_900, inRulerOf: 41_300_000_000)
+        == ["< 0.1 GB", "0.1 GB"],
+      "升到高一级单位后够不着一个刻度的行照样印 < 0.1，不退成 0.0")
+
+// 4p. 「这一组不是同一笔账」的那几列（明细已算在段里、两块卡互相包含）不能分摊，
+//     但并排印必须同一把尺：25.7 GB 挨着 501.6 MB 就没法比大小（设计稿规矩 2、7）。
+check(unifiedHuman([25_700_000_000, 501_600_000]) == ["25.7 GB", "0.5 GB"],
+      "整列统一到最大那档的单位，不做分摊：\(unifiedHuman([25_700_000_000, 501_600_000]))")
+check(unifiedHuman([1_300_000_000, 0]) == ["1.3 GB", "0.0 GB"],
+      "正好为 0 的照印 0.0——那是真没有，跟「有地方但不足一个刻度」是两件事")
+check(unifiedHuman([645_900, 87_900_000, 1_300_000_000]) == ["< 0.1 GB", "0.1 GB", "1.3 GB"],
+      "会被四舍五入压成 0.0 的印 < 0.1：容器 645.9 KB 那一行不是没量到")
+check(unifiedHuman([900_000_000, 800_000_000]) == ["900.0 MB", "800.0 MB"],
+      "整列都在 MB 时硬升到 GB 就没法比：单位跟这一组里最大那档走")
+// 底部清理条那个「已选」跟着上面那一列同一把尺：整列是 GB、底下忽然冒出 400.0 MB，
+// 读的人得先心算一次才知道自己选的是这页的大头还是零头。
+check(human(400_000_000, inRulerOf: 23_000_000_000) == "0.4 GB",
+      "单位由那一列的总数定，不由这个数自己定")
+check(human(400_000_000, inRulerOf: 900_000_000) == "400.0 MB",
+      "整列本来就在 MB 上时跟着 MB，不硬升到 GB")
+check(human(0, inRulerOf: 23_000_000_000) == "0.0 GB",
+      "一个都没勾时印 0.0 GB 而不是「0 B」：跟上面那一列同一把尺")
+check(human(4_900_000, inRulerOf: 23_000_000_000) == "< 0.1 GB",
+      "选了不到半个刻度的那些行不许印成 0.0——那是「什么都没选」")
+check(human(-5, inRulerOf: 23_000_000_000) == "0.0 GB",
+      "负数按 0 处理，不印出「-0.0 GB」这种屏幕上不存在的东西")
+
+// 4o. 圆心那一格是「三个数当场加得起来」的现场：可用 ＋ 可回收 ＝ 全部清空后可用。
+//     拿字节相加再四舍五入做不到——2026-09-25 实拍那屏印的是 14.2 / 18.6 / 32.7：
+//     真值各自偏低（14.1x ＋ 18.5x = 32.7x），字节加法一步没错，
+//     错在屏幕上那三串字加不起来。
+check(human(14_160_000_000) == "14.2 GB" && human(18_660_000_000) == "18.7 GB",
+      "屏上那两行各自印成 14.2 和 18.7")
+check(human(14_160_000_000 + 18_660_000_000) == "32.8 GB",
+      "字节相加再四舍五入印 32.8，跟上面两行加出来的 32.9 差 0.1——正是实拍那个形状")
+check(sumShown(["14.2 GB", "18.7 GB"]) == "32.9 GB",
+      "拿印出来的那两串字相加：圆心那三行当场加得起来")
+check(sumShown(["14.1 GB", "18.6 GB", "0 B"]) == "32.7 GB",
+      "真机 2026-09-25 实拍那一屏：可用 14.1 ＋ 可回收 18.6 ＝ 全部清空后可用 32.7")
+check(sumShown(["14.2 GB", "18.7 GB", "0 B"]) == "32.9 GB",
+      "废纸篓是空的时候把「0 B」加进来不改变和")
+check(sumShown(["13.6 GB", "545.5 MB"]) == "14.1 GB",
+      "跨单位也认：先按印出来的字换算，再相加")
+check(diffShown("494.4 GB", "14.2 GB") == "480.2 GB",
+      "「已用」＝印出来的整块盘 − 印出来的可用，跟圆心那一格同一套算法")
+check(diffShown("14.2 GB", "494.4 GB") == nil, "减成负数不认，交回调用方按字节算")
+check(sumShown(["14.2 GB", "全部清空后"]) == nil,
+      "认不出的串不猜：返回 nil，由调用方退回 human(字节)")
 
 // 5. 移废纸篓 + 撤销（/tmp 文件，来回一遍再清掉）
 let src = fm.temporaryDirectory.appendingPathComponent("trashme-\(UUID().uuidString).txt")

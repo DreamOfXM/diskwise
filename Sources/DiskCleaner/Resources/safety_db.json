@@ -28,7 +28,8 @@
       "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
       "path": "~/Library/Application Support/Google/Chrome/Crashpad/pending",
       "level": "safe",
-      "grp": "general"
+      "grp": "general",
+      "app": "com.google.Chrome"
     },
     {
       "name": "系统崩溃诊断报告",
@@ -175,6 +176,7 @@
       "path": "~/Library/Developer/Xcode/DerivedData",
       "level": "safe",
       "grp": "general",
+      "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {
@@ -185,6 +187,7 @@
       "path": "~/Library/Developer/Xcode/Archives",
       "level": "warn",
       "grp": "general",
+      "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {
@@ -195,6 +198,7 @@
       "path": "~/Library/Developer/Xcode/iOS DeviceSupport",
       "level": "warn",
       "grp": "general",
+      "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {
@@ -205,6 +209,7 @@
       "path": "~/Library/Developer/CoreSimulator/Caches",
       "level": "safe",
       "grp": "general",
+      "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
     },
     {

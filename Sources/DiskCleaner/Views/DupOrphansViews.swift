@@ -8,7 +8,9 @@ import DiskCleanerCore
 final class DupModel: ObservableObject {
     @Published var groups: [DupGroup] = []
     @Published var scanning = false
-    @Published var progress = ""
+    @Published var phase = ""
+    /// 现场读数：这一页先遍历再哈希，遍历那几分钟里唯一能证明「在动」的就是它。
+    private(set) var progress = ScanProgress()
     @Published var minMB = 20
     @Published var selection: Set<String> = []   // 选中待删的文件 path
     /// 本轮实际用的范围，页头贴标签用
@@ -29,20 +31,22 @@ final class DupModel: ObservableObject {
         let minB = Int64(minMB) * MB
         let targets = defaultScanDirs(scope: scope)
         task = Task {
-            self.progress = L("遍历文件…")
+            self.phase = L("遍历文件…")
+            self.progress = ScanProgress()
             // 只留下我们删得动的：整盘扫描会走进 /Library、/opt 这些 root 地盘，
             // 那些重复归包管理器管，列出来只会让用户去点一个注定失败的勾选框。
             let files = await walkFiles(dirs: targets, minSize: minB,
-                                        skipNames: ["node_modules", ".git", "Caches"])
+                                        skipNames: ["node_modules", ".git", "Caches"],
+                                        progress: self.progress)
                 .rows.filter(\.deletable)
             if Task.isCancelled { return }
-            self.progress = LF("比对内容（%@ 个候选）…", String(files.count))
+            self.phase = LF("比对内容（%@ 个候选）…", String(files.count))
             // 哈希是同步重活，扔后台线程做
             let gs = await Task.detached { findDupGroups(files) }.value
             if !Task.isCancelled {
                 self.groups = gs
                 self.scanning = false
-                self.progress = ""
+                self.phase = ""
             }
         }
     }
@@ -80,6 +84,19 @@ struct DupView: View {
     /// 全页最狠一组的浪费量，给组间比例条当分母
     private var maxWaste: Int64 { max(1, model.groups.map(\.waste).max() ?? 1) }
 
+    /// 整列统一到页头「可收回约 X」那个单位再分摊：那一列印出来加得起。
+    private var shown: [UUID: String] {
+        sizeColumn(model.groups.map { (key: $0.id, bytes: $0.waste) })
+    }
+
+    /// 这一页只有一档：列出来的每一份都是多出来的副本，动得了。
+    /// 每组保留的那份压根没进这一列，所以条子上也不会出现「只能看」那一段。
+    private var tiers: [LedgerTier] {
+        [LedgerTier(label: L("动得了"), bytes: model.waste, tone: .hot)]
+    }
+
+    private var ledgerNote: String? { L("每组日期最新的那份不在这一列里——它永远保留。") }
+
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
@@ -88,7 +105,8 @@ struct DupView: View {
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: model.progress.isEmpty ? L("正在比对…") : model.progress)
+                        LoadingRow(text: model.phase.isEmpty ? L("正在比对…") : model.phase,
+                                       progress: model.progress)
                     } else {
                         Text(LF("发现 %1$@，可收回约 %2$@",
                                 cnt(model.groups.count, "组重复"), human(model.waste)))
@@ -107,22 +125,24 @@ struct DupView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.groups.isEmpty {
-                scanningState(scope: model.scope)
+                ScanSkeleton(scope: model.scope.uiName)
             } else if !model.scanning && model.groups.isEmpty {
                 EmptyState(symbol: "checklist", title: L("没有重复文件"),
                            hint: LF("%1$@以上的都查过了，调低还能再找些小的，但更慢",
                                     "\(model.minMB) MB"))
                     .frame(maxHeight: .infinity)
             } else {
+                PageLedger(tiers: tiers, rows: model.groups.count, note: ledgerNote)
                 List(model.groups) { g in
-                    DupGroupRow(group: g, selection: $model.selection, maxWaste: maxWaste)
-                        .themedRow()
+                    dupRow(g)
                 }
-                .themedList()
+                .ledgerCard()
             }
 
             CleanBar(count: model.selectedCount, bytes: selectedBytes,
-                     errorText: err, selection: model.selectAll) { confirm = true }
+                     bytesText: human(selectedBytes, inRulerOf: model.waste),
+                     errorText: err, hint: L("每组保留日期最新的那份，勾不上"),
+                     selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
@@ -133,6 +153,35 @@ struct DupView: View {
         }
     }
 
+    /// 一组重复 = 账本里的一行：整组勾上/取消，展示级那个数是这组能收回多少。
+    ///
+    /// 原来这一行的展示级数字是一颗「可收回 X」徽章，右侧那一列反倒没有数——
+    /// 别的页都在右边报数，只有这一页报在徽章里，一整列比不出大小。
+    private func dupRow(_ g: DupGroup) -> some View {
+        let extras = Array(g.files.dropFirst())
+        return ItemRow(
+            selected: Binding(
+                get: { !extras.isEmpty && extras.allSatisfy { model.selection.contains($0.path) } },
+                set: { on in
+                    let paths = extras.map(\.path)
+                    if on { model.selection.formUnion(paths) }
+                    else { model.selection.subtract(paths) }
+                }),
+            icon: rowIcon(g.files.first, "doc.on.doc"),
+            name: LF("%1$@ 等 %2$@",
+                     g.files.first?.lastPathComponent ?? L("重复组"),
+                     cnt(g.files.count, "份")),
+            sub: LF("每份 %@", human(g.size)),
+            sizeText: shown[g.id] ?? human(g.waste),
+            fraction: Double(g.waste) / Double(maxWaste),
+            badge: nil,
+            lit: true,
+            showRule: model.groups.first?.id != g.id) {
+            ForEach(Array(g.files.enumerated()), id: \.element.path) { idx, url in
+                DupFileRow(url: url, isKept: idx == 0, selection: $model.selection)
+            }
+        }
+    }
     private func doClean() {
         err = nil
         var ok = 0
@@ -156,72 +205,18 @@ struct DupView: View {
     }
 }
 
-// MARK: - 重复组
+// MARK: - 重复组里的一份文件
 
-private struct DupGroupRow: View {
+/// 组内明细行，坐在 `ItemRow` 展开区里（左边距由那一层给，这里不再叠）。
+///
+/// 保留那份**没有勾选框**：位置留着、框不画，别的行才能对齐成一条竖线。
+private struct DupFileRow: View {
     @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var group: DupGroup
+    var url: URL
+    var isKept: Bool
     @Binding var selection: Set<String>
-    var maxWaste: Int64
-
-    @State private var expanded = false
-    @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Button {
-                withAnimation(reduceMotion ? nil : theme.animation) { expanded.toggle() }
-            } label: {
-                HStack(spacing: 11) {
-                    ThemeChevron(expanded: expanded)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(LF("%1$@ 等 %2$@",
-                                group.files.first?.lastPathComponent ?? L("重复组"),
-                                cnt(group.files.count, "份")))
-                            .font(theme.bodyFont(.callout))
-                            .foregroundStyle(theme.palette.ink)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Text(LF("每份 %@", human(group.size)))
-                            .font(theme.bodyFont(.caption2))
-                            .foregroundStyle(theme.palette.inkTertiary)
-                    }
-                    Spacer(minLength: 10)
-                    ThemeBadge(text: LF("可收回 %@", human(group.waste)), tone: .tint)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            ProportionBar(fraction: fraction, color: theme.palette.chart[3])
-                .padding(.leading, 21)
-
-            if expanded {
-                VStack(spacing: 2) {
-                    ForEach(Array(group.files.enumerated()), id: \.element.path) { idx, url in
-                        fileRow(url, isKept: idx == 0)
-                    }
-                }
-                .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 11)
-        .background(
-            theme.cardShape().fill(hovering ? theme.palette.surfaceAlt.opacity(0.5)
-                                           : theme.palette.surface)
-        )
-        .overlay(theme.cardShape().stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
-        .onHover { hovering = $0 }
-    }
-
-    /// 组内浪费占全页最狠一组的比例——一眼看出哪组最值得动
-    private var fraction: Double {
-        Double(group.waste) / Double(max(1, maxWaste))
-    }
-
-    private func fileRow(_ url: URL, isKept: Bool) -> some View {
         HStack(spacing: 10) {
             if isKept {
                 ThemeBadge(text: L("保留"), tone: .safe, symbol: "lock.fill")
@@ -238,7 +233,7 @@ private struct DupGroupRow: View {
                 .labelsHidden()
                 .frame(minWidth: 62, alignment: .leading)
             }
-            Text(url.path)
+            Text(displayPath(url))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(isKept ? theme.palette.inkTertiary : theme.palette.inkSecondary)
                 .lineLimit(1)
@@ -253,7 +248,6 @@ private struct DupGroupRow: View {
                 .foregroundStyle(theme.palette.inkTertiary)
                 .fixedSize()
         }
-        .padding(.leading, 21)
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
     }
@@ -268,6 +262,8 @@ final class OrphansModel: ObservableObject {
     @Published var scanning = false
     @Published var appCount = 0
     @Published private(set) var started = false
+    /// 现场读数：这页慢在「逐个残留目录量体积」那一步，几分钟里没别的可看。
+    private(set) var progress = ScanProgress()
     private var task: Task<Void, Never>? = nil
 
     var selected: [OrphanItem] { items.filter { $0.selected } }
@@ -292,8 +288,9 @@ final class OrphansModel: ObservableObject {
         scanning = true
         started = true
         items = []
+        progress = ScanProgress()
         task = Task {
-            let (list, apps) = await scanOrphans()
+            let (list, apps) = await scanOrphans(progress: self.progress)
             if !Task.isCancelled {
                 self.items = list
                 self.appCount = apps
@@ -331,7 +328,8 @@ struct OrphansView: View {
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在盘点已装应用、对孤儿…"))
+                        LoadingRow(text: L("正在盘点已装应用、对孤儿…"),
+                                   progress: model.progress)
                     } else {
                         Text(LF("对过 %1$@，%2$@，共 %3$@",
                                 cnt(model.appCount, "个应用"),
@@ -348,43 +346,70 @@ struct OrphansView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
-            if !model.scanning && model.items.isEmpty {
+            if model.scanning && model.items.isEmpty {
+                ScanSkeleton()
+            } else if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "app.badge.checkmark", title: L("没有卸载残留"),
                            hint: L("每个犄角旮旯都对得上号，挺干净"))
                     .frame(maxHeight: .infinity)
             } else {
+                PageLedger(tiers: tiers, rows: model.items.count, note: ledgerNote)
                 List($model.items) { $it in
                     ItemRow(selected: $it.selected,
+                            icon: .path(it.path),
                             name: it.name,
                             sub: it.loc,
-                            sizeText: human(it.size ?? 0),
+                            sizeText: shown[it.id] ?? human(it.size ?? 0),
                             fraction: Double(it.size ?? 0) / Double(maxSize),
                             badge: ItemBadge(text: it.level == "warn" ? L("留意") : L("安全"),
-                                             tone: it.level == "warn" ? .warn : .safe)) {
+                                             tone: it.level == "warn" ? .warn : .safe),
+                            lit: it.level != "warn",
+                            showRule: model.items.first?.id != it.id,
+                            preopen: SnapshotMode.expandFirstRow
+                                && model.items.first?.id == it.id) {
                         ExplainLine(key: L("这是什么"), value: orphanWhat(it))
                         ExplainLine(key: L("删了会怎样"), value: orphanRisk(it))
                         ExplainLine(key: L("怎么恢复"), value: L("从废纸篓还原，或重装该应用"))
+                        if let what = contentsLine(it.files, it.newest) {
+                            ExplainLine(key: L("内容"), value: what)
+                        }
                         PathLine(path: it.path.path)
                     }
-                    .themedRow()
                 }
-                .themedList()
+                .ledgerCard()
             }
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     errorText: err, selection: model.selectAll) { confirm = true }
+                     bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
+                     errorText: err, hint: L("「留意」那几项本来就不给全选"),
+                     selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "处残留"),
-                               human(model.selectedBytes))) {
+                               human(model.selectedBytes, inRulerOf: listedTotal))) {
             doClean()
         }
     }
 
     private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
+
+    /// 这一页的账：页头那个「共 X」与整列同一个单位，印出来的行相加就是它。
+    private var listedTotal: Int64 { model.items.reduce(0) { $0 + ($1.size ?? 0) } }
+
+    private var shown: [UUID: String] {
+        sizeColumn(model.items.map { (key: $0.id, bytes: $0.size ?? 0) })
+    }
+
+    /// 留意项照样能手动勾着删，所以按「全都动得了」记账；它的不同只体现在
+    /// 「不给全选」和那一行的灯色上，不是一堆删不掉的字节。
+    private var tiers: [LedgerTier] {
+        [LedgerTier(label: L("动得了"), bytes: listedTotal, tone: .hot)]
+    }
+
+    private var ledgerNote: String? { L("标「留意」的那几项不在全选范围内，得逐条自己判。") }
 
     private func doClean() {
         err = nil

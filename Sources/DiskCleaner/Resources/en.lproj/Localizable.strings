@@ -29,35 +29,24 @@
 "问题反馈" = "Feedback";
 
 // ── 总览 ────────────────────────────────────────────────────────────────────
-"先看清，再下手——下面每块地方都能一键深挖" = "Look first, delete later — every row below digs deeper in one click";
 "停止" = "Stop";
 "重新扫描" = "Rescan";
-"最占地方的文件夹" = "Biggest folders";
 "统计中…" = "Counting…";
-"还没扫出来" = "Nothing scanned yet";
-"点右上角重新扫描" = "Hit Rescan in the top right";
-"已使用" = "Used";
-"已用" = "Used";
-"总容量" = "Capacity";
-"可用" = "Available";
 "空闲" = "Free";
 "系统可清除" = "Purgeable";
-"其中 %1$@ 是系统随时能腾出的可清除空间（快照、缓存那一类），此刻还占着盘。" = "%1$@ of that is space the system can free on demand (snapshots, caches) — it still occupies the disk right now.";
-"可用不足 20GB，该动手了。先从下面最大的几块下手。" = "Under 20 GB free — time to act. Start with the biggest rows below.";
-"空间还算宽裕，看看下面谁最占地方。" = "Plenty of room left — see what's hogging it below.";
 "其他已统计" = "Other counted";
-"已量完 %1$d / %2$d" = "Measured %1$d / %2$d";
 "覆盖范围：你授权过的目录。系统区在沙盒里读不到，所以单列为「没量到的地方」。" = "Scope: the folders you granted access to. The system area can't be read inside the sandbox, so it shows up on its own as the unmeasured slice.";
 "覆盖范围：家目录（含隐藏项）与 /Applications，另外 %1$d 处盘上普通用户读得动的位置（%2$@）。剩下的「没量到」是密封系统卷、引导与恢复分区，和只有 root 读得动的系统数据——那几块任何清理工具都动不了。" = "Scope: your home folder (hidden items included) and /Applications, plus other locations on this disk a regular user can read — %1$d in all (%2$@). What's left unmeasured is the sealed system volume, the boot and recovery partitions, and system data only root can read — no cleanup tool can touch those.";
 "正在量" = "Measuring…";
+// 扫描途中那行实时读数（LoadingRow）：路径 + 已检查 + 已走过 + 用时。
+"正在看" = "Now scanning";
+"刚开始，还没进到目录里" = "Just started — no folder yet";
+"已检查 %@" = "Checked %@";
+"已走过 %@" = "Covered %@";
+"用时 %@" = "Elapsed %@";
 "整块盘 %1$@：可用 %2$@（空闲 %3$@ ＋ 系统可清除 %4$@），" = "The whole disk is %1$@: %2$@ available (%3$@ free + %4$@ the system can purge), ";
 "整块盘 %1$@：可用 %2$@（全是空闲），" = "The whole disk is %1$@: %2$@ available, all of it genuinely free. ";
-"已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 在下面逐块点名。" = "Of the %1$@ used, this pass measured %2$@ (%3$d%%); the remaining %4$@ is named one by one below.";
-"这一轮还没量到的" = "Not measured yet";
-"没量到的地方" = "Where the unmeasured space is";
 "没量到" = "Not measured";
-"收起这一块" = "Collapse this section";
-"展开这一块" = "Expand this section";
 "数据卷里没量到的部分" = "Unmeasured on the data volume";
 "没量到的部分" = "Space we couldn't measure";
 "授权能补一部分" = "Granting access recovers part of it";
@@ -66,7 +55,6 @@
 "这一轮没扫到、或目录打不开的都归在这里。这台机器的分卷账拆不出来，所以没法替你把系统分区单独挑出去。" = "Whatever this pass missed or couldn't open lands here. This machine's per-volume accounting isn't readable, so the system partitions can't be split out for you.";
 "演示树只画得出这一块。真机上这里会按卷点名：系统卷、虚拟内存、引导分区各占多少，一眼分清哪些能追回来。" = "The sample tree can only draw this one block. On a real Mac each volume gets named here — system volume, virtual memory and boot partitions, so you can see at a glance which part is recoverable.";
 "沙盒只放行了你授权过的目录，其余位置量不到。这不是盘上的死账：授权范围里的东西量到之后都能进废纸篓。" = "The sandbox only allows the folders you granted, so everything else stays unmeasured. It isn't dead weight: anything inside the grant can go to the Trash once measured.";
-"其中 %1$d 处缺「完全磁盘访问权限」：点下面的按钮去开，勾完要退出这个 App 再打开才生效，然后重扫一轮。" = "%1$d of them need Full Disk Access: use the button below to open that pane, then quit DiskWise and reopen it — the grant only lands on a fresh launch — and run another pass.";
 "完全磁盘访问权限已经开着，其中 %1$d 处仍然读不到——那是系统自己看着的位置，重启或提权都换不回来。" = "Full Disk Access is already on and %1$d of them still won't open — those are spots the system keeps for itself. Neither a relaunch nor escalating will get them back.";
 "沙盒读不到的目录 %1$d 处。" = "Folders the sandbox can't read: %1$d.";
 "另有 %1$d 处只有管理员能读，工具不提权，也就量不出它们多大。" = "Some folders here are admin-only (%1$d of them), and this tool never escalates — so their size can't be measured.";
@@ -82,46 +70,23 @@
 "对不到目录" = "No folder behind it";
 "APFS 容器自己的元数据，加上各卷共享的那点取整差。这一坨对不到具体文件夹，只能整体看着。" = "The APFS container's own metadata plus the rounding shared between volumes. None of it resolves to a folder you could point at.";
 "去授权" = "Grant access";
-"打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾上后要重启 DiskWise 才生效" = "Opens System Settings › Privacy & Security › Full Disk Access; restart DiskWise once you've ticked it";
-"（演示数据）" = " (sample data)";
 "演示数据：这一屏的目录、文件和整块盘的容量都是造的，不是你机器上的真实账。" = "Sample data: the folders, files and disk capacity on this screen are invented — they are not your machine's real numbers.";
 "用户区" = "User area";
 "整盘" = "Whole disk";
 "范围：%@" = "Scope: %@";
 "系统区" = "System area";
 "这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。" = "We don't touch this spot: either only an admin can write to it, or it belongs to Homebrew / Xcode — their own cleanup command is the safer tool.";
-"正在扫描" = "Scanning";
 "范围「%@」，要把每个目录走一遍才出列表。" = "Scope “%@” — every folder has to be walked before the list appears.";
 "磁盘占用环形图：%@" = "Disk usage ring: %@";
 "访达显示" = "Reveal";
 "深挖" = "Dig in";
-"去大文件页只扫%@" = "Scan only %@ on the Large Files page";
-"能删" = "Deletable";
 "只能看" = "View only";
-"这一项能移进废纸篓" = "This can go to the Trash";
-"这个位置不在本工具的操作范围内，只能在访达里看" = "This location is outside what the tool will delete — open it in Finder instead";
 "在访达里打开 %@" = "Open %@ in Finder";
-"展开或收起 %@ 的下一级" = "Show or hide what's inside %@";
-"正在量 %@ 的下一级" = "Measuring what's inside %@";
 "这一层没有读得出的子目录。" = "No readable subfolders at this level.";
-"这一层的空间全在它自己的文件里，没有读得出的子目录。用上面的「访达显示」去看。" = "All of it is this folder's own files — no readable subfolders. Use Reveal above to look.";
 "这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。" = "%2$@ sits in this folder's own files and in subfolders past the top %1$d, so it isn't listed one by one.";
-"展开其余 %1$d 处（合计 %2$@）" = "Show the rest — %1$d more, %2$@ together";
-"收起其余的" = "Hide the rest";
-"展开其余没列出来的目录" = "Show the folders not listed";
-"列出的 %1$d 项里：能进废纸篓 %2$@，只能看不能删 %3$@。" = "Of the rows listed (%1$d): %2$@ can go to the Trash, %3$@ is view only.";
-"列出的 %1$d 项全都能进废纸篓，合计 %2$@。" = "All of the rows listed (%1$d) — %2$@ in total — can go to the Trash.";
-"列出的 %1$d 项合计 %2$@，这个工具一项都动不了——只能看。" = "The rows listed (%1$d) total %2$@, and none of it is ours to delete — view only.";
-"环形里「其他已统计」%1$@ 就是这几段相加：%2$@。" = "The “Other counted” slice — %1$@ — is exactly these parts added up: %2$@.";
-"环形「其他已统计」%1$@ 的大头在下面这 %2$d 行里，合计 %3$@。" = "The bulk of the “Other counted” slice — %1$@ — is in these %2$d rows below, %3$@ together.";
-"上面那 %1$d 行 %2$@" = "the rows above (%1$d): %2$@";
-"「展开其余」里那 %1$d 处 %2$@" = "what's under “Show the rest” (%1$d): %2$@";
 "%1$d 处不到 %2$@ 的小目录 %3$@" = "small folders under %2$@ (%1$d): %3$@";
-"跳到下面的「%@」" = "Jump down to “%@”";
-"跳到「%@」那一行" = "Jump to the “%@” row";
 
 // ── 大文件 / 很久没动 ───────────────────────────────────────────────────────
-"按个头排好队，大的先杀" = "Sorted by size — the big ones go first";
 "跳过开发目录" = "Skip dev folders";
 "前" = "Top";
 "正在翻你的文件夹…" = "Going through your folders…";
@@ -149,7 +114,6 @@
 "%1$@ 等 %2$@" = "%1$@ — %2$@";
 "重复组" = "Duplicate group";
 "每份 %@" = "%@ each";
-"可收回 %@" = "Frees %@";
 "保留" = "Kept";
 
 // ── node_modules ────────────────────────────────────────────────────────────
@@ -177,10 +141,10 @@
 "%@ · 合计" = "%@ · Total";
 "悬空镜像（%@）" = "Dangling image (%@)";
 "Docker 数据 · %@" = "Docker data · %@";
-"共 %1$@ 个，活跃 %2$@ 个，可回收 %3$@" = "%1$@ total, %2$@ active, %3$@ reclaimable";
+"共 %1$@ 个，活跃 %2$@ 个" = "%1$@ total, %2$@ active";
+"，Docker Desktop 里还能清 %1$@（%2$@）" = ", and Docker Desktop can free %1$@ (%2$@)";
+"，Docker Desktop 里还能清 %@" = ", and Docker Desktop can free %@";
 "镜像存在 Docker 的虚拟盘里" = "Images live inside Docker's virtual disk";
-"Docker 未运行时的粗粒度分解" = "Coarse breakdown while Docker isn't running";
-"说明" = "Note";
 "怎么清" = "How to clean";
 "打开 Docker Desktop 对应页面删除；本工具不代删（虚拟盘内无独立路径）" = "Open the matching page in Docker Desktop and delete there; this tool won't do it for you (images live inside one virtual disk)";
 "Docker Desktop → Images 里删除" = "Delete them in Docker Desktop → Images";
@@ -190,12 +154,13 @@
 "每项都写明来历，勾你认得的，不认识的别碰" = "Every entry says what it is. Check what you recognize, leave the rest.";
 "正在翻你的缓存目录，稍等…" = "Digging through your cache folders…";
 "%d 项可查" = "Entries listed: %d";
-"条目路径有重叠，未勾选不做加总" = "Entry paths overlap; unselected items aren't summed";
 "知识库没加载出来" = "The knowledge base didn't load";
 "点右上角重新扫描，还不行就提个 Issue" = "Hit Rescan in the top right; if it persists, open an Issue";
 "这是什么" = "What it is";
 "删了会怎样" = "What breaks";
 "怎么恢复" = "How to recover";
+"内容" = "Contents";
+"最近改动 %@" = "Last changed %@";
 "常规缓存" = "Everyday caches";
 "国产 App" = "Chinese apps";
 "留意" = "Careful";
@@ -225,21 +190,24 @@
 "这里读不到，以访达为准" = "Not readable here — Finder has the real number";
 "本次移入" = "Moved this session";
 "%@可撤销" = "Undo available for %@";
-"本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——那一步交给访达，系统会再拦你一次。" = "Every “delete” here only moves items to the Trash. Freeing space for real means emptying it — a step handed to Finder, which will stop you once more.";
+"本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——这一步由访达执行，访达会让你确认后才动手。" = "Every “delete” here only moves items to the Trash. Freeing space for real means emptying it — a step Finder carries out, and Finder makes you confirm first.";
 "访达中打开" = "Open in Finder";
 "重新统计" = "Recount";
 "撤销上次" = "Undo last";
 "清空废纸篓" = "Empty Trash";
+"在访达中清空" = "Empty in Finder";
 "本次操作记录" = "This session";
 "从新到旧" = "Newest first";
 "清空废纸篓？" = "Empty the Trash?";
 "交给访达清空" = "Empty via Finder";
-"这一步由访达执行，清空后不可恢复。系统层面会再确认一次。" = "Finder performs this step and it can't be undone. macOS will ask you once more.";
+"这一步交给访达执行，本工具不会自己永久删除任何东西；清空后不可恢复。" = "Finder carries this step out — this app never deletes anything permanently on its own. Emptying cannot be undone.";
 "已请访达清空，真实释放约 %@（以访达完成为准）。" = "Asked Finder to empty it — roughly %@ actually freed (count it once Finder finishes).";
 "正在请访达清空…" = "Asking Finder to empty it…";
 "清空失败：%@。" = "Emptying failed: %@.";
 "清空失败：%@。系统没放行本工具指挥访达——在「隐私与安全性 → 自动化」里勾上 Finder，勾完重启本工具再试。" = "Emptying failed: %@. macOS hasn't let this app drive Finder — tick Finder under Privacy & Security → Automation, then relaunch DiskWise and try again.";
 "打开自动化设置" = "Open Automation settings";
+"已打开废纸篓所在的访达窗口：按 ⌘⇧⌫，访达会让你确认后才动手。" = "The Trash is open in Finder — press ⌘⇧⌫ and Finder will ask you to confirm before it empties.";
+"清空失败：%@。这一步只能在访达里做——已打开废纸篓所在的访达窗口，按 ⌘⇧⌫，访达会让你确认后才动手。" = "Emptying failed: %@. This step has to happen in Finder — the Trash is now open there: press ⌘⇧⌫ and Finder will ask you to confirm first.";
 "%@。废纸篓里的东西还在，没有清空。" = "%@. Nothing was emptied — the items are still in the Trash.";
 "清空失败：%@。也可以手动清空：点上面的「访达中打开」，在访达窗口里按 ⌘⇧⌫。" = "Emptying failed: %@. You can also empty it by hand: hit “Open in Finder” above, then press ⌘⇧⌫ in the Finder window.";
 
@@ -341,7 +309,6 @@
 "确认清理？" = "Confirm cleanup?";
 "取消" = "Cancel";
 "将 %1$@（%2$@）移入废纸篓。" = "Move %1$@ (%2$@) to the Trash.";
-"将 %1$@（%2$@）移入废纸篓，随时可撤销。真正释放空间需要之后清空废纸篓。" = "Move %1$@ (%2$@) to the Trash — you can undo any time. Space frees up once the Trash is emptied.";
 "将 %1$@的依赖（%2$@）移入废纸篓。" = "Move the dependencies of %1$@ (%2$@) to the Trash.";
 "将 %1$@移入废纸篓（每组日期最新的一份永远保留）。" = "Move %1$@ to the Trash (the newest copy in each group is always kept).";
 "每组留下日期最新的那一份：备份、导出这类目录是按日期递增的，留最旧的等于把最新那份删了" = "Each group keeps its newest copy: backup and export folders are dated in ascending order, so keeping the oldest would throw away the freshest backup";
@@ -364,6 +331,7 @@
 "无法创建访达指令" = "Couldn't build the Finder command";
 "访达拒绝执行" = "Finder refused to run it";
 "没有控制访达的权限" = "No permission to control Finder";
+"指令没能送到访达" = "The command never reached Finder";
 "访达的确认被取消了" = "Finder's confirmation was cancelled";
 "清空前随时可在访达里把文件拖回原位置" = "Drag files back from Finder until it's emptied";
 "清空后才真正释放空间，清空后不可恢复" = "Space frees only when emptied, and emptying is permanent";
@@ -507,3 +475,96 @@
 "无法本地恢复；在手机企业微信的对应聊天里重新下载" = "No local restore; re-download in the matching chat on your phone";
 
 "%d 处" = "%d paths";
+
+// ── 列表页与英雄卡对齐（r04：行解剖、同一把尺、对账句）──────────────────────
+// 这一批全是「这一页的数怎么对上页头那句」的说明文字。
+"按个头排好队，大的在上面" = "Sorted by size, largest first";
+"扫到的 %1$@ 个里只列最大的 %2$d 个，剩下的比这一列最小那行还小。" = " Showing the %2$d largest of the %1$@ found — the rest are smaller than the smallest row here.";
+"这一页的行全在屏幕上，当场就能把这一列加到页头那句。" = " Every row on this page is on screen: add this column and you land on the header's number.";
+"每组日期最新的那份不在这一列里——它永远保留。" = " The newest file in each group isn't listed here — it's always kept.";
+"每组保留日期最新的那份，勾不上" = "Each group keeps its newest file — that row can't be ticked";
+"「留意」那几项本来就不给全选" = "Rows marked “Careful” were never in Select all";
+"标「留意」的那几项不在全选范围内，得逐条自己判。" = " Rows marked “Careful” stay out of Select all — judge them one at a time.";
+"%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。" = " %1$d of these paths sit inside another entry, so Select all actually takes %2$@ — not whatever this column adds up to.";
+"%1$d 条路径套在别的条目底下，合计只数最外面那层" = "%1$d paths sit inside others; the total counts the outermost only";
+"合计按条目各自的大小相加" = "The total adds each entry's own size";
+"页头那句「共 %@」跟这一列是同一个数——这一页的行全在屏幕上。" = " The header's “%@ in total” is this very column — every row on this page is on screen.";
+"这一页动不了，所以整列一个灯色都不上。" = "Nothing on this page is ours to move, so no row lights up.";
+"下面 %d 行是明细，已经躺在上面那几段里面，不单独加一次。" = " The %d rows below are detail — already inside the segments above, not counted again.";
+// 「这一页的账」那块读数（PageLedger）：原来那句对账话升成一块带分档条的读数。
+"这一页量到" = "This page measures";
+"其中动得了的" = "Movable";
+"动得了" = "Movable";
+"Docker 未运行，只能按子目录粗分" = "Docker isn't running, so this is a rough split by subfolder";
+"按子目录粗分" = "Rough split by subfolder";
+"镜像明细 · 已经算在上面那一段「镜像 · 合计」里" = "Image detail — already counted in the “Images · Total” segment above";
+"这一段是 Docker 自己报的总量，明细列在它下面" = "Docker reports this total itself; the detail is listed underneath";
+"这一行的账" = "How this row is counted";
+"这一行已经算在上面那一段「镜像 · 合计」里，不重复相加" = "Already inside the “Images · Total” segment above — adding it again would count the same bytes twice";
+"本次没往里移东西" = "nothing moved this session";
+"这一列 %1$d 行相加 %2$@，就是上面「本次移入」那个数。" = "These %1$d rows add up to %2$@ — the number under “Moved this session” above.";
+"把选中的 %@ 移进废纸篓" = "Move the selected %@ to the Trash";
+"把选中的移进废纸篓" = "Move the selection to the Trash";
+
+// ── 环形招牌画面（方案 A · 扫描光带）────────────────────────────
+"%@ 不在本工具动手的范围内（家目录与应用程序之外）。" = "%@ is outside what this tool touches — beyond your home folder and Applications.";
+"%@：这一圈里的账，不是一个能整个搬走的位置。" = "%@: a line in this ring, not one location you can move as a whole.";
+"去废纸篓页：这些字节还占着盘，在那里交给访达清空才真让位" = "Open the Trash page: these bytes still sit on the disk — Finder empties them, and only then does the space come back";
+"各段之和 %1$@" = "Segments add up to %1$@";
+"已把「%1$@」名下的 %2$d 处移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。" = "Moved %2$d spots from “%1$@” (%3$@) to the Trash. Those bytes still sit on the disk — empty the Trash in Finder and the space actually comes back.";
+"另有 %1$d 处没搬动。" = "%1$d more didn't move.";
+"另有 %1$d 处没搬动，第一处的原因是：%2$@。" = "%1$d more didn't move; the first one failed because: %2$@.";
+"已选中这一圈里动得了的全部 %1$d 处、共 %2$@。再点一次按钮才移进废纸篓；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "Every movable spot in this ring is armed — %1$d of them, %2$@ in total. Tap the button once more to move them to the Trash; it cancels itself after 3 seconds. What's already in the Trash can be brought back from the Trash page.";
+"已选中「%1$@」：%2$@。再点一次那一段确认；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "%1$@ armed: %2$@. Tap that arc once more to confirm; it cancels itself after 3 seconds. What's already in the Trash can be brought back from the Trash page.";
+"把它名下点名的 %1$d 处、共 %2$@ 移进废纸篓" = "moving the %1$d spots named under it, %2$@ in all, to the Trash";
+"本次移入废纸篓" = "In Trash";
+"确认移入废纸篓" = "Tap again to move to Trash";
+"还没量到" = "Not yet";
+// ── 英雄卡：一圈 = 一整块盘（r02 A · 扫描光带）─────────────────────────────
+"可用" = "Available";
+// 窗口顶上那条常驻容量读数（VolumeChip）
+"可用 %@" = "%@ free";
+"这一圈里没有可回收的" = "Nothing reclaimable in this ring";
+"这一圈里没有本工具动得了的东西" = "Nothing in this ring is ours to move";
+"把可回收的 %1$@ 移进废纸篓" = "Move the reclaimable %1$@ to the Trash";
+"再点一次，把 %1$@ 移进废纸篓" = "Tap again to move %1$@ to the Trash";
+"第一下只是选中，第二下才真的移进废纸篓" = "The first tap only arms it; the second moves it to the Trash";
+"再点一次才移进废纸篓 · 3 秒不点自动取消" = "Tap once more and it moves to the Trash · cancels itself in 3 s";
+"点一段两次才收走那一段（防误删）；点动不了的段只会告诉你它为什么动不了。" = "Two taps on a segment move just that segment — that's the mis-delete guard. Tapping one that can't move only tells you why.";
+"去清空" = "Empty it";
+"已量 %1$d/%2$d 处 · 这一圈还没量完" = "Measured %1$d/%2$d · this ring isn't finished";
+"整块盘 %1$@ · 已用 %2$@" = "Disk %1$@ · %2$@ used";
+"全部清空后可用 %1$@" = "%1$@ free once it's all cleared";
+"%1$d 处 %2$@ 动得了；已量到的其余 %3$@ 先不动，没量到的 %4$@ 另算。" = "%2$@ is movable, in %1$d of the spots we scanned; the other %3$@ we measured stays put, and the %4$@ we couldn't measure is counted apart.";
+"正在量这一圈：已量完 %1$d/%2$d 处，量完才谈得上能动多少。" = "Measuring this ring: %1$d of %2$d done. How much can move only means something once it's measured.";
+"这一圈里没有本工具动得了的地方——下面每一段都点名说了为什么动不了。" = "Nothing in this ring is ours to move — each segment below names why it's off-limits.";
+"%1$@ 可回收" = "%1$@ reclaimable";
+"%1$@ 可回收 · 这一条弧是第 4 名往后的那些位置" = "%1$@ reclaimable · this arc is every spot from rank 4 down";
+"%1$@ 可回收 · 已搬走 %2$@" = "%1$@ reclaimable · %2$@ already moved";
+// 圆心那行副读的第二句。内孔在最底下那行只有约 180pt 的弦，
+// 英文写满一句（"…in this segment"）就会折第三行压到环带上，所以留短句。
+"这一段没有可回收的东西" = "Nothing reclaimable here";
+"还占着盘 · 去废纸篓页才让位" = "Still on the disk · the Trash page gives it back";
+"密封系统卷等，任何清理工具都动不了" = "Sealed system volume and friends — no cleaner can touch them";
+"系统随时自己腾，不用这个工具动手" = "The system frees this on its own — no tool needed";
+"已经空着的地方" = "Space already free";
+
+// ── 总览：就地摊开的明细（一行摊一行，下面不再有第二段列表） ─────────────────────
+"先看清，再下手——每一行行首点开，就是它名下具体是哪几个目录" = "Look first, delete later — open any row to see exactly which folders it covers";
+"摊开 %@ 的明细" = "Show what's inside %@";
+"收起 %@ 的明细" = "Hide what's inside %@";
+"点开摊开「%@」的明细" = "Click to open the details of “%@”";
+"行首摊开「%@」的明细；带着那道记号的数点两次才收走" = "At the start of the row: open the details of “%@”. A number carrying that mark needs two clicks to clear.";
+"收起明细，回到整圈" = "Close the details and go back to the whole ring";
+"点这一条去另一页看「%@」" = "Click this slice to see “%@” on another page";
+"正在量「%@」的下一级" = "Measuring what's inside “%@”";
+"这一层的空间全在它自己的文件里，没有读得出的子目录。用行尾那颗「访达显示」去盘上看。" = "All of it is this folder's own files — no readable subfolders. Use Reveal at the end of the row to look.";
+"这里这 %1$d 处 %2$@" = "these %1$d here, %2$@";
+"环形上「其他已统计」那条弧 %1$@，就是这几段相加：%2$@。" = "The “Other counted” slice on the ring — %1$@ — is exactly these parts added up: %2$@.";
+"第 4 名往后，行首摊开就是它们的名字" = "Everything from 4th down — open the row to see their names";
+"不整体搬走 · 行首摊开看明细" = "Not deleted as a whole · open the row to itemise it";
+"%@ 是受保护的位置，整个搬走会伤到系统或你自己的资料。里面的东西能清——去别的清理页挑。" = "%@ is a protected location — deleting the whole of it would hurt your system or your own files. What's inside is still cleanable: pick it out on the other pages.";
+"其中 %1$d 处缺「完全磁盘访问权限」：点「没量到」那一行行尾的「去授权」，勾完要退出这个 App 再打开才生效，然后重扫一轮。" = "%1$d of them need Full Disk Access: use “Grant access” at the end of the “Not measured” row, then quit DiskWise and reopen it — the grant only lands on a fresh launch — and run another pass.";
+"打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效" = "Opens System Settings › Privacy & Security › Full Disk Access; restart DiskWise once you've ticked it";
+"已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 点开「没量到」那一行逐块点名。" = "%1$@ used. This pass measured %2$@ of it (%3$d%%); the remaining %4$@ is itemised inside the “Not measured” row.";
+"只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Scan only %@ and list its largest files on the Large Files page";

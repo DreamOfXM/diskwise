@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import DiskCleanerCore
 
 @main
@@ -46,6 +47,43 @@ final class ScanStore: ObservableObject {
     let docker = DockerModel()
     let caches = CachesModel()
     let orphans = OrphansModel()
+
+    init() {
+        // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
+        // 两个模型都由这里持有，所以接线放在这一层，不让 OverviewModel 去摸 store。
+        overview.bind(caches: caches)
+        // 侧栏那几格容量要跟着各页变，而各页的模型是 8 个独立的 ObservableObject：
+        // 把它们的 willChange 转发上来，持有 ScanStore 的那一层才重画。
+        forward(overview); forward(big); forward(old); forward(dup)
+        forward(nodemodules); forward(docker); forward(caches); forward(orphans)
+    }
+
+    private var bag = Set<AnyCancellable>()
+
+    private func forward<T: ObservableObject>(_ model: T) {
+        model.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
+    }
+
+    /// 侧栏一行的容量：这一类**已经量出来**的那笔账，与各页顶上那块账同源。
+    ///
+    /// 没扫过返回 nil，画面上留空。写 0 是谎报「这一类是空的」，写「未知」
+    /// 是给一个还没发生的事占一格——两者都不如什么都不写。
+    func amount(_ panel: AppPanel) -> Int64? {
+        switch panel {
+        case .big:         return big.started ? big.rows.reduce(0) { $0 + $1.size } : nil
+        case .old:         return old.started ? old.totalBytes : nil
+        case .dup:         return dup.started ? dup.waste : nil
+        case .nodemodules: return nodemodules.started ? nodemodules.totalBytes : nil
+        case .docker:      return docker.started ? docker.totalBytes : nil
+        // 缓存页只量得出体积的那些行才算：没量出来的那格印的是「统计中…」，加不进任何账。
+        case .caches:      return caches.started
+                                ? caches.items.reduce(Int64(0)) { $0 + max(0, $1.size ?? 0) } : nil
+        case .orphans:     return orphans.started ? orphans.totalBytes : nil
+        case .overview, .trash, .appearance, .feedback: return nil
+        }
+    }
 }
 
 // 全 App 共享：废纸篓历史（撤销用）+ 顶部提示条 + 跨页跳转
@@ -59,16 +97,24 @@ final class AppStore: ObservableObject {
     /// 现在只有截图链路会写它（`DISKWISE_DRILL`）：摊开出来的下级要点下去才看得见，
     /// 而批量拍图这一路没有键鼠。走的仍是行上那颗箭头调的同一个方法，不是另画的假界面。
     @Published var overviewDrill: String? = nil
-    /// 让总览页滚到某个锚点：`rest` = 「其他已统计」那块弧的落点（前三行底下那条分界线），
-    /// `restnote` = 列表尾巴那句对账，`gap` = 「没量到的地方」，
-    /// 其余值当作某一行的路径直接落到它上面。同样只有截图链路会写（`DISKWISE_JUMP`），
-    /// 走的仍是点图例那一格时走的同一条路径（含「先摊开再滚」）。
+    /// 让总览页把某一格就地摊开：`rest` = 「其他已统计」那一格（`restnote` 是它的旧名，两者同指此处），
+    /// `gap` = 「没量到」那一格，其余值当作某个目录的完整路径，摊开它的下一级。
+    /// 同样只有截图链路会写（`DISKWISE_JUMP`），走的仍是行首那颗 `▸` 调的同一个方法（`openDrill`），
+    /// 所以拍出来的那一张连带是下钻态：环收成参照盘。
     @Published var overviewJump: String? = nil
     /// 让画面上那一页按一次底部清理条的「全选 / 取消全选」：每 +1 就按一次。
     /// 只有截图链路会写（`DISKWISE_PICK`），因为批量拍图这一路没有键鼠，
     /// 而「勾上 170 项之后撤得回来」这件事只有真按一次才照得出来。
     /// 按下的就是那颗按钮自己的 action，不是另画的假界面。
     @Published var selectAllPulse = 0
+    /// 让总览页对环上某一条弧**真点一下**：`arm` = 挑一条动得了的弧（上膛或搬走，
+    /// 取决于它此刻是否已经上膛），`refuse` = 挑一条动不了的弧看它怎么解释自己。
+    /// 只有截图链路会写（`DISKWISE_RING`），走的仍是弧上 `onTapGesture` 那个
+    /// `tapArc`——两段式确认、3.2 秒自动解除、真 `trashItem` 全都在链路上，
+    /// 不是另画一张「看起来像上膛了」的假界面。
+    /// 值 `rescan` 是另一个用途：重跑一趟扫描，好拍「扫描途中」那一帧（光束钉在
+    /// 量到的边界上这件事，只有那一帧能证明）。
+    @Published var overviewRing: String? = nil
     /// 扫描范围。界面上没有开关：两档的账画在同一屏，人就会拿用户区的环形去对整盘的列表，
     /// 对不上就直接不信这屏的数（实测过）。所以永远走这一版能扫到的最大范围，
     /// 沙盒版给 `.disk` 只会扫一堆读不到的路径，那才是真的扫不动。
@@ -165,6 +211,11 @@ struct ContentView: View {
         } detail: {
             detail
         }
+        // 系统那条 52pt 的标题带原本是空的（我们只把红绿灯和侧栏切换按钮让了出来）。
+        // 容量读数挂在它上面：不占版面、切到哪页都在，清完一轮涨的就是这里那个数。
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { VolumeChip() }
+        }
         .onChange(of: store.jumpTo) { target in
             guard let target else { return }
             withAnimation(theme.animation) { selection = target }
@@ -203,7 +254,8 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 2) {
             sideHeader(title).padding(.bottom, 2)
             ForEach(panels, id: \.self) { panel in
-                SidebarRow(panel: panel, isSelected: selection == panel) {
+                SidebarRow(panel: panel, amount: scans.amount(panel),
+                           isSelected: selection == panel) {
                     withAnimation(theme.animation) { selection = panel }
                 }
             }
@@ -300,6 +352,8 @@ private struct SidebarRow: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     var panel: AppPanel
+    /// 这一类量出来的容量；nil = 这一页还没扫过，那一格什么都不写。
+    var amount: Int64? = nil
     var isSelected: Bool
     var tap: () -> Void
 
@@ -322,7 +376,18 @@ private struct SidebarRow: View {
                     .foregroundStyle(theme.palette.ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Spacer(minLength: 0)
+                Spacer(minLength: 6)
+                // 各页那笔账不同源（缓存那格套在别的条目里、重复那格只数多出来的副本），
+                // 加不到一起，所以这一列不强行统一单位：统一成 GB 会把 300 MB 那类
+                // 印成 0.3 GB，反而看不清谁大谁小。
+                if let amount, amount > 0 {
+                    Text(human(amount))
+                        .font(theme.bodyFont(.caption2))
+                        .monospacedDigit()
+                        .foregroundStyle(isSelected ? theme.palette.inkSecondary
+                                                    : theme.palette.inkTertiary)
+                        .fixedSize()
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)

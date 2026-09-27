@@ -129,7 +129,11 @@ func LF(_ zh: String, _ args: CVarArg...) -> String {
 
 /// 中文量词 → 带数量的文案。中文直接拼；英文查单复数表（不规则复数也在这张表里）。
 func cnt(_ n: Int, _ zhUnit: String) -> String {
-    if L10n.isChinese { return "\(n) \(zhUnit)" }
+    // 千分位在这里统一加，而不是各页自己格式化：整盘扫描的读数动辄六位
+    // （实测 306772 个目录项），有的写「306,772」有的写「306772」，
+    // 同一屏两处长得不一样的数会被读成两个不同的量。
+    let head = n.formatted(.number.grouping(.automatic))
+    if L10n.isChinese { return "\(head) \(zhUnit)" }
     // l10n-scan: off —— 这些中文是查表入参，英文就写在下面，不进 Localizable.strings
     let one: [String: String] = [
         "项": "item", "个文件": "file", "个副本": "copy", "处残留": "leftover",
@@ -137,7 +141,7 @@ func cnt(_ n: Int, _ zhUnit: String) -> String {
         "组重复": "duplicate group",
         "个应用": "app", "个包": "package", "个 node_modules": "node_modules folder",
         "个可清理项": "cleanable item", "处可疑": "suspicious spot", "次": "time",
-        "套": "skin", "个多余副本": "extra copy",
+        "套": "skin", "个多余副本": "extra copy", "个条目": "entry",
     ]
     let many: [String: String] = [
         "项": "items", "个文件": "files", "个副本": "copies", "处残留": "leftovers",
@@ -145,11 +149,11 @@ func cnt(_ n: Int, _ zhUnit: String) -> String {
         "组重复": "duplicate groups",
         "个应用": "apps", "个包": "packages", "个 node_modules": "node_modules folders",
         "个可清理项": "cleanable items", "处可疑": "suspicious spots", "次": "times",
-        "套": "skins", "个多余副本": "extra copies",
+        "套": "skins", "个多余副本": "extra copies", "个条目": "entries",
     ]
     // l10n-scan: on
-    guard let unit = one[zhUnit] else { return "\(n) \(zhUnit)" }
-    return n == 1 ? "1 \(unit)" : "\(n) \(many[zhUnit] ?? unit + "s")"
+    guard let unit = one[zhUnit] else { return "\(head) \(zhUnit)" }
+    return n == 1 ? "1 \(unit)" : "\(head) \(many[zhUnit] ?? unit + "s")"
 }
 
 /// 拼接多条失败原因。中文用全角分号，英文照英文的来。
