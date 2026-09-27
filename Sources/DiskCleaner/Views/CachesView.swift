@@ -239,6 +239,10 @@ final class CachesModel: ObservableObject {
                 if a != b { return a > b }
                 return $0.groupKey < $1.groupKey
             }
+            // 量到 0 字节的行不留：勾不动、也不进任何账，留着只会让页头那句「N 项可查」
+            // 跟台账上的「· M 项」对不上（2026-09-28 本机实拍 16 vs 14，差的是空的 iOS
+            // 备份目录和空的 AVD 目录）。size 为 nil = 还没量完，不删。
+            if !Task.isCancelled { self.items.removeAll { $0.size == 0 } }
             if !Task.isCancelled { self.scanning = false }
         }
     }
