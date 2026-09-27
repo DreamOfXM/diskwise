@@ -109,12 +109,13 @@ enum SnapshotMode {
     }
 
     /// DISKWISE_RING=arm,refuse：拍完总览再往环上真点几下，各补一张。
-    /// `arm` 出两张——`01-overview-armed.png`（第一下，上膛）和
-    /// `01-overview-taken.png`（同一条弧第二下，真搬进废纸篓）；
+    /// `arm` 出三张——`01-overview-armed.png`（第一下，上膛）、
+    /// `01-overview-disarmed.png`（什么都不再点，3.2 秒后自己解除）和
+    /// `01-overview-taken.png`（重新上膛后同一条弧第二下，真搬进废纸篓）；
     /// `refuse` 出一张 `01-overview-refused.png`（点一条动不了的弧，看它当场怎么解释）。
     /// `scan` 出一张 `01-overview-scanning.png`：重跑一趟扫描，趁量到一半时拍——
     /// 「光束钉在量到的边界上」这件事只有这一帧能证明，静下来的图里那道光永远停在起点。
-    /// `arm` 拍完会自己把搬走的那棵树放回原处，不用人在外面补一条 `mv`。
+    /// `arm` 拍完会自己把搬走的每一处放回原处，不用人在外面补一条 `mv`。
     ///
     /// 走的是弧上 `onTapGesture` 那个 `tapArc`（经 `store.overviewRing`），
     /// 两段式确认、3.2 秒自动解除、真 `trashItem`、真挪账全在链路上。
@@ -175,6 +176,17 @@ enum SnapshotMode {
     /// 只摊第一行：整列都摊开的话这一屏只剩明细，拍不到列表本身长什么样。
     static var expandFirstRow: Bool {
         (ProcessInfo.processInfo.environment["DISKWISE_EXPAND"] ?? "") == "1"
+    }
+
+    /// DISKWISE_EXPAND=<行名>：摊开**名字里含这一段**的那一行（两种语言的行名都拿来比）。
+    ///
+    /// 「Xcode 模拟器设备」排在整列后面，而逐台列设备只有摊开它才存在——只摊第一行
+    /// 那颗旋钮永远够不着它。置位的还是那颗箭头改的同一个 `expanded`。
+    static func expandsRow(_ names: String...) -> Bool {
+        let token = (ProcessInfo.processInfo.environment["DISKWISE_EXPAND"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard !token.isEmpty, token != "1" else { return false }
+        return names.contains { $0.localizedCaseInsensitiveContains(token) }
     }
 
     /// DISKWISE_FILM=<fps>：不逐页出静图，改成把总览页的一段操作连拍成帧序列，
@@ -447,6 +459,13 @@ enum SnapshotMode {
                 store.overviewRing = "arm"
                 pump(1.0)
                 shoot(name + "-armed")
+                // 等过 3.2 秒再拍一张：这一钩子原本只证到「第一下能上膛」，证不到
+                // 「不上第二下它会自己解除」——而解除才是那句承诺（不点就不搬）。
+                // 3.4 秒留 0.2 秒余量给主队列排空，别贴着边界拍。
+                pump(3.4)
+                shoot(name + "-disarmed")
+                store.overviewRing = "arm"    // 膛已经自己掉了，重新上一发
+                pump(0.5)
                 store.overviewRing = "arm"    // 同一条弧的第二下：这才真搬
                 waitSettled(window, paper: paper, canvas: canvas, minSeconds: 3, maxSeconds: 90)
                 shoot(name + "-taken")
@@ -454,8 +473,7 @@ enum SnapshotMode {
                 // 于是它落在真的 ~/.Trash 里：不放回，下一趟的账会凭空少一块，
                 // 而环形恒等式照样自洽——只有图会悄悄变，没人看得出来。
                 // 走的是废纸篓页「撤销」那颗按钮的同一条 untrash，不是另写一遍搬文件。
-                let restored = store.undoLast()
-                FileHandle.standardError.write("    ↺ \(restored)\n".data(using: .utf8)!)
+                FileHandle.standardError.write("    ↺ 放回 \(restoreAllMoved(store)) 处\n".data(using: .utf8)!)
                 // 放回之后那句「已移入废纸篓」就成了过期话，而提示条会一路挂到后面几页。
                 // 撤销时界面本来也是这么换掉它的（废纸篓页那颗按钮），这里直接收掉。
                 store.notice = nil
@@ -523,11 +541,32 @@ enum SnapshotMode {
         roll(1.6)      // ⑤ 第一下：那条弧上膛，3.2 秒自动解除的倒计时在走
         store.overviewRing = "arm"   // 同一条弧的第二下 —— 这才真搬
         roll(3.0)      // ⑥ 弧让位、账当场重算、顶上那句「已移入废纸篓」
-        let restored = store.undoLast()
+        let restored = restoreAllMoved(store)
         store.notice = nil
         roll(1.6)      // ⑦ 撤销放回，账回到原位
-        FileHandle.standardError.write("  film: \(frame) 帧 @ \(fps)fps，放回 \(restored)\n"
+        FileHandle.standardError.write("  film: \(frame) 帧 @ \(fps)fps，放回 \(restored) 处\n"
             .data(using: .utf8)!)
+    }
+
+    /// 把这一趟搬走的东西全部放回原处，返回放回了几处。
+    ///
+    /// 一条弧名下有几处就记几条账，而 `undoLast` 一次只 `popLast` 一条：只撤一次的话，
+    /// 演示树会凭空少掉几处（下一趟的账跟着变，而环形恒等式照样自洽，没人看得出来），
+    /// 而且那些目录是真的躺在 `~/.Trash` 里。
+    /// 撤失败时 `undoLast` 会把那条记录原样塞回，计数不变 —— 那就是出口，不用另设上限。
+    @MainActor
+    private static func restoreAllMoved(_ store: AppStore) -> Int {
+        var passes = 0
+        while !store.trashHistory.isEmpty {
+            let before = store.trashHistory.count
+            let said = store.undoLast()
+            if store.trashHistory.count == before {
+                FileHandle.standardError.write("    ↺ 停在这里：\(said)\n".data(using: .utf8)!)
+                break
+            }
+            passes += 1
+        }
+        return passes
     }
 
     /// 走不走窗口服务器的合成路径，由 `run` 开头探一次决定。

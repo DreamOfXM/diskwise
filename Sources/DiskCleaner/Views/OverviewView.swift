@@ -772,7 +772,13 @@ struct OverviewView: View {
                 model.refresh(scope: store.scope)
                 return
             }
-            guard let u = model.usage else { return }
+            // 钩子动了哪一条弧、为什么没动，全部报到 stderr：拍出来一张和静图零差异的
+            // 「拒绝解释」时，这一行是唯一能分清「界面没画」还是「画在了折出去的地方」的东西。
+            @MainActor func say(_ what: String) {
+                store.overviewRing = nil
+                FileHandle.standardError.write("    · ring \(token): \(what)\n".data(using: .utf8)!)
+            }
+            guard let u = model.usage else { return say("还没有账，这一钩子跳过了") }  // l10n-scan: skip
             store.overviewRing = nil
             let segs = ringAccount(u).segs
             // 挑哪条弧不写死名字：演示树会改，而这一钩子要验的是「动得了的弧点两下」
@@ -780,7 +786,8 @@ struct OverviewView: View {
             let hit = token == "refuse"
                 ? segs.first { $0.path != nil && $0.reclaim == 0 } ?? segs.first { $0.path == nil }
                 : segs.first { $0.reclaim > 0 }
-            guard let hit else { return }
+            guard let hit else { return say("环上没有符合条件的弧") }   // l10n-scan: skip
+            say("按的是「\(hit.label)」，reclaim \(hit.reclaim)")       // l10n-scan: skip
             tapArc(hit)
         }
         .onChange(of: store.overviewJump) { token in
@@ -816,50 +823,60 @@ struct OverviewView: View {
             ThemedCard(chromeless: true) {
                 HStack(alignment: ringIsReference ? .top : .center,
                        spacing: ringIsReference ? 18 : 24) {
-                    SweepRing(segments: acct.segs,
-                              centerTop: centerTop(acct),
-                              centerValue: centerValue(acct),
-                              // 收成参照盘之后盘心躺不下那两行口径（内孔只有 93 pt，
-                              // 「整块盘 494.4 · 已用 486.1」会折成三行压到环带上）。
-                              // 这两个数不是被删了：卡片底下 `coverageLine` 那一行从头到尾
-                              // 都在写整块盘 / 可用 / 已用，账没少一行。
-                              centerCap: ringIsReference ? "" : centerCap(acct),
-                              diameter: ringDiameter,
-                              select: { tapArc($0) },
-                              armed: model.armedPath,
-                              tapCenter: { model.disarm(); arcNote = nil },
-                              scanning: model.scanning,
-                              scanProgress: scanFraction(u),
-                              hovered: hovLabel,
-                              onHover: { v in setHover(v) },
-                              // 上了膛的那几秒这句要让位：圆心的 `cap` 那时写的正是
-                              // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
-                              // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
-                              // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
-                              centerNow: ringIsReference || model.armedPath != nil
-                                  ? nil : hov.map(centerNowLine))
-                        // 摊开之后明细会把这一列顶得很高，环跟着被拉到中间就成了
-                        // 「一个悬在半空的小饼」。钉在顶上，它才读得出是自己下面这本账的缩略。
-                        .frame(maxHeight: .infinity, alignment: ringIsReference ? .top : .center)
+                    VStack(alignment: .center, spacing: 10) {
+                        SweepRing(segments: acct.segs,
+                                  centerTop: centerTop(acct),
+                                  centerValue: centerValue(acct),
+                                  // 收成参照盘之后盘心躺不下那两行口径（内孔只有 93 pt，
+                                  // 「整块盘 494.4 · 已用 486.1」会折成三行压到环带上）。
+                                  // 这两个数不是被删了：卡片底下 `coverageLine` 那一行从头到尾
+                                  // 都在写整块盘 / 可用 / 已用，账没少一行。
+                                  centerCap: ringIsReference ? "" : centerCap(acct),
+                                  diameter: ringDiameter,
+                                  select: { tapArc($0) },
+                                  armed: model.armedPath,
+                                  tapCenter: { model.disarm(); arcNote = nil },
+                                  scanning: model.scanning,
+                                  scanProgress: scanFraction(u),
+                                  hovered: hovLabel,
+                                  onHover: { v in setHover(v) },
+                                  // 上了膛的那几秒这句要让位：圆心的 `cap` 那时写的正是
+                                  // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
+                                  // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
+                                  // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
+                                  centerNow: ringIsReference || model.armedPath != nil
+                                      ? nil : hov.map(centerNowLine))
+                        // 环上刚点出来的那句话，钉在环的正下方。上膛那一版跟着 `armedPath`
+                        // 走而不是跟着 @State：3.2 秒到点自己解除，这句也得跟着消失，
+                        // 不然弧都暗下去了话还挂着。
+                        //
+                        // 从前这句跟在整张卡片的下面：默认那扇 700 pt 高的窗里它落在
+                        // 807 pt 处，而「点一条动不了的弧，当场把话说清」是这一屏唯一的
+                        // 反馈——2026-09-28 实拍：1280x800 的 `-refused` 与静图零差异，
+                        // 换成 1500 高才看见那句话。眼睛在环上，话就得落在环底下。
+                        if let fb = arcFeedback(acct) {
+                            Group {
+                                if fb.urgent {
+                                    callout(text: fb.text)
+                                } else {
+                                    Text(fb.text)
+                                        .font(theme.bodyFont(.caption))
+                                        .foregroundStyle(theme.palette.inkSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .frame(maxWidth: ringDiameter, alignment: .leading)
+                        }
+                    }
+                    // 摊开之后明细会把这一列顶得很高，环跟着被拉到中间就成了
+                    // 「一个悬在半空的小饼」。钉在顶上，它才读得出是自己下面这本账的缩略。
+                    .frame(maxHeight: .infinity, alignment: ringIsReference ? .top : .center)
 
                     heroColumn(acct, hovLabel)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // 环上刚点出来的那句话。上膛那一版跟着 `armedPath` 走而不是跟着 @State：
-            // 3.2 秒到点自己解除，这句也得跟着消失，不然弧都暗下去了话还挂着。
-            if let fb = arcFeedback(acct) {
-                if fb.urgent {
-                    callout(text: fb.text)
-                } else {
-                    Text(fb.text)
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(theme.palette.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
 
             // 覆盖范围必须写在画面里：环形那块灰是「没量过」，不点明的话

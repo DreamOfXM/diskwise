@@ -299,8 +299,9 @@ struct CachesView: View {
                             selectable: (item.size ?? 0) > 0,
                             lit: cacheLit(item),
                             showRule: model.items.first?.id != item.id,
-                            preopen: SnapshotMode.expandFirstRow
-                                && model.items.first?.id == item.id) {
+                            preopen: (SnapshotMode.expandFirstRow
+                                && model.items.first?.id == item.id)
+                                || SnapshotMode.expandsRow(L(item.entry.name), item.entry.name)) {
                         ExplainLine(key: L("这是什么"), value: L(item.entry.what))
                         ExplainLine(key: L("删了会怎样"), value: L(item.entry.whatif))
                         ExplainLine(key: L("怎么恢复"), value: L(item.entry.rec))
