@@ -568,7 +568,7 @@
 "每组日期最新的那份列在组里第一行，带锁、不给勾。" = "The newest copy in each group is listed first inside it, locked — that row can't be ticked.";
 "每组保留日期最新的那份，勾不上" = "Each group keeps its newest file — that row can't be ticked";
 // 受管环境自己装的副本：不进比对，但页顶留一句可以点开看名单
-"另有 %1$@ 是各环境自己的副本，不参与比对" = "Plus %1$@ that belong to their own environments — not compared";
+"另有 %1$@ 是各环境自己的副本，不参与比对" = "Plus %1$@ belonging to their own environments — not compared";
 "不参与比对的组" = "Excluded from comparison";
 "%1$@ · 共 %2$@" = "%1$@ · %2$@ in total";
 "每份 %1$@ · 住在 %2$@" = "%1$@ each · lives in %2$@";
