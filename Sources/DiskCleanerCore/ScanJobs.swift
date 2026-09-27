@@ -682,9 +682,16 @@ private func runCmd(_ exe: String, _ args: [String], timeout: TimeInterval = 20)
     return String(data: data, encoding: .utf8)
 }
 
-private func parseDockerSize(_ s: String) -> Int64 {
-    let mult: [(suffix: String, m: Double)] = [("PB", Double(1 << 50)), ("TB", Double(1 << 40)), ("GB", Double(1 << 30)),
-                                               ("MB", Double(1 << 20)), ("kB", 1024), ("KB", 1024), ("B", 1)]
+/// Docker 那一串尺寸是 go-units 的 `HumanSize` 印出来的：底数 1000，缩写 B/kB/MB/GB
+/// （本机实测 `577.5kB`、`401.4MB`、`23.91GB`）。按 1024 读会把 Docker 的 23.91GB
+/// 显示成 25.7 GB——比它自己报的数大 7.4%，用户对着 `docker system df` 核不上。
+/// 带 i 的 KiB/MiB/GiB 才是 1024（`BytesSize` 那一档，别的 CLI 可能这么印），两种都认。
+public func parseDockerSize(_ s: String) -> Int64 {
+    let mult: [(suffix: String, m: Double)] = [("PiB", Double(1 << 50)), ("TiB", Double(1 << 40)),
+                                               ("GiB", Double(1 << 30)), ("MiB", Double(1 << 20)), ("KiB", 1024),
+                                               ("PB", 1_000_000_000_000_000), ("TB", 1_000_000_000_000),
+                                               ("GB", 1_000_000_000), ("MB", 1_000_000),
+                                               ("kB", 1_000), ("KB", 1_000), ("B", 1)]
     let t = s.trimmingCharacters(in: .whitespaces)
     for (suf, m) in mult where t.hasSuffix(suf) {
         if let v = Double(t.dropLast(suf.count)) { return Int64(v * m) }

@@ -486,10 +486,15 @@ check(DockerRuntime.allCases.allSatisfy { d in
       },
       "哪家装了，它的数据目录就在这台机器的家目录里——不报系统区，也不报别人家")
 
-// Docker 报的 Reclaimable 是一串它自己格式化的字（`13.04GB (54%)`，1024 进制、单位粘在数字上）。
-// 直接印出来就和这一页其余各行的十进制两档数字是两种口径，所以先拆成字节 + 占比再交给界面。
-check(parseDockerReclaimable("13.04GB (54%)") == (Int64(13.04 * Double(1 << 30)), "54%"),
-      "带占比的那种写法：字节段换算，占比原样带过来")
+// Docker 报的 Reclaimable 是一串它自己格式化的字（`13.04GB (54%)`，go-units 的 HumanSize：
+// 底数 1000、单位粘在数字上）。直接印出来就和这一页其余各行的两档数字是两种口径，
+// 所以先拆成字节 + 占比再交给界面。
+check(parseDockerReclaimable("13.04GB (54%)") == (Int64(13.04 * 1_000_000_000), "54%"),
+      "带占比的那种写法：字节段按 Docker 自己的十进制底数换算，占比原样带过来")
+check(parseDockerSize("23.91GB") == Int64(23.91 * 1_000_000_000),
+      "Docker 的 23.91GB 不能显示成 25.7 GB——按 1024 读就飘 7.4%")
+check(parseDockerSize("44KiB") == 44 * 1024 && parseDockerSize("577.5kB") == 577_500,
+      "带 i 的才是 1024，不带 i 的是 1000，两种都认得对")
 check(parseDockerReclaimable("5.651GB").share == nil,
       "Build Cache 只写体积不写占比，不能凭空编一个 0% 出来")
 check(parseDockerReclaimable("0B (0%)").bytes == 0,
