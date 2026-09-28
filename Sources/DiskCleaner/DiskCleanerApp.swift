@@ -230,9 +230,9 @@ struct ContentView: View {
             // 侧栏的 `max` 钉在 `ideal` 上：`max` 一旦高于 `ideal`，这一列实际就停在
             // `max`（AX 实测 `max: 280` 时侧栏宽 288），而侧栏里最长的那行
             // （图标 22 + 「开发缓存」+ 行尾金额）内容宽只有 ~208，多出来的全是空的。
-            // `min` 仍留 216 而不是也钉成 232：三档写满同一数时整扇窗的开窗宽会塌到
-            // `minWidth: 900`（实拍：默认开成 900x700，而这一档环只有 248）；
-            // 留 16 pt 的可缩区间，开窗才回到 1031。
+            // `min` 留 216 只是给这一列 16 pt 的可拖区间。**开窗宽不由这一列决定**：
+            // 它跟着下面那行 `.frame(minWidth:)` 走——两档都实拍过：这一列三档钉成
+            // 同一个数、minWidth 还是 900 时开 900x700；把 minWidth 提到 1000 后开 1000x700。
             sidebar
                 .navigationSplitViewColumnWidth(min: 216, ideal: 232, max: 232)
         } detail: {
