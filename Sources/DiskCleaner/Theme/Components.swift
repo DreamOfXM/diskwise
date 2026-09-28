@@ -758,6 +758,10 @@ struct ProportionBar: View {
     var track: Color? = nil
     var height: CGFloat = 4
     var trackWidth: CGFloat = 96
+    /// 这道条最窄能压到多少。默认不给 = 宽度是硬的（其余六页都是硬的）。
+    /// 只有总览那一屏需要它软：环和这本账住在同一行里，环收下去的时候
+    /// 条子不让步，被挤出窗口边的就是右边那一列数。
+    var minTrackWidth: CGFloat? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -769,7 +773,9 @@ struct ProportionBar: View {
                     .frame(width: max(w, height))
             }
         }
-        .frame(width: trackWidth, height: height, alignment: .leading)
+        .frame(minWidth: minTrackWidth ?? trackWidth,
+               idealWidth: trackWidth, maxWidth: trackWidth, alignment: .leading)
+        .frame(height: height)
         .accessibilityHidden(true)
     }
 }
@@ -1128,7 +1134,12 @@ struct SweepRing: View {
                 heroNumber
                 if !centerCap.isEmpty {
                     Text(centerCap)
-                        .font(theme.numeric(size: 10.5))
+                        // 10.5 = 420 那一档的 0.025 倍。环里其他字都按直径等比
+                        // （大数 0.21、带厚 0.145），这一行以前是死的：环一收，
+                        // 孔按比例小下去而字号不动，「已用 80.0 GB」的 `GB` 就被甩成
+                        // 孤零零一行（2026-09-28 实拍 900 pt 窗，中英各一版）。
+                        // 地板 8.5 以下就不等了——那已经是「看不清」而不是「排不下」。
+                        .font(theme.numeric(size: max(8.5, diameter * 0.025)))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.inkTertiary)
                         .multilineTextAlignment(.center)
@@ -1732,6 +1743,16 @@ struct SweepRing: View {
 /// 上膛的那一行跟着一起亮：眼睛在环上，手可能还在列表上。
 struct RingLedgerRow: View {
     @Environment(\.theme) private var theme
+
+    /// 这道条最窄压到 136：再窄就配不上它上面那行名字（`~/openclaw-private-backup`
+    /// 这类长路径本来就在中间截断），条子内那格也不再代表一个能读的量。
+    /// 136 而不是留在 150：900 pt 窗里这一列只剩 340（内容 624 − 间距 24 − 环的下限 260），
+    /// 条子按 150 不让的时候整列要 344，差的那 4 pt 就是把行尾那列数推出窗口边的量
+    /// （2026-09-28 实拍）。
+    /// 整行（连同右边那一整列账）压不动的那一档，量在 `OverviewView.ledgerIdeal`——
+    /// 那一列里除了这道条还有行尾那簇数和「各段之和」那行分母，只有列知道全部。
+    static let barFloor: CGFloat = 136
+
     var seg: GaugeSegment
     /// 这一段占整块盘的比例。以前这个信息只画在页面最底下那条没标签的带子上，
     /// 读不出哪一段是哪一段（2026-09-27），于是把它搬到它描述的那一行上来。
@@ -1801,11 +1822,17 @@ struct RingLedgerRow: View {
                                          SweepRing.lamp(theme.palette.tint),
                                          base: theme.palette.inkTertiary))
                                 .font(theme.bodyFont(.caption2))
+                                // 只给一行，宁可让尾句收成省略号：2026-09-28 试过 `lineLimit(2)`，
+                                // 三句长注解在 900/1080 档确实摊开了，代价是这本账高出约 40 pt，
+                                // 把「把可回收的 x 移进废纸篓」那颗主钮顶到折线以下——招牌屏丢了
+                                // 主行动，比丢半句解释贵。1440（商店配图画幅）两边都放得下，不受影响。
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                         }
-                        // 定宽 232、不铺满：跟其余六页 `ItemRow` 那道条同一个尺寸，
-                        // 换页时「一格的长度代表多少」不用重新学。
+                        // 232 是「满幅」那一档，跟其余六页 `ItemRow` 那道条同一个尺寸，
+                        // 换页时「一格的长度代表多少」不用重新学。区别只有一条：这一屏的
+                        // 条子可以让到 `barFloor`，因为环和它住在同一行里——窗口收到最小那
+                        // 一档时不让步的就是右边那列数被推出窗口边（2026-09-28 实拍）。
                         // 颜色走 `ItemRow` 那条老规矩（`DESIGN.md` §6 第 4 条）：灯色只给动得了的，
                         // 其余一律 `inkTertiary`。**不拿 `seg.color`**——档色是为环上那条大弧调的，
                         // 「没量到」「可清除」在浅皮下本来就只有 9%~16% 的不透明度，
@@ -1815,7 +1842,8 @@ struct RingLedgerRow: View {
                                       color: seg.reclaim > 0 ? SweepRing.lamp(theme.palette.tint)
                                                              : theme.palette.inkTertiary,
                                       track: theme.palette.surfaceAlt,
-                                      height: 3, trackWidth: 232)
+                                      height: 3, trackWidth: 232,
+                                      minTrackWidth: Self.barFloor)
                             .padding(.top, 5)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

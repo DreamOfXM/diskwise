@@ -545,17 +545,44 @@ struct OverviewView: View {
         setDrill(seg.armKey)
     }
 
-    /// 环画多大：满幅是招牌，下钻时收成参照盘。
+    /// 环与账之间那道间距（样稿 `.hero` 的 gap）。
+    static let heroGap: CGFloat = 24
+    /// 右边这本账**想占**的那一档：条子按满幅 232 画、行首那三颗记号与行尾那簇数都在
+    /// 原位。环按它给自己留地方——留够了环才拿得到满幅那一档 420。
+    static let ledgerIdeal: CGFloat = 430
+    /// 右边这本账**压不动**的那一档。上下两界都是 2026-09-28 在同一屏（900×700，窗口能拖
+    /// 到的最窄）实拍出来的：
+    /// - 侧栏拖到 280、这一列只剩 292 时，「各段之和 96.0 GB」那行灯色数被推到窗口边上，
+    ///   主钮右沿离窗口只剩 1 pt（`planB-side280`，中英两张里只有中文这张越界）。
+    /// - 默认侧栏（ideal 232）下这一列是 336，六行的数加底部分母全在窗内（右余 26 pt）。
+    /// 取 312 ＝ 压不动那一档再加 20 pt 余量，而不是照抄「舒服」那一档 336：差的那 24 pt
+    /// 是从窗口里买回来的余量。默认最小窗（内容宽 620）下 336 这一档会让环**正好**落在 260，
+    /// 与弧上那六枚数的闸门齐平——侧栏往外拖 1 pt 就同时丢弧数和盘心那两行口径。
+    /// 按 312 实测：侧栏 232→256 环仍是 260（`cliff312/side256-*`，弧上有数、盘心两行在），
+    /// 拖满 280 才落到闸门外（环 236，读数整个交给右边那一列，账不越界）。
+    static let ledgerFloor: CGFloat = 312
+    /// 环这一档怎么算。**它不再是一个常量，而是「内容宽 − 间距 − 账要的那一档」**：
+    /// 写死 420 的那一版，窗口一窄就是整列数被推出窗口边硬切
+    /// （2026-09-28 实拍：`39.7 GB` 只剩 `39.7 G`、「停止」只剩「停」）。
+    /// 缺的那一截先从环身上扣；扣到 260 之后**继续扣**，扣到账的压不动那一档为止——
+    /// 260 当死线的那一版，侧栏一拖宽就是右边丢数（见 `ledgerFloor`）。
+    /// 兜底 132：参照盘就是这一档，它是这条渲染链上验证过能画出来的最小盘。
     ///
-    /// 420 是**量出来的**，不是凑的：样稿 `A-sweep.html` 的环外沿 412 CSS px、窗口
-    /// 1180 px，占比 0.349；本机窗口 1278 pt 折算过来是 446。取 420 是被窗口高度 707
-    /// 卡住的——再大整块英雄卡就顶到页头，右侧那六行账也放不下。上一版写 340（占比
-    /// 0.266），实拍下来环缩成画面里的一个小圆、旁边一列字撑满，「这一圈 = 整块盘」
-    /// 这句招牌话当场不成立：招牌画面必须占住这一屏。
-    /// 132 也不是随手砍的：样稿 `r05-drill` 里 `.card.recede .ring` 就是 132 CSS px，
-    /// 窗口 1278 pt 折算过来一比一。它还要留得住圆心那枚「可用」的数（0.21 倍直径
-    /// ＝27.7 pt，比旁边账目行的 17 pt 大），再小就退化成一个装饰饼图了。
-    private var ringDiameter: CGFloat { drillKey == nil ? 420 : 132 }
+    /// - 上限 420：量出来的，不是凑的。样稿 `A-sweep.html` 的环外沿 412 CSS px、窗口
+    ///   1180 px，占比 0.349；本机窗口 1278 pt 折算过来是 446。取 420 是被窗口高度 707
+    ///   卡住的——再大整块英雄卡就顶到页头。上一版写 340（占比 0.266），实拍下来环缩成
+    ///   画面里的一个小圆、旁边一列字撑满，「这一圈 = 整块盘」这句招牌话当场不成立。
+    /// - 260：`SweepRing` 里弧上那六枚数要求 `diameter >= 260`（`Components.swift` 的
+    ///   `arcLabel` 闸门），收到它以下弧上就没数了——名字、数、占比全在右边那一列。
+    /// - 参照盘 132：样稿 `r05-drill` 里 `.card.recede .ring` 就是 132 CSS px，
+    ///   窗口 1278 pt 折算过来一比一。它还要留得住圆心那枚「可用」的数（0.21 倍直径
+    ///   ＝27.7 pt，比旁边账目行的 17 pt 大），再小就退化成一个装饰饼图了。
+    ///   下钻时这本账摊到了下一级，宽度全给它，环不参与分摊。
+    private func ringDiameter(_ avail: CGFloat) -> CGFloat {
+        if ringIsReference { return 132 }
+        let keepLabelsAt = min(260, max(132, avail - Self.heroGap - Self.ledgerFloor))
+        return min(420, max(keepLabelsAt, avail - Self.heroGap - Self.ledgerIdeal))
+    }
     /// 环上只有一处按直径等比的东西撑不住小盘：弧上那六枚数。带厚 19 pt、那段弧的
     /// 弧长十几 px，11 pt 的数会叠成一片字。参照盘不承担读数，数全在右边那一列。
     private var ringIsReference: Bool { drillKey != nil }
@@ -686,20 +713,32 @@ struct OverviewView: View {
         model.setMoved(store.trashHistory.map { ($0.original.path, $0.size) })
     }
 
+    /// 页面左右内边距。`pagePadding()` 里那个 20 在这里要参与算术（环按内容宽算），
+    /// 所以这一屏不复用它：两处各写一个 20，改一处就会把账挤出窗口边。
+    static let pagePad: CGFloat = 20
+
     private var scrollContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: theme.metric.sectionGap) {
-                // 整页只剩这一段：环形旁边这本账，加上它自己摊开的下一级。
-                // 「没量到的地方」和「最占地方的文件夹」从前是它下面的另两段，
-                // 讲的却就是这本账里两段的明细——搬进它们各自那一行之后整段删掉。
-                if let u = model.usage {
-                    heroCard(u)
-                        .pagePadding()
+        // ScrollView 在 macOS 13 会把**内容的理想宽**当成自己的宽报上去：900 pt 窗里
+        // 内容列只有 664，它却按 ~716 排版，于是行尾那列数和页头那颗「重新扫描」
+        // 一起被推出窗口边（2026-09-28 实拍）。所以先把它钉在外层给的那一档上——
+        // 环的尺寸从这一档算，算完不会再回头改变这一档（上一版直接量 ScrollView，
+        // 量到的就是它自己撑出来的宽，实测每轮 +3.5 pt 不收口）。
+        GeometryReader { gate in
+            ScrollView {
+                VStack(alignment: .leading, spacing: theme.metric.sectionGap) {
+                    // 整页只剩这一段：环形旁边这本账，加上它自己摊开的下一级。
+                    // 「没量到的地方」和「最占地方的文件夹」从前是它下面的另两段，
+                    // 讲的却就是这本账里两段的明细——搬进它们各自那一行之后整段删掉。
+                    if let u = model.usage {
+                        heroCard(u, avail: gate.size.width - 2 * Self.pagePad)
+                            .padding(.horizontal, Self.pagePad)
+                    }
                 }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .frame(width: gate.size.width, alignment: .leading)
             }
-            .padding(.top, 16)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: gate.size.width, height: gate.size.height, alignment: .topLeading)
         }
     }
 
@@ -807,7 +846,9 @@ struct OverviewView: View {
         .onChange(of: store.overviewCollapsePulse) { _ in setDrill(nil) }
     }
 
-    private func heroCard(_ u: VolumeUsage) -> some View {
+    /// `avail` = 这一屏给英雄卡的那一档宽度（已经扣掉页面左右内边距）。环的尺寸由它算，
+    /// 见 `ringDiameter(_:)`。
+    private func heroCard(_ u: VolumeUsage, avail: CGFloat) -> some View {
         let acct = ringAccount(u)
         // 截图旋钮 DISKWISE_HOVER=<第几段>：真机的悬停是鼠标进来的，静态图里没有鼠标，
         // 没有这个钩子这一条响应就只能靠嘴说它存在。
@@ -815,6 +856,7 @@ struct OverviewView: View {
             acct.segs.indices.contains(i) ? acct.segs[i].label : nil
         }
         let hov = acct.segs.first { $0.label == hovLabel }
+        let ring = ringDiameter(avail)
         // 卡片只装招牌那一屏（环 + 右侧这本账）。样稿里 `.acct` 那根账带子是主行的
         // **兄弟节点**，不在窗口卡里面：Ring 是「画面」，账带子是「画面下的图注」。
         // 上一版把四样东西全塞进同一张卡，于是卡的边界把招牌画面和它的说明切成了
@@ -822,30 +864,46 @@ struct OverviewView: View {
         return VStack(alignment: .leading, spacing: 16) {
             ThemedCard(chromeless: true) {
                 HStack(alignment: ringIsReference ? .top : .center,
-                       spacing: ringIsReference ? 18 : 24) {
+                       spacing: ringIsReference ? 18 : Self.heroGap) {
                     VStack(alignment: .center, spacing: 10) {
-                        SweepRing(segments: acct.segs,
-                                  centerTop: centerTop(acct),
-                                  centerValue: centerValue(acct),
-                                  // 收成参照盘之后盘心躺不下那两行口径（内孔只有 93 pt，
-                                  // 「整块盘 494.4 · 已用 486.1」会折成三行压到环带上）。
-                                  // 这两个数不是被删了：卡片底下 `coverageLine` 那一行从头到尾
-                                  // 都在写整块盘 / 可用 / 已用，账没少一行。
-                                  centerCap: ringIsReference ? "" : centerCap(acct),
-                                  diameter: ringDiameter,
-                                  select: { tapArc($0) },
-                                  armed: model.armedPath,
-                                  tapCenter: { model.disarm(); arcNote = nil },
-                                  scanning: model.scanning,
-                                  scanProgress: scanFraction(u),
-                                  hovered: hovLabel,
-                                  onHover: { v in setHover(v) },
-                                  // 上了膛的那几秒这句要让位：圆心的 `cap` 那时写的正是
-                                  // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
-                                  // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
-                                  // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
-                                  centerNow: ringIsReference || model.armedPath != nil
-                                      ? nil : hov.map(centerNowLine))
+                        // 环按 `ringDiameter(avail)` 画成一个**定宽**的方格，右边那一列
+                        // 拿走剩下的。为什么不交给布局系统分摊：它分摊的时候不按两边的
+                        // 下限收口——2026-09-28 给账目列写了 `minWidth: 350`，结果环反而
+                        // 从 317 长到 342、账被挤到 300，那列数照样出界。
+                        // `avail` 是 `scrollContent` 里钉住的那一档（ScrollView 自己会按
+                        // 内容的理想宽长，量它等于量自己，实测每轮 +3.5 pt 不收口）。
+                        Color.clear
+                            .frame(width: ring, height: ring)
+                            .overlay {
+                                GeometryReader { g in
+                                    SweepRing(segments: acct.segs,
+                                              centerTop: centerTop(acct),
+                                              centerValue: centerValue(acct),
+                                              // 盘心躺不下那两行口径的两档，都撤掉它：
+                                              // 参照盘内孔只有 93 pt；收到 260 以下那一档实测
+                                              // 「整块盘 96.0 GB · 已用 80.0 GB」折成三行、孤字「GB」
+                                              // 掉在中间（2026-09-28 实拍：最小窗 + 侧栏拖满，环 236，
+                                              // `cliff312/side280-zh`；上一版按 336 压账时环 220 同形）。
+                                              // 260 与弧上那六枚数走同一道闸：盘小到这个数，读数的活
+                                              // 就整个交给右边那一列。这两个数不是被删了：卡片底下
+                                              // `coverageLine` 那一行从头到尾都在写整块盘 / 可用 / 已用。
+                                              centerCap: (ringIsReference || ring < 260) ? "" : centerCap(acct),
+                                              diameter: g.size.width,
+                                              select: { tapArc($0) },
+                                              armed: model.armedPath,
+                                              tapCenter: { model.disarm(); arcNote = nil },
+                                              scanning: model.scanning,
+                                              scanProgress: scanFraction(u),
+                                              hovered: hovLabel,
+                                              onHover: { v in setHover(v) },
+                                              // 上了膛的那几秒这句要让位：圆心的 `cap` 那时写的正是
+                                              // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
+                                              // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
+                                              // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
+                                              centerNow: ringIsReference || model.armedPath != nil
+                                                  ? nil : hov.map(centerNowLine))
+                                }
+                            }
                         // 环上刚点出来的那句话，钉在环的正下方。上膛那一版跟着 `armedPath`
                         // 走而不是跟着 @State：3.2 秒到点自己解除，这句也得跟着消失，
                         // 不然弧都暗下去了话还挂着。
@@ -865,7 +923,7 @@ struct OverviewView: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
-                            .frame(maxWidth: ringDiameter, alignment: .leading)
+                            .frame(maxWidth: ring, alignment: .leading)
                         }
                     }
                     // 摊开之后明细会把这一列顶得很高，环跟着被拉到中间就成了
