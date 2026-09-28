@@ -33,16 +33,20 @@ Or from the **Mac App Store** (macOS 13+, free):
 Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
 every release ships the DMG's SHA-256.
 
-**First run** — three things, in the order the GIF above plays them:
-
-1. Open **Overview**: it walks the whole volume and draws it as one ring, with the ledger beside it.
-2. Click a row in that ledger — its detail unfolds right there, and the ring steps back to a small dial.
-3. Click the arc you can move **twice**: the first click arms it, the second moves it to the Trash.
-   *Undo* puts it back, and emptying the Trash stays Finder's call.
-
 ---
 
-<a name="english"></a>
+## English
+
+## Quick start
+
+The GIF at the top of this page plays this exact order:
+
+1. Open **Overview** — it walks the whole volume and draws the result as one ring, with the ledger
+   beside it.
+2. Click any row in that ledger — the folders under it unfold right there, and the ring steps back
+   to a small reference dial.
+3. Click the arc you can move **twice**: the first click arms it, the second moves it to the Trash.
+   *Undo* puts it back, and emptying the Trash stays Finder's call.
 
 ## Why this exists
 
@@ -125,7 +129,12 @@ follows the system language by default. Same screens in Chinese:
 
 ## Install
 
-**Option A — Homebrew (one command)**
+### Mac App Store
+
+[DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402) — macOS 13+, free, install it and
+start using it.
+
+### Homebrew (one command)
 
 ```sh
 brew install --cask dreamofxm/diskwise/diskwise
@@ -149,7 +158,7 @@ says whether that build is Developer ID-signed and notarized (double-click) or a
 (first launch gets blocked, then you approve it in **System Settings → Privacy & Security →
 Open Anyway**; macOS 13–14 also take the older right-click → Open). Everything published so far is ad-hoc.
 
-**Option B — DMG**
+### DMG
 
 1. Download `DiskWise-<version>[-universal].dmg` from
    [Releases](https://github.com/DreamOfXM/diskwise/releases).
@@ -272,7 +281,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 
 ---
 
-<a name="中文"></a>
+## 中文
 
 ## DiskWise 是什么
 
@@ -356,9 +365,9 @@ DiskWise 走相反的路子：
 
 同一页，三套皮肤三种骨架（默认「晨雾」见上方总览图）：
 
-| 石墨（深色） | 极夜黑金 |
-|---|---|
-| ![石墨](docs/screenshots/zh/12-overview-graphite.png) | ![黑金](docs/screenshots/zh/11-overview-midnight.png) |
+| 石墨（深色） | 薄荷 | 极夜黑金 |
+|---|---|---|
+| ![石墨](docs/screenshots/zh/12-overview-graphite.png) | ![薄荷](docs/screenshots/zh/13-overview-mint.png) | ![黑金](docs/screenshots/zh/11-overview-midnight.png) |
 
 ## 下载与安装
 
@@ -366,9 +375,7 @@ DiskWise 走相反的路子：
 
 [DiskWise: 空间清理](https://apps.apple.com/app/id6813265402) — macOS 13+｜免费｜直接获取即可开始用。
 
----
-
-**方式一：Homebrew（一条命令）**
+### Homebrew（一条命令）
 
 ```bash
 brew install --cask dreamofxm/diskwise/diskwise
@@ -390,7 +397,7 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 **系统设置 → 隐私与安全性 → 「仍要打开」**里放行；macOS 13–14 上右键 → 打开 也能顶过去）。
 目前发出去的每一个包都是 ad-hoc。
 
-**方式二：DMG**
+### 直接下载 DMG
 
 1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>[-universal].dmg`
 2. 打开后把 **DiskWise.app** 拖进「应用程序」
