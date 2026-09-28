@@ -26,7 +26,14 @@ struct DiskCleanerApp: App {
                 // 初始尺寸要写死在这里：macOS 13 的窗口拿内容的「理想尺寸」当初始尺寸，
                 // 而 ScrollView/List 把整列内容的完整高度报成理想尺寸——不钉这一行的话，
                 // 打开总览是 1040×979，点进 Docker 变成 900×620，每切一页窗口跳一次。
-                .frame(minWidth: 900, idealWidth: 1080, minHeight: 560, idealHeight: 700)
+                //
+                // `minWidth` 900 → 1000：这一屏报上来的理想宽比 1000 还小，于是开窗宽整个
+                // 塌在 `minWidth` 那一档上，**默认打开的就是最小窗**（2026-09-28 实拍：
+                // 清空存档后 fresh launch 仍是 900x700）。900 那一档英雄区只剩 avail 628，
+                // 环被右边那本账挤到 248，掉在弧上标签与盘心两行口径的闸门（260，
+                // `Components.swift` 的 `arcLabel`）以下——招牌屏一打开就是一个没数的小饼。
+                // 1000 这档环 348，标签和盘心都在。最小窗仍是 1000：1280 宽的屏放得下。
+                .frame(minWidth: 1000, idealWidth: 1080, minHeight: 560, idealHeight: 700)
         }
         // 系统那条 unified 标题栏我们一个字都不用：它会把窗口标题再画一遍，
         // 而每一页页头本来就有标题——两行同义反复叠在一起就是重影。
@@ -220,8 +227,14 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
+            // 侧栏的 `max` 钉在 `ideal` 上：`max` 一旦高于 `ideal`，这一列实际就停在
+            // `max`（AX 实测 `max: 280` 时侧栏宽 288），而侧栏里最长的那行
+            // （图标 22 + 「开发缓存」+ 行尾金额）内容宽只有 ~208，多出来的全是空的。
+            // `min` 仍留 216 而不是也钉成 232：三档写满同一数时整扇窗的开窗宽会塌到
+            // `minWidth: 900`（实拍：默认开成 900x700，而这一档环只有 248）；
+            // 留 16 pt 的可缩区间，开窗才回到 1031。
             sidebar
-                .navigationSplitViewColumnWidth(min: 216, ideal: 232, max: 280)
+                .navigationSplitViewColumnWidth(min: 216, ideal: 232, max: 232)
         } detail: {
             detail
         }

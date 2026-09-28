@@ -1746,10 +1746,12 @@ struct RingLedgerRow: View {
 
     /// 这道条最窄压到 136：再窄就配不上它上面那行名字（`~/openclaw-private-backup`
     /// 这类长路径本来就在中间截断），条子内那格也不再代表一个能读的量。
-    /// 136 而不是留在 150：900 pt 窗里这一列只剩 340（内容 624 − 间距 24 − 环的下限 260），
-    /// 条子按 150 不让的时候整列要 344，差的那 4 pt 就是把行尾那列数推出窗口边的量
-    /// （2026-09-28 实拍）。
-    /// 整行（连同右边那一整列账）压不动的那一档，量在 `OverviewView.ledgerIdeal`——
+    /// 136 的来历：`ledgerFloor` 还写 336 的那一版，窗口收到最窄一档时这一列只剩 336，
+    /// 而条子按 150 不让时整行要 344——差的那 8 pt 正好把行尾那列数推出窗口边
+    /// （2026-09-28 实拍 `liveC/s232-900`）。后来把 336 换成逐颗点图量出来的压不动档 356
+    /// （`OverviewView.ledgerFloor`），这一列不再靠条子让步来救，136 于是退成上面那句
+    /// 「配不上那行名字」的下限，不再同时承担「别让数出界」那条责任。
+    /// 整行（连同右边那一整列账）压不动的那一档，量在 `OverviewView.ledgerFloor`——
     /// 那一列里除了这道条还有行尾那簇数和「各段之和」那行分母，只有列知道全部。
     static let barFloor: CGFloat = 136
 
@@ -1787,6 +1789,11 @@ struct RingLedgerRow: View {
     /// 它只跟着**摊开着的那一行**出现，跟「访达显示」同批。一整列六行全挂两颗钮，
     /// 这一列就没法读了，而「去大文件页细看」是看完明细之后才产生的念头。
     var onDeepDive: (() -> Void)? = nil
+    /// 这一列窄到装不下「去授权」那三个字时收成只有图标。
+    /// 带字的那颗要 84 pt，整行于是从压不动的 336 抬到 414；这本账在默认窗口里
+    /// 只有 364，那一行会把行尾的数顶出窗口边——而它是全页唯一一处要点开系统设置的地方，
+    /// 不能因为窄就整颗删掉，所以退成图标，`help` 里仍然写全去哪勾。
+    var grantCompact: Bool = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -1858,7 +1865,8 @@ struct RingLedgerRow: View {
             armCluster
             if let onGrant {
                 ThemeButton(kind: .compact, symbol: "lock.open",
-                            title: L("去授权")) { onGrant() }
+                            title: grantCompact ? "" : L("去授权")) { onGrant() }
+                    .accessibilityLabel(L("去授权"))
                     .help(L("打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效"))
             }
             if let onReveal, let path = seg.path {

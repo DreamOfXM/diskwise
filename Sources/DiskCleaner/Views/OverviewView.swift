@@ -547,41 +547,63 @@ struct OverviewView: View {
 
     /// 环与账之间那道间距（样稿 `.hero` 的 gap）。
     static let heroGap: CGFloat = 24
-    /// 右边这本账**想占**的那一档：条子按满幅 232 画、行首那三颗记号与行尾那簇数都在
-    /// 原位。环按它给自己留地方——留够了环才拿得到满幅那一档 420。
-    static let ledgerIdeal: CGFloat = 430
-    /// 右边这本账**压不动**的那一档。上下两界都是 2026-09-28 在同一屏（900×700，窗口能拖
-    /// 到的最窄）实拍出来的：
-    /// - 侧栏拖到 280、这一列只剩 292 时，「各段之和 96.0 GB」那行灯色数被推到窗口边上，
-    ///   主钮右沿离窗口只剩 1 pt（`planB-side280`，中英两张里只有中文这张越界）。
-    /// - 默认侧栏（ideal 232）下这一列是 336，六行的数加底部分母全在窗内（右余 26 pt）。
-    /// 取 312 ＝ 压不动那一档再加 20 pt 余量，而不是照抄「舒服」那一档 336：差的那 24 pt
-    /// 是从窗口里买回来的余量。默认最小窗（内容宽 620）下 336 这一档会让环**正好**落在 260，
-    /// 与弧上那六枚数的闸门齐平——侧栏往外拖 1 pt 就同时丢弧数和盘心那两行口径。
-    /// 按 312 实测：侧栏 232→256 环仍是 260（`cliff312/side256-*`，弧上有数、盘心两行在），
-    /// 拖满 280 才落到闸门外（环 236，读数整个交给右边那一列，账不越界）。
-    static let ledgerFloor: CGFloat = 312
-    /// 环这一档怎么算。**它不再是一个常量，而是「内容宽 − 间距 − 账要的那一档」**：
+    /// 右边这本账**压不动**的那一档：2026-09-28 在同一屏（900×700，`minWidth` 还是 900 的那一版）
+    /// 逐颗点图量出来的——这一列给到 336 时，行尾那枚「GB」仍然顶在窗口边上溢出约 14 pt
+    /// （`liveC/s232-900`）。336 是按各件宽度加出来的（内边距 8×2、记号槽 12、色块 8、
+    /// 两道 12 间距、条子下限 136、`Spacer(minLength: 6)`、行尾 `›` 8 加 12、那枚数 ~78），
+    /// 加出来比实拍少 20 pt：那枚数用的是 21 pt 的 `SizeNumber`，我按 17 pt 估的。
+    static let ledgerFloor: CGFloat = 356
+    /// 「没量到」那一行在 356 之上还要再要 48 pt（那颗带字的「去授权」比只有图标的宽这些）。
+    /// 这一列窄到装不下时，那颗钮收成只有图标（`RingLedgerRow.grantCompact`），整行回到 356。
+    static let ledgerGrantWidest: CGFloat = 404
+    /// 环这一档怎么算。**它不再是一个常量，而是「内容宽 − 间距 − 账压不动那一档之后剩下的」**：
     /// 写死 420 的那一版，窗口一窄就是整列数被推出窗口边硬切
     /// （2026-09-28 实拍：`39.7 GB` 只剩 `39.7 G`、「停止」只剩「停」）。
-    /// 缺的那一截先从环身上扣；扣到 260 之后**继续扣**，扣到账的压不动那一档为止——
-    /// 260 当死线的那一版，侧栏一拖宽就是右边丢数（见 `ledgerFloor`）。
+    ///
+    /// 这一版只留**一个**约束：账先拿走它压不动的那 356，剩下的全给环，封顶 420。
+    /// 上一版在这里多设了一档 430（账「想占」的那一档），于是默认窗口（内容 808）
+    /// 环当场从 420 掉到 354——招牌那一屏上「这一圈 = 整块盘」的那句话被自己削掉了
+    /// 六分之一，而他看到的就是这个（2026-09-28：「圆环是缩小了……很丑」）。
+    /// 少的那 66 pt 本来就该从条子的满幅 232 里出，不该从环上出：条子短了仍然读得出
+    /// 长短，环小了就不再是画面主角了。
+    ///
     /// 兜底 132：参照盘就是这一档，它是这条渲染链上验证过能画出来的最小盘。
     ///
     /// - 上限 420：量出来的，不是凑的。样稿 `A-sweep.html` 的环外沿 412 CSS px、窗口
     ///   1180 px，占比 0.349；本机窗口 1278 pt 折算过来是 446。取 420 是被窗口高度 707
     ///   卡住的——再大整块英雄卡就顶到页头。上一版写 340（占比 0.266），实拍下来环缩成
     ///   画面里的一个小圆、旁边一列字撑满，「这一圈 = 整块盘」这句招牌话当场不成立。
-    /// - 260：`SweepRing` 里弧上那六枚数要求 `diameter >= 260`（`Components.swift` 的
-    ///   `arcLabel` 闸门），收到它以下弧上就没数了——名字、数、占比全在右边那一列。
+    /// - 260 那一档不再是死线：弧上那六枚数要求 `diameter >= 260`（`Components.swift` 的
+    ///   `arcLabel` 闸门），收到它以下弧上就没数了——名字、数、占比全交给右边那一列。
+    ///   这一版只让环收到账压不动的那一档为止，所以窗口窄到环掉下 260 时，
+    ///   读数的那副担子已经整个在那一列上了，环退成形状。
     /// - 参照盘 132：样稿 `r05-drill` 里 `.card.recede .ring` 就是 132 CSS px，
     ///   窗口 1278 pt 折算过来一比一。它还要留得住圆心那枚「可用」的数（0.21 倍直径
     ///   ＝27.7 pt，比旁边账目行的 17 pt 大），再小就退化成一个装饰饼图了。
     ///   下钻时这本账摊到了下一级，宽度全给它，环不参与分摊。
     private func ringDiameter(_ avail: CGFloat) -> CGFloat {
         if ringIsReference { return 132 }
-        let keepLabelsAt = min(260, max(132, avail - Self.heroGap - Self.ledgerFloor))
-        return min(420, max(keepLabelsAt, avail - Self.heroGap - Self.ledgerIdeal))
+        return min(420, max(132, avail - Self.heroGap - Self.ledgerFloor))
+    }
+    /// 这本账实际拿到的那一列有多宽——`heroColumn` 要靠它决定行尾那颗「去授权」
+    /// 留字还是收成图标，而这一列的宽只有算环的这里知道。
+    private func ledgerWidth(_ avail: CGFloat) -> CGFloat {
+        avail - Self.heroGap - ringDiameter(avail)
+    }
+    /// 环的**居中框高度**：按窗口算，不跟着右边这本账的高度走。
+    ///
+    /// 账摊到下一级时那一列能长到一千多点，而 HStack 会把自己拿到的整整一列高也提给
+    /// 环这一格，于是 `.frame(maxHeight: .infinity, alignment: .center)` 把环拖到整列
+    /// 中点——默认那扇 700 pt 高的窗里环心落在视线以下，读起来就是「环缩小了，还窝在
+    /// 左下角」（2026-09-28 实拍）。
+    ///
+    /// 框 = 视口高 − 88。那 88 是这一屏要让给别处的：卡顶 16 + 卡片底下 `scopeNote`
+    /// 与 `coverageLine` 那两行（各一行小字，实测约 56）+ 下沿呼吸 16。收它不是为了把
+    /// 环抬高，是为了环居中的参照物是**窗口这一屏**，不是账目列的高度。
+    /// 账比这个框短时它只是上限（仍按账居中，看不出差别）；长过它时环停在窗口正中。
+    static let ringBoxInset: CGFloat = 88
+    private func ringBox(_ viewportH: CGFloat, _ ring: CGFloat) -> CGFloat {
+        max(ring, viewportH - Self.ringBoxInset)
     }
     /// 环上只有一处按直径等比的东西撑不住小盘：弧上那六枚数。带厚 19 pt、那段弧的
     /// 弧长十几 px，11 pt 的数会叠成一片字。参照盘不承担读数，数全在右边那一列。
@@ -730,7 +752,8 @@ struct OverviewView: View {
                     // 「没量到的地方」和「最占地方的文件夹」从前是它下面的另两段，
                     // 讲的却就是这本账里两段的明细——搬进它们各自那一行之后整段删掉。
                     if let u = model.usage {
-                        heroCard(u, avail: gate.size.width - 2 * Self.pagePad)
+                        heroCard(u, avail: gate.size.width - 2 * Self.pagePad,
+                                viewportH: gate.size.height)
                             .padding(.horizontal, Self.pagePad)
                     }
                 }
@@ -846,9 +869,10 @@ struct OverviewView: View {
         .onChange(of: store.overviewCollapsePulse) { _ in setDrill(nil) }
     }
 
-    /// `avail` = 这一屏给英雄卡的那一档宽度（已经扣掉页面左右内边距）。环的尺寸由它算，
-    /// 见 `ringDiameter(_:)`。
-    private func heroCard(_ u: VolumeUsage, avail: CGFloat) -> some View {
+    /// `avail` = 这一屏给英雄卡的那一档宽度（已经扣掉页面左右内边距），
+    /// `viewportH` = 滚动视口的高。环的尺寸由 `avail` 算（见 `ringDiameter(_:)`），
+    /// 它居中的那一片由 `viewportH` 算（见 `ringBox(_:_:)`）——两个都来自窗口，不来自内容。
+    private func heroCard(_ u: VolumeUsage, avail: CGFloat, viewportH: CGFloat) -> some View {
         let acct = ringAccount(u)
         // 截图旋钮 DISKWISE_HOVER=<第几段>：真机的悬停是鼠标进来的，静态图里没有鼠标，
         // 没有这个钩子这一条响应就只能靠嘴说它存在。
@@ -863,7 +887,11 @@ struct OverviewView: View {
         // 一个盒子，环再怎么放大都仍像表单里的一行——尊贵感首先来自「这块是单独一幅」。
         return VStack(alignment: .leading, spacing: 16) {
             ThemedCard(chromeless: true) {
-                HStack(alignment: ringIsReference ? .top : .center,
+                // 顶部对齐：这一行里谁高谁矮由右边那本账说了算，环那一格只拿到
+                // `ringBox` 那么高的一片。若 HStack 自己再居中，那片会被整列顶到
+                // 中点以下——环就又沉到左下角（2026-09-28 实拍：扫描中账目一长，
+                // 环框虽然只有 612 高，整框却被 1000 高的账压到 y=194 起）。
+                HStack(alignment: .top,
                        spacing: ringIsReference ? 18 : Self.heroGap) {
                     VStack(alignment: .center, spacing: 10) {
                         // 环按 `ringDiameter(avail)` 画成一个**定宽**的方格，右边那一列
@@ -926,11 +954,13 @@ struct OverviewView: View {
                             .frame(maxWidth: ring, alignment: .leading)
                         }
                     }
-                    // 摊开之后明细会把这一列顶得很高，环跟着被拉到中间就成了
-                    // 「一个悬在半空的小饼」。钉在顶上，它才读得出是自己下面这本账的缩略。
-                    .frame(maxHeight: .infinity, alignment: ringIsReference ? .top : .center)
+                    // 环的居中框来自窗口，不来自这一本账（见 `ringBox(_:_:)`）。
+                    // 参照盘那一档例外：它是「自己下面这本账的缩略」，必须贴着账顶，
+                    // 所以仍旧钉在顶上、不吃框。
+                    .frame(maxHeight: ringIsReference ? .infinity : ringBox(viewportH, ring),
+                           alignment: ringIsReference ? .top : .center)
 
-                    heroColumn(acct, hovLabel)
+                    heroColumn(acct, hovLabel, ledgerWidth(avail))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -999,7 +1029,7 @@ struct OverviewView: View {
     ///
     /// 这一列是整页**唯一**的清单：环形旁边这本账之外不再有第二段列表，
     /// 每一段的下一级都摊在自己那一行下面。
-    private func heroColumn(_ acct: RingAccount, _ hovLabel: String?) -> some View {
+    private func heroColumn(_ acct: RingAccount, _ hovLabel: String?, _ column: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let d = drilledSegment(acct) {
                 drillCrumb(d)
@@ -1031,7 +1061,8 @@ struct OverviewView: View {
                                         [URL(fileURLWithPath: seg.path!)]) } : nil,
                                   onDeepDive: (open && seg.path != nil)
                                     ? { store.bigScanDir = URL(fileURLWithPath: seg.path!)
-                                        store.jumpTo = .big } : nil)
+                                        store.jumpTo = .big } : nil,
+                                  grantCompact: column < Self.ledgerGrantWidest)
                     if open {
                         drillPanel(seg)
                             .padding(.top, 2)
