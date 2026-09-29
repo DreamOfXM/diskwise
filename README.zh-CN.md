@@ -4,6 +4,12 @@
 
 **一款免费、开源的 macOS CleanMyMac 替代。**
 
+![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
+![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
+![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
+![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
+
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具：SwiftUI 原生实现，专治开发者机器上的
 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、微信 / 钉钉 / 企业微信缓存和卸载残留。
 所有删除只进废纸篓，本次会话内随时可撤销。没有 Electron、不依赖 Python、不起本地服务、
@@ -14,12 +20,6 @@
 ![空间总览的一轮扫描：环一段段长出来，点账目那一行就地摊开它名下的目录、环同时收成一枚小参照盘，点第一段弧上膛、再点第二段才进废纸篓，撤销原样放回](docs/demo/overview-zh.gif)
 
 *扫描 → 点开一行 → 两下 → 撤销。这屏跑的是造出来的演示目录，屏幕上的数都是编的——顶上那条橙色横幅写的就是这件事。*
-
-![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
-![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
-![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
-![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 </div>
 

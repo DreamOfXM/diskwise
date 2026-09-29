@@ -4,6 +4,12 @@
 
 **A free, open-source CleanMyMac alternative for macOS.**
 
+![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
+![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
+![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
+![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
+
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
@@ -14,12 +20,6 @@ English | [简体中文](./README.zh-CN.md)
 ![The Overview page during one pass: a whole-disk scan sweeps its ring segment by segment, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back](docs/demo/overview-en.gif)
 
 *Scan → open a row → two taps → undo. Shot against a synthetic home folder, so the numbers on screen are invented — the orange strip says so.*
-
-![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
-![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
-![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
-![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 </div>
 
