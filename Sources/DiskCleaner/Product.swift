@@ -33,7 +33,7 @@ enum Contact {
 // ── 发行渠道 ──
 //
 // `CHANNEL=appstore bash build_app/build.sh` 会带上 `-DAPPSTORE`：Mac App Store 必须进沙盒，
-// 证书和产物格式也跟直链分发不同（两张证书不能互换，见 docs/RELEASE.md）。
+// 证书和产物格式也跟直链分发不同（两张证书不能互换）。
 //
 // `showsPricing` 是另一回事，它只决定「皮肤按可用性分组 + 解锁入口」是否渲染：当前两个渠道都是
 // false，六套皮肤一律可用，`Theme.tier` 不参与判定，也不渲染任何解锁入口。

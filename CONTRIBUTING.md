@@ -130,8 +130,7 @@ swift run SelfTest        # 77/77
 bash build_app/build.sh   # localization gate + self-test + resource assertions + DMG
 ```
 
-You won't need to sign or notarize anything — maintainers do that in CI;
-[docs/RELEASE.md](docs/RELEASE.md) describes how.
+You won't need to sign or notarize anything — maintainers do that in CI.
 
 ## Also welcome
 

@@ -1,15 +1,14 @@
 name: Release
 
 # 打 tag（v1.3、v1.3.1 这种）就出包；也可以手动跑一次只出构建产物、不发 Release。
-# 签名和公证看仓库 secrets 齐不齐：齐了就 Developer ID + hardened runtime + 公证钉票据，
-# 缺任何一项就退回 ad-hoc 包（用户首次打开会被 Gatekeeper 拦一次），构建本身不会失败。
+# 下面这几项 secrets 齐不齐决定这一版是否走正式签名；缺任何一项就退回 ad-hoc 包，构建本身不会失败。
 #
-# 需要的 secrets（怎么来的见 docs/RELEASE.md）：
-#   DEVELOPER_ID_CERT_P12   Developer ID Application 证书导出的 .p12，base64 单行
-#   CERT_PASSWORD           导出 .p12 时设的密码
-#   APPLE_ID                开发者账号邮箱
-#   APPLE_TEAM_ID           团队 ID
-#   APP_SPECIFIC_PASSWORD   appleid.apple.com 生成的 App 专用密码
+# 需要的 secrets：
+#   DEVELOPER_ID_CERT_P12
+#   CERT_PASSWORD
+#   APPLE_ID
+#   APPLE_TEAM_ID
+#   APP_SPECIFIC_PASSWORD
 
 on:
   push:
@@ -149,20 +148,19 @@ jobs:
               echo "已挂到现有 Release $GITHUB_REF_NAME"
               exit 0
           fi
-          # 用户首次打开要不要去系统设置里放行，取决于这一版怎么签的；Release 说明必须自己讲清楚，
-          # 不能让人下载完才发现 Gatekeeper 拦了一道。
+          # 首次打开会不会被 Gatekeeper 拦一道，Release 说明必须提前讲，别让人下载完才发现。
           if [ "$SIGNED" = "true" ]; then
-              SIGN_EN="Developer ID-signed and notarized — double-click to open."
-              SIGN_ZH="Developer ID 签名 + 公证，双击即开。"
+              SIGN_EN="Double-click to open."
+              SIGN_ZH="双击即可打开。"
           else
-              SIGN_EN="ad-hoc signed (no Developer ID, not notarized). The first launch gets blocked; approve it in System Settings → Privacy & Security → Open Anyway. (On macOS 13–14, right-click → Open works instead.)"
-              SIGN_ZH="ad-hoc 签名（无 Developer ID、未公证）。首次打开会被拦下，到 系统设置 → 隐私与安全性 → 「仍要打开」 里放行。（macOS 13–14 可以改用右键 → 打开。）"
+              SIGN_EN="The first launch gets stopped once — approve it in System Settings → Privacy & Security → Open Anyway, and it opens normally afterwards. (On macOS 13–14, right-click → Open works instead.)"
+              SIGN_ZH="首次打开会被拦一下，到 系统设置 → 隐私与安全性 → 「仍要打开」 里放行，之后就正常了。（macOS 13–14 可以改用右键 → 打开。）"
           fi
           NOTES="$(mktemp)"
           cat > "$NOTES" <<EOF
           DiskWise ${GITHUB_REF_NAME} · macOS 13+ · ${ARCH} (Apple Silicon + Intel)
 
-          **Signing / 签名** — ${SIGN_EN}
+          **First launch / 首次打开** — ${SIGN_EN}
           ${SIGN_ZH}
 
           Verify / 校验：\`shasum -a 256 ${NAME}\`

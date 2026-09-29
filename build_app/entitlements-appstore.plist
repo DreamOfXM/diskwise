@@ -6,7 +6,7 @@
 	     · user-selected.read-write：授权面板选中的家目录要能读、能把删除项移进废纸篓；
 	     · automation.apple-events：带着它，发往访达的清空事件仍被 appleeventsd 掐掉
 	       （deny appleevent-send com.apple.finder），连授权框都不弹。商店版因此把「清空」
-	       改成打开废纸篓窗口。v1.3 已带着这条过审，先不删（见 docs/RELEASE.md 4.1）；
+	       改成打开废纸篓窗口。v1.3 已带着这条发出去过，先不删；
 	     · 没有 network 任何一条：这个 App 不联网，多给一条都是审核问题。 -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>

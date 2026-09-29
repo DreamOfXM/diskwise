@@ -11,12 +11,12 @@
   两个容易误加项，都不该出现在这里：
     com.apple.security.automation.apple-events —— 只有沙盒包能带这条，而实测带着它也
       发不出「指挥访达清空」（appleeventsd 直接 deny，连授权框都不弹），商店包留着只是
-      不改已过审配置。直发版让「清空废纸篓」这件事由 Info.plist 的
+      不改已经发出去的沙盒配置。直发版让「清空废纸篓」这件事由 Info.plist 的
       NSAppleEventsUsageDescription 加一次 TCC 授权弹窗解决，加了这个 key 也不生效。
     com.apple.security.cs.allow-jit —— 默认就是 false，写 <false/> 是空操作。
 
   真要加东西时（比如嵌进一个需要子进程的解释器），往这个 dict 里加对应 key，
-  并在 docs/RELEASE.md 写清为什么要开这个口子。
+  并在提交说明里写清为什么要开这个口子。
 -->
 <plist version="1.0">
 <dict>

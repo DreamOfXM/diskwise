@@ -9,7 +9,7 @@ caches and uninstall leftovers — and it never truly deletes anything: every re
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
 server, no telemetry, no subscription. A ~5 MB DMG, one file for Apple Silicon and Intel.
 
-[English](#english) · [中文](#中文)
+English | [简体中文](./README.zh-CN.md)
 
 ![The Overview page during one pass: a whole-disk scan sweeps its ring segment by segment, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back](docs/demo/overview-en.gif)
 
@@ -27,7 +27,7 @@ server, no telemetry, no subscription. A ~5 MB DMG, one file for Apple Silicon a
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Or from the **Mac App Store** (macOS 13+, free):
+Or from the **Mac App Store** (macOS 13+, free, and the store keeps you on the latest version):
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
 
 Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
@@ -35,7 +35,20 @@ every release ships the DMG's SHA-256.
 
 ---
 
-## English
+## Contents
+
+- [Quick start](#quick-start)
+- [Why this exists](#why-this-exists)
+- [What you get](#what-you-get)
+- [Screenshots](#screenshots)
+- [Install](#install)
+- [Build from source](#build-from-source)
+- [FAQ](#faq)
+- [Known limits](#known-limits)
+- [Roadmap](#roadmap)
+- [Feedback](#feedback)
+- [Privacy](#privacy)
+- [License](#license)
 
 ## Quick start
 
@@ -60,7 +73,7 @@ We go the other way:
 | Delete path | **One** — `FileManager.trashItem`. Everything lands in the Trash. |
 | Undo | Yes, per operation, for the whole session. |
 | Protected paths | Home itself, `~/Library`, and friends can never be removed wholesale. |
-| Emptying the Trash | Finder does it, never this app. Direct build: the app asks Finder and you confirm once more. App Store build: the sandbox refuses that event, so the button opens the Trash and you press ⌘⇧⌫. |
+| Emptying the Trash | Finder does it, never this app. Direct build: the app asks Finder and you confirm once more. App Store build: the sandbox kills that event — measured behaviour, no permission prompt even appears — so the same button opens the Trash and you press ⌘⇧⌫. |
 | Docker images | Read-only. Virtual disks have no per-image path, so the app points instead of pretending. |
 | Network | None. No updater, no analytics, no ads. |
 | Price | Nothing. Every feature and all six skins ship unlocked in this build. |
@@ -77,62 +90,97 @@ It is built for machines that have been used by a developer for a few years — 
 ## What you get
 
 **See the space**
-- **Overview** — the volume drawn as one ring: a slice is a block of bytes this pass actually measured, the slices add up to the whole disk (top folders + everything else counted + not measured + purgeable + free), and the light band sits exactly on the edge of what's been measured so far. A slice you can move away whole takes two taps — the first arms it, the second sends it to the Trash, and it lets go on its own after 3 seconds. There's one list, the ledger beside the ring: open a row and its detail unfolds right there — the folders under it, the places behind *Other counted*, the volumes behind *Not measured* — while the ring steps back to a small reference dial. *Reveal* and *Dig in* sit on the row you opened.
-- **Whole-disk sweep** — no scope to guess at: the open-source build walks the whole volume (whitelisted system roots included, other users' homes included), the sandboxed Mac App Store build walks everything its grant can reach and says so. Either way it covers the volume, not just the tidy corners of your home folder.
-- **An honest coverage line** — the overview states how much of your used space it actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on Full Disk Access — and the *Grant access* button only appears when a real read of a protected file says the permission is actually missing. Every number is decimal, so it matches Finder and About This Mac byte for byte.
-- **The "Other counted" slice adds up** — open that row and every place behind the arc is listed under it, and the last line spells the total out part by part (the rows listed, plus the ones under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
+
+- **Overview** — the volume drawn as one ring: a slice is a block of bytes this pass actually
+  measured, and the slices add up to the whole disk (top folders + everything else counted + not
+  measured + purgeable + free).
+  - The light band sits exactly on the edge of what's been measured so far.
+  - A slice you can move away whole takes two taps: the first arms it, the second sends it to the
+    Trash, and it lets go on its own after 3 seconds.
+  - There is one list, the ledger beside the ring. Open a row and its detail unfolds right there —
+    the folders under it, the places behind *Other counted*, the volumes behind *Not measured*.
+  - While a row is open the ring steps back to a small reference dial, and *Reveal* and *Dig in*
+    sit on that row.
+- **Whole-disk sweep** — no scope to guess at. The open-source build walks the whole volume
+  (whitelisted system roots included, other users' homes included); the sandboxed Mac App Store
+  build walks everything its grant can reach and says so on screen.
+  - Either way it covers the volume, not just the tidy corners of your home folder.
+- **A coverage line that names what it missed** — the overview states how much of your used space it
+  actually measured, and names the rest: system volumes, admin-only folders, and folders blocked on
+  Full Disk Access.
+  - The *Grant access* button only appears when a real read of a protected file says the permission
+    is actually missing, so a machine that already granted it never gets nagged again.
+  - Every number is decimal, so it matches Finder and About This Mac byte for byte.
+- **The "Other counted" slice adds up** — open that row and every place behind the arc is listed
+  under it, and the last line spells the total out part by part (the rows listed, plus the ones
+  under the 100 MB floor), because "a hundred-plus GB, trust me" is not an explanation.
 - **Large Files** — top N across the same roots, dev directories skippable.
 - **Long Untouched** — files you haven't opened in N days, across the same roots.
-- **Duplicates** — size → partial hash → full hash, grouped, the newest copy in each group locked so you can't nuke the only one. Copies that live inside a venv / site-packages / DerivedData never enter the comparison and are listed separately: delete one and that environment is short a piece.
+- **Duplicates** — size → partial hash → full hash, grouped, the newest copy in each group locked
+  so you can't nuke the only one.
+  - Copies that live inside a venv / site-packages / DerivedData never enter the comparison and are
+    listed separately: delete one and that environment is short a piece.
 
 **Dev machine specials**
+
 - **node_modules** — project sweep grouped per project, so you see "these 3 checkouts cost 4.7 GB".
-- **Docker Usage** — one row per container runtime actually installed (Docker Desktop, OrbStack, Podman, colima), measured as what its virtual disk takes on this disk, with the engine's own figures listed under it. Read-only: it points at where to prune, it never deletes for you.
+- **Docker Usage** — one row per container runtime actually installed (Docker Desktop, OrbStack,
+  Podman, colima), measured as what its virtual disk takes on this disk, with the engine's own
+  figures listed under it. Read-only: it points at where to prune, it never deletes for you.
 
 **Clean up**
-- **App Caches** — a curated knowledge base (system caches, crash dumps, WeChat / DingTalk / WeCom / QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it back*, with a Safe / Careful badge.
-- **Dev Caches** — the same knowledge base, the tools half of these machines actually fill the disk with: Homebrew, npm / pnpm / yarn, Maven, Gradle, conda, uv, cargo, Ollama models, Xcode archives, DerivedData and every simulator device listed one by one.
-- **Leftovers** — data orphaned by apps you already uninstalled, matched against the bundle IDs of everything still installed. Under-reports rather than over-deletes.
-- **Trash** — session stats, undo stack, and an *Empty* button: outside the sandbox it asks Finder to
-  do the emptying, in the App Store build it opens the Trash so you can press ⌘⇧⌫.
+
+- **App Caches** — a curated knowledge base (system caches, crash dumps, WeChat / DingTalk / WeCom /
+  QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it
+  back*, with a Safe / Careful badge.
+- **Dev Caches** — the same knowledge base, the tools half of these machines actually fill the disk
+  with: Homebrew, npm / pnpm / yarn, Maven, Gradle, conda, uv, cargo, Ollama models, Xcode archives,
+  DerivedData and every simulator device listed one by one.
+- **Leftovers** — data orphaned by apps you already uninstalled, matched against the bundle IDs of
+  everything still installed. Under-reports rather than over-deletes.
+- **Trash** — session stats, undo stack, and an *Empty* button: outside the sandbox it asks Finder
+  to do the emptying, in the App Store build it opens the Trash so you can press ⌘⇧⌫.
 
 **Personalize**
-- **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes typeface, corner radius, elevation, motion signature and chart palette. Morning Fog, Graphite, Mint, Polar Night, Aurora Glass, Ink & Paper — all six are in the box.
+
+- **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes
+  typeface, corner radius, elevation, motion signature and chart palette. Morning Fog, Graphite,
+  Mint, Polar Night, Aurora Glass, Ink & Paper — all six are in the box.
 
 ## Screenshots
 
 | Overview | Duplicates |
 |---|---|
-| ![Overview](docs/screenshots/en/01-overview.png) | ![Duplicates](docs/screenshots/en/04-duplicates.png) |
+| <img src="docs/screenshots/en/01-overview.png" width="410" alt="Overview: the whole volume as one ring with the ledger beside it"> | <img src="docs/screenshots/en/04-duplicates.png" width="410" alt="Duplicates: hash-grouped copies with the newest one locked"> |
 
 | Dev Caches | Leftovers |
 |---|---|
-| ![Dev Caches](docs/screenshots/en/07-dev-cache.png) | ![Leftovers](docs/screenshots/en/08-leftovers.png) |
+| <img src="docs/screenshots/en/07-dev-cache.png" width="410" alt="Dev Caches: Homebrew, npm, Maven, Gradle, simulator devices and more"> | <img src="docs/screenshots/en/08-leftovers.png" width="410" alt="Leftovers: data orphaned by uninstalled apps"> |
 
 The skin store renders a **live thumbnail** of each theme — mini sidebar, ring gauge, rows and
 buttons, all drawn with that skin's real tokens — so you can see the skeleton before you wear it:
 
-![Skins](docs/screenshots/en/10-skins.png)
+<img src="docs/screenshots/en/10-skins.png" width="838" alt="Skins: six theme cards, each rendering a live thumbnail of the whole page in that theme">
 
-Six skins, six skeletons. Same page, three of them:
+Six skins, six skeletons. Same page, three of them — Graphite is the dark one:
 
-| Graphite (dark) | Mint | Polar Night |
+| Graphite | Mint | Polar Night |
 |---|---|---|
-| ![graphite](docs/screenshots/skins/graphite.png) | ![mint](docs/screenshots/skins/mint.png) | ![midnight](docs/screenshots/skins/midnight.png) |
+| <img src="docs/screenshots/skins/graphite.png" width="270" alt="Graphite skin"> | <img src="docs/screenshots/skins/mint.png" width="270" alt="Mint skin"> | <img src="docs/screenshots/skins/midnight.png" width="270" alt="Polar Night skin"> |
 
 The UI is bilingual — English and Simplified Chinese, switchable in-app (Skins → language), and it
 follows the system language by default. Same screens in Chinese:
 
 | 空间总览 | 开发缓存 |
 |---|---|
-| ![总览](docs/screenshots/zh/01-overview.png) | ![开发缓存](docs/screenshots/zh/07-dev-cache.png) |
+| <img src="docs/screenshots/zh/01-overview.png" width="410" alt="Overview in Simplified Chinese"> | <img src="docs/screenshots/zh/07-dev-cache.png" width="410" alt="Dev Caches in Simplified Chinese"> |
 
 ## Install
 
 ### Mac App Store
 
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402) — macOS 13+, free, install it and
-start using it.
+start using it; the store takes care of every version after that.
 
 ### Homebrew (one command)
 
@@ -152,22 +200,19 @@ brew install --cask diskwise
 
 Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
 
-Homebrew does not skip Gatekeeper here: whatever the cask installs is the same build the
-Releases page carries. **Read the release note of the version you are about to install** — it
-says whether that build is Developer ID-signed and notarized (double-click) or ad-hoc signed
-(first launch gets blocked, then you approve it in **System Settings → Privacy & Security →
-Open Anyway**; macOS 13–14 also take the older right-click → Open). Everything published so far is ad-hoc.
+Homebrew installs the same file the Releases page carries, so the first launch still goes through
+Gatekeeper: macOS stops it once, and you approve it in **System Settings → Privacy & Security →
+Open Anyway** (on macOS 13–14, right-click → Open does the same job). Getting it from the
+**Mac App Store** skips that step entirely.
 
 ### DMG
 
 1. Download `DiskWise-<version>[-universal].dmg` from
    [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
-3. First launch depends on the build, and the release note for that version is the authority:
-   a Developer ID-signed, notarized build opens with a double-click; an ad-hoc one gets blocked the
-   first time, and you approve it in **System Settings → Privacy & Security → Open Anyway**
-   (right-click → Open does that job on macOS 13–14, but Sequoia removed that shortcut).
-   (See [Known limits](#known-limits).)
+3. The first launch gets stopped once. Approve it in **System Settings → Privacy & Security →
+   Open Anyway** and the app opens normally from then on (on macOS 13–14, right-click → Open
+   works instead; Sequoia removed that shortcut).
 
 Releases built with `ARCH=universal` are named `…-universal.dmg` and carry both the Apple
 Silicon and Intel slices in one file; the Apple Silicon-only ones are named `DiskWise-<version>.dmg`.
@@ -185,8 +230,7 @@ bash build_app/build.sh        # localize check → build → self-test → .app
 ```
 
 `build.sh` refuses to produce a package if any of the three gates fails: missing translations,
-a failing self-test, or an unpacked resource. Releasing one — Developer ID signing, notarization,
-the CI workflow, the pre-push checklist — is documented in [docs/RELEASE.md](docs/RELEASE.md).
+a failing self-test, or an unpacked resource.
 
 Contributing? Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DESIGN.md](docs/DESIGN.md) — both encode
@@ -228,25 +272,16 @@ users on those versions need to build from source instead (it takes a minute and
 `bash build_app/build.sh` still defaults to Apple Silicon; pass `ARCH=universal` to get both.
 
 **Why does macOS complain on first launch?**
-It depends on how that build was signed. `build.sh` uses a Developer ID certificate and
-notarizes when the certificate and notarization credentials are present, and such a build opens
-with a double-click. Without them it falls back to ad-hoc signing — which is what every release
-published so far got — and a quarantined ad-hoc build gets blocked once, then approved in
-**System Settings → Privacy & Security → Open Anyway** (see [Install](#install)). On macOS 13–14,
-right-click → Open does the same job; Sequoia removed that shortcut. The release note of the
-version you're downloading says which signing mode it is.
+Only the direct download does, and only the first time: approve it in
+**System Settings → Privacy & Security → Open Anyway** and it launches normally afterwards; on
+macOS 13–14 right-click → Open does the same job, a shortcut Sequoia removed. The App Store build
+never gets stopped.
 
 ## Known limits
 
-Honest list, because a cleanup tool earns trust by admitting what it can't do:
-
-- **No auto-update.** You get new versions from the Releases page or `brew upgrade`.
-- **Direct downloads are ad-hoc signed so far**, so the first launch gets blocked and has to be
-  approved in System Settings → Privacy & Security. The Developer ID + notarization path is in
-  `build.sh` and CI, waiting on a certificate.
-- **Whole-disk scope counts the system area, it does not clean it.** Rows under `/Library`, `/opt` or
-  `/private` come up with a *System area* badge and a locked checkbox: either only an admin can write
-  there, or the files belong to Homebrew / Xcode, whose own cleanup commands do a better job.
+- **The system area is counted, not cleaned.** Rows under `/Library`, `/opt` or `/private` come up
+  with a *System area* badge and a locked checkbox: either only an admin can write there, or the
+  files belong to Homebrew / Xcode, whose own cleanup commands do a better job.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
@@ -278,224 +313,3 @@ Full policy: [docs/PRIVACY.md](docs/PRIVACY.md).
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
-
----
-
-## 中文
-
-## DiskWise 是什么
-
-一个**不会真正删除任何东西**的 macOS 磁盘清理工具，CleanMyMac 的免费开源替代。所有删除只进废纸篓，
-本次会话内随时可撤销；专治开发者机器上的 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、
-微信 / 钉钉 / 企业微信缓存和卸载残留。SwiftUI 原生实现，没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅。安装包约 5 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
-
-## 上手三步
-
-「界面截图」一节开头那段中文录屏演的就是这个顺序：
-
-1. 打开**空间总览**：它走整块盘，把结果画成一个环，环旁边那一列就是账。
-2. 点账里的任意一行——它名下是哪几个目录就地摊开，环同时收成一枚小参照盘。
-3. 能整个搬走的那段弧**点两下**：第一下上膛，第二下才进废纸篓。*撤销*原样放回，清空废纸篓始终由访达执行。
-
-## 为什么选择 DiskWise
-
-清理工具要进入你的家目录，劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。
-
-DiskWise 走相反的路子：
-
-| | DiskWise |
-|---|---|
-| 删除路径 | **全 App 只有一条** —— `FileManager.trashItem`，一律进废纸篓 |
-| 撤销 | 支持，按操作、整会话可退 |
-| 保护路径 | 家目录本体、`~/Library` 等整体不可删，子项可以 |
-| 清空废纸篓 | 动手的永远是**访达**，本工具从不自己永久删除。直链版：请访达清空，访达会让你确认一次。商店沙盒版：这条指令被系统掐掉（实测连授权框都不弹），同一颗按钮改成打开废纸篓窗口，你按 ⌘⇧⌫ |
-| Docker 镜像 | 只读。虚拟盘没有独立路径，App 只指路不代删 |
-| 联网 | 无。不自动更新、不统计、无广告 |
-| 收费 | 无。功能全开，六套皮肤全部随包可用 |
-| 运行形态 | 一个 `.app`，没有 Python、没有端口、没有守护进程 |
-
-它服务的是被开发者用了几年的那类机器——`node_modules`、Docker 虚拟盘、Xcode `DerivedData`、
-十几 GB 缓存悄悄把盘吃掉的那种。
-
-## 功能
-
-**看清空间**
-- **空间总览**：整块盘画成一个环——一段弧就是这一轮真量到的字节，各段加起来正好等于整块盘（前几大热点 + 其他已统计 + 没量到 + 系统可清除 + 空闲），那道光带就停在「量到这儿」的边界上。能整个搬走的那一段点两下：第一下上膛，第二下才进废纸篓，3 秒不点自己松开。整页只有一段账：环旁边那一列，点这一行就**就地摊开**它名下是哪几个目录、哪几处位置、哪几卷账，摊开时环收成一枚小参照盘。「访达显示」和「深挖」挂在摊开的那一行上
-- **走整盘扫描**：没有范围开关要猜。开源版整趟走整盘（白名单里的系统根、别人的家目录都在内），商店沙盒版走授权能达到的最大范围并把这个边界写在界面上。两边扫的都是整块盘，不是家目录里那几处整洁的角落
-- **覆盖范围说实话**：总览常驻一行「已量到 X，占已用的 Y%」，并点名没量到的是谁的地盘——系统卷、只有管理员能读的目录、以及读不动的那几处。那颗跳「完全磁盘访问权限」设置的按钮只在实测读不到受保护文件时才出现，已经授权过的人不会再被喊一次「去授权」。所有体积按十进制算，跟访达、「关于本机」逐字节对得上
-- **「其他已统计」凑得出来**：点开那一格，这块弧名下的每一处都列在它自己名下，最后一句把没点名的补齐（这里这几处 ＋ 不到 100 MB 的那几处），几段相加就等于弧上那个数——一百多 G 不能只写成一句「信我」
-- **大文件**：按同一批范围根遍历，TOP 可调，可跳过开发目录
-- **很久没动**：同样这些根里，N 天没打开的文件
-- **重复文件**：大小 → 部分哈希 → 全量哈希，分组展示，每组日期最新一份锁定保留；住在 venv / site-packages / DerivedData 里的副本不参与比对，单独列成一份名单——删一份，那个环境就缺一块
-
-**开发机专项**
-- **node_modules**：按项目聚合，直接告诉你「这几个仓库共 4.7 GB」
-- **Docker 占用**：机器上装了哪家容器运行时（Docker Desktop / OrbStack / Podman / colima）就出一行，量的是那块虚拟机磁盘在这台机器上实际占掉的量；引擎自己报的几段列在下面。**只出不删**——删法各家不一样，展开那一行给指路
-
-**清理**
-- **应用缓存**：知识库覆盖系统缓存总目录、崩溃转储、微信 / 钉钉 / 企业微信 / QQ 等。每项都写明「这是什么 / 删了会怎样 / 怎么恢复」，并给安全 / 留意分级
-- **开发缓存**：同一本知识库的另一半——Homebrew、npm / pnpm / yarn、Maven、Gradle、conda、uv、cargo、Ollama 模型、Xcode 归档与 DerivedData，iOS 模拟器逐台列占用与上次启动时间
-- **卸载残留**：以「还装着的 App 的 bundle id」为基准找孤儿，宁可漏报不误删
-- **废纸篓**：体积统计、撤销栈，以及一颗「清空」——直链版由访达执行，商店沙盒版只把废纸篓窗口打开给你按 ⌘⇧⌫
-
-**个性化**
-- **外观皮肤**：6 套。关键点是它们**不是换色**——每套各自改字体面、圆角、材质分层、动效签名、图表配色。
-  晨雾 / 石墨 / 薄荷 / 极夜黑金 / 极光玻璃 / 水墨宣纸，六套全部随包可用。
-
-## 界面截图
-
-![空间总览的一轮扫描：环一段段长出来，点账目那一行就地摊开它名下的目录、环同时收成一枚小参照盘，点第一段弧上膛、再点第二段才进废纸篓，撤销原样放回](docs/demo/overview-zh.gif)
-
-*扫描 → 点开一行 → 两下 → 撤销。这屏跑的是造出来的演示目录，屏幕上的数都是编的——顶上那条橙色横幅写的就是这件事。*
-
-中英文双语，可在「外观皮肤」页顶部切换，默认跟随系统。
-
-| 空间总览 | 重复文件 |
-|---|---|
-| ![总览](docs/screenshots/zh/01-overview.png) | ![重复文件](docs/screenshots/zh/04-duplicates.png) |
-
-| 开发缓存 | 卸载残留 |
-|---|---|
-| ![开发缓存](docs/screenshots/zh/07-dev-cache.png) | ![残留](docs/screenshots/zh/08-leftovers.png) |
-
-皮肤页里每张卡都实时渲染该皮肤下的迷你侧边栏 + 环形图 + 列表行 + 按钮，看得懂骨架再决定穿不穿：
-
-![外观皮肤](docs/screenshots/zh/10-skins.png)
-
-同一页，三套皮肤三种骨架（默认「晨雾」见上方总览图）：
-
-| 石墨（深色） | 薄荷 | 极夜黑金 |
-|---|---|---|
-| ![石墨](docs/screenshots/zh/12-overview-graphite.png) | ![薄荷](docs/screenshots/zh/13-overview-mint.png) | ![黑金](docs/screenshots/zh/11-overview-midnight.png) |
-
-## 下载与安装
-
-### Mac App Store
-
-[DiskWise: 空间清理](https://apps.apple.com/app/id6813265402) — macOS 13+｜免费｜直接获取即可开始用。
-
-### Homebrew（一条命令）
-
-```bash
-brew install --cask dreamofxm/diskwise/diskwise
-```
-
-必须用 `dreamofxm/diskwise/diskwise` 这个全限定名：Homebrew 6 起第三方 tap 默认不被信任，
-按全限定名安装只信任这一个 cask。想用短名就先补一步信任：
-
-```bash
-brew tap DreamOfXM/diskwise
-brew trust --cask dreamofxm/diskwise/diskwise
-brew install --cask diskwise
-```
-
-tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
-
-用 Homebrew 也躲不过 Gatekeeper——但装的就是 Releases 页那个包：**装之前读一眼那条 Release 的说明**，
-里面写清了这一版是 Developer ID 签名 + 公证（双击即开）还是 ad-hoc 签名（首次会被拦一下，然后到
-**系统设置 → 隐私与安全性 → 「仍要打开」**里放行；macOS 13–14 上右键 → 打开 也能顶过去）。
-目前发出去的每一个包都是 ad-hoc。
-
-### 直接下载 DMG
-
-1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>[-universal].dmg`
-2. 打开后把 **DiskWise.app** 拖进「应用程序」
-3. 首次打开怎么点，以那条 Release 的说明为准：Developer ID 签名 + 公证过的双击即开；
-   ad-hoc 的那份第一次会被拦下，再到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行
-   （macOS 13–14 上可以用老办法：右键 → 打开）（见[已知不足](#已知不足)）
-
-`ARCH=universal` 出的包文件名带 `-universal`，同一个文件里同时有 arm64 和 x86_64 两个切片；
-不带后缀的那份只有 Apple Silicon。每个 Release 都会附 DMG 的 SHA256，cask 里钉的是同一个校验值。
-
-## 从源码构建
-
-只需要 Xcode 命令行工具，**不需要完整 Xcode**。
-
-```bash
-swift build                    # debug 编译
-swift run SelfTest             # 全量自检，全绿是打包前提
-swift run DiskCleaner          # 直跑 App
-bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app → 签名 → dist/*.dmg + SHA256
-```
-
-三道闸门任一失败就不出包：缺译文、自检不过、资源没拷进去。
-出发布包那一整套 —— Developer ID 签名、公证、CI、发版前的自查清单 —— 在
-[docs/RELEASE.md](docs/RELEASE.md) 里。
-
-想提 PR 请先读 [CONTRIBUTING.md](CONTRIBUTING.md)、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-和 [docs/DESIGN.md](docs/DESIGN.md)——里面每条规则都是踩过坑定下来的。
-最受欢迎的第一个 PR 是往[缓存知识库](CONTRIBUTING.md#the-easiest-useful-contribution-cache-knowledge-base)里加一条真实条目。
-
-## 常见问题
-
-**它是 CleanMyMac 的免费替代吗？**
-在同一件事上替代——缓存、大文件、重复文件、卸载残留、Docker 占用，源码就在这个仓库，不收订阅。
-它刻意比套件少做很多：不查杀木马、不做 VPN、不清邮件、没有「加速」，因为那些是另一类产品、另一套风险。
-
-**会不会把我还要的东西删掉？**
-所有删除都进废纸篓，本次会话有撤销栈；家目录本体和 `~/Library` 整体不可删；清空这一步永远在
-访达里完成，访达会让你确认后才真正释放空间。
-
-**`node_modules`、`DerivedData`、各种缓存能删吗？**
-能。`node_modules` 靠 `npm install` 回来，`DerivedData` 靠下次编译回来，缓存靠对应工具的下次运行回来。
-DiskWise 不假设你知道这件事，每一条都写着「这是什么 / 删了会怎样 / 怎么回来」。
-
-**它会上传什么吗？**
-不会。没有自动更新、没有统计、没有账号、没有广告，App 完全没有网络访问 —— 这也是反馈只能走
-GitHub、邮箱或 QQ 群的原因。
-
-**微信 / 钉钉的缓存管吗？**
-管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，界面也因此做成中英双语。
-
-**Intel 机器能用吗？**
-从 v1.3 起，发出去的每个 DMG 都是 `ARCH=universal` 出的，同一个文件里 arm64 和 x86_64 两个切片
-都在，闸门会单独把 x86_64 那份跑一遍，Intel 和 Apple Silicon 下载同一个链接即可。v1.3 之前的
-Release 附的是只带 arm64 的 `DiskWise-<版本号>.dmg`（文件名没有 `-universal`），那几个版本要
-Intel 就得自己编一条命令的事（不需要完整 Xcode）。本地 `build.sh` 默认仍只出 Apple Silicon，
-加 `ARCH=universal` 才出双切片。
-
-**为什么首次打开系统要警告？**
-看那一版是怎么签的。`build.sh` 有 Developer ID 证书和公证凭据时走正式签名 + 公证，双击就开；
-缺任何一样就退回 ad-hoc 签名——**到现在为止发出去的包全是这一种**——带着隔离标记，第一次会被
-Gatekeeper 拦下，要到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行（见[下载与安装](#下载与安装)）。
-macOS 15 Sequoia 起，右键 → 打开 这条捷径已经不管用了；13–14 还能用。
-
-## 已知不足
-
-- **没有自动更新**，新版本靠 Releases 页或 `brew upgrade`
-- **直链包目前都是 ad-hoc 签名**，首次打开会被拦一次、要在系统设置里放行；Developer ID + 公证
-  那条链路已经在 `build.sh` 和 CI 里，缺一张证书
-- **整盘那一趟只负责把系统区算进账，不负责删它**：`/Library`、`/opt`、`/private` 里的行会带
-  「系统区」标记、勾选框锁死——那些位置要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，
-  用它们各自的清理命令比这个按钮安全
-- **node_modules 大盘扫描慢**，且还没有流式快照
-- **卸载残留刻意保守**，会漏报
-
-## 路线图
-
-- [ ] 慢扫描的流式快照
-- [ ] 扩充缓存知识库（提 PR 最受欢迎的方式）
-
-## 反馈与交流
-
-App 不联网，所以没有「一键发送反馈」这种按钮。三个渠道随你挑：
-
-| 渠道 | 入口 |
-|---|---|
-| 邮箱 | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
-| QQ 群 | **913022339**，扫码进群 |
-| GitHub | [提 Issue](https://github.com/DreamOfXM/diskwise/issues)，中文英文都收 |
-
-<img src="docs/contact/qq-group.png" width="240" alt="QQ 群二维码">
-
-App 内侧边栏最下面就是「问题反馈」页，同样这三条渠道，每个地址都能一键复制。
-
-## 隐私
-
-DiskWise 不联网、不收集任何数据，每一次扫描都只在你自己的 Mac 上完成。
-完整政策见 [docs/PRIVACY.md](docs/PRIVACY.md)。
-
-## 许可
-
-Apache License 2.0，见 [LICENSE](LICENSE)。
