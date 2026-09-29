@@ -334,7 +334,7 @@ check(led2.topOut + led2.restOut + led2.unattributed + led2.absorbed
       "重量过的、归不进弧的、还在弧上的，三类加起来仍是全部记录")
 // 量完之后又搬走的那些必须**还**在弧上：这一条正是「用集合记哪些目录量过了」的旧写法
 // 会做错的地方——它会把 8 GB 那笔一起作废掉，于是清空一轮后再删，环上永远长不出废纸篓弧。
-let ledLate = ringMoveLedger(records: ledRecords + [(home + "/.ollama/cache.bin", 8_000_000_000)],
+let ledLate = ringMoveLedger(records: ledRecords + [(original: home + "/.ollama/cache.bin", bytes: Int64(8_000_000_000))],
                              topPaths: [home + "/.ollama", home + "/Deep", home + "/Solo"],
                              otherPaths: [home + "/tmpcase", home + "/Deep/nested"],
                              voidedUpTo: [home + "/.ollama": 2])
