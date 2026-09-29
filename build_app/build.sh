@@ -98,9 +98,18 @@ else
 fi
 
 # 按 triple 编一次，stdout 只回产物目录（编译进度走 stderr，否则被 $(...) 一起吞进来）
+# 编译输出必须整份留档并当场判退出码：只 tail 几行会把真正的报错截掉，
+# 而函数的返回码是最后一条命令（查产物目录）的，编译崩了也照样返回 0。
 build_for_triple() {
 	local triple="$1"
-	swift build -c release --triple "$triple" $SWIFT_FLAGS 2>&1 | tail -n 2 >&2
+	local log="$ROOT_DIR/.build/compile.$triple.log"
+	mkdir -p "$(dirname "$log")"
+	if ! swift build -c release --triple "$triple" $SWIFT_FLAGS >"$log" 2>&1; then
+		echo "    $triple 编译失败，输出 $(wc -l < "$log" | tr -d ' ') 行，最后 60 行：" >&2
+		tail -n 60 "$log" | sed 's/^/    /' >&2
+		exit 1
+	fi
+	tail -n 2 "$log" >&2
 	swift build --show-bin-path -c release --triple "$triple" 2>/dev/null | tail -n 1
 }
 
