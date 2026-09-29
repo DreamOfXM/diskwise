@@ -1,7 +1,7 @@
 {
   "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-09-27",
+  "updated": "2026-09-30",
   "entries": [
     {
       "name": "ChatGPT 桌面版崩溃转储",
@@ -263,19 +263,64 @@
     },
     {
       "name": "微信缓存",
-      "what": "微信在电脑上的临时缓存（图片缩略图、小程序、网页缓存等）",
-      "whatif": "删掉不影响聊天记录和登录状态",
-      "rec": "无需恢复；微信会按需自动重建",
-      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Library/Caches",
+      "what": "小程序、搜一搜等内嵌组件的运行包（按账号存放）",
+      "whatif": "不影响聊天记录和登录状态；下次打开对应小程序时微信会重新下载",
+      "rec": "无需恢复；微信按需重新下载",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/users/*/xworker",
       "level": "safe",
       "grp": "cn_app"
     },
     {
-      "name": "微信聊天图片视频",
-      "what": "聊天里收到的图片、视频、文件原件（按账号存放）",
-      "whatif": "聊天记录文字还在；图片和视频重新点开需要重新下载，超期的可能无法再查看",
-      "rec": "无法本地恢复；在手机微信的对应聊天里点开即可重新下载（未过期部分）",
-      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/*/*/Message/MessageTemp",
+      "name": "微信小程序公共库",
+      "what": "各小程序共用的基础运行库（一份带版本号的包）",
+      "whatif": "不影响聊天记录；打开小程序时微信会重新下载",
+      "rec": "无需恢复；微信按需重新下载",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/users/*/applet/publicLib",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信网页缓存",
+      "what": "微信内置浏览器（朋友圈、文章、网页）的 HTTP 缓存",
+      "whatif": "登录状态不在这一层目录里；网页重新打开时重新加载",
+      "rec": "无需恢复；微信会按需重建",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/web/profiles/*/Cache",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信日志",
+      "what": "微信自己记录的运行日志（按日期的 .xlog，用于排查问题）",
+      "whatif": "不影响功能与聊天记录；只是之后回看不了这段日志",
+      "rec": "无需恢复；微信会继续新建日志",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/log",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信图片缓存",
+      "what": "聊天与朋友圈浏览时留下的图片、表情缓存（同一张图的原件在 msg 目录下，这里是显示用的副本）",
+      "whatif": "聊天记录与图片原件都不受影响；重新打开时这些副本会再建一次",
+      "rec": "无需恢复；微信按需重建",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/*/cache",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信临时文件",
+      "what": "收发过程中留下的临时文件（ImageTemp 等，按账号存放）",
+      "whatif": "不影响已保存的聊天记录",
+      "rec": "无需恢复；微信会自动重建",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/*/temp",
+      "level": "safe",
+      "grp": "cn_app"
+    },
+    {
+      "name": "微信插件运行包",
+      "what": "微信插件的运行包，内含通话、多媒体、传输等运行库；升级后可能同时留着多个版本，每个版本都是一份完整运行库",
+      "whatif": "正在使用的版本删掉后这些功能会异常，需要重启微信；被删的版本下次用到时重新下载",
+      "rec": "建议先退出微信再删；微信会在需要时重新下载",
+      "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/xplugin/plugins/Magicdy/*",
       "level": "warn",
       "grp": "cn_app"
     },
