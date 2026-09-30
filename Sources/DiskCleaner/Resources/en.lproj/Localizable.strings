@@ -681,3 +681,19 @@
 "打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效" = "Opens System Settings › Privacy & Security › Full Disk Access; restart DiskWise once you've ticked it";
 "已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 点开「没量到」那一行逐块点名。" = "%1$@ used. This pass measured %2$@ of it (%3$d%%); the remaining %4$@ is itemised inside the “Not measured” row.";
 "只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Scan only %@ and list its largest files on the Large Files page";
+
+// ── 文件夹详情：逐层下钻（从任意文件夹进去，一层层往下看） ─────────────────────
+"文件夹详情" = "Folder details";
+"一层层往里走，看清每个文件夹和文件占了多少" = "Go deeper level by level and see how much each folder and file takes up";
+"回到空间总览" = "Back to Overview";
+"正在量「%@」" = "Measuring “%@”";
+"这一层量到 %@" = "This level: %@";
+"从一个文件夹进来，就能一层层往下看" = "Open a folder to start drilling down level by level";
+"还没选文件夹" = "No folder selected yet";
+"回空间总览，点一行文件夹的名字进来；也可以从大文件那页点「查看所在文件夹」。" = "Go back to Overview and click a folder's name to enter; or use “Open containing folder” on the Large Files page.";
+"这一层没有读得出的东西" = "Nothing readable at this level";
+"可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "It may be empty, or it may need Full Disk Access to read.";
+"另有 %1$@（%2$@）没逐行列出" = "%1$@ more (%2$@) not listed one by one";
+"进入这个文件夹" = "Open this folder";
+"进入 %@ 往下看" = "Enter %@ to look inside";
+"查看所在文件夹" = "Open containing folder";

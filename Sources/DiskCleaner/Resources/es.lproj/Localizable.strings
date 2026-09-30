@@ -682,3 +682,19 @@
 "打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效" = "Abre Ajustes del Sistema › Privacidad y seguridad › Acceso total al disco; tras marcarlo hay que reiniciar DiskWise";
 "已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 点开「没量到」那一行逐块点名。" = "%1$@ en uso. De eso, este análisis midió %2$@ (%3$d%%); el %4$@ restante se detalla dentro de la fila «Sin medir».";
 "只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Analiza solo el árbol de %@ y lista sus archivos más grandes en la página Archivos grandes";
+
+// ── 文件夹详情：逐层下钻（从任意文件夹进去，一层层往下看） ─────────────────────
+"文件夹详情" = "Detalles de la carpeta";
+"一层层往里走，看清每个文件夹和文件占了多少" = "Ve bajando nivel a nivel y mira cuánto ocupa cada carpeta y cada archivo";
+"回到空间总览" = "Volver al Resumen";
+"正在量「%@」" = "Midiendo «%@»";
+"这一层量到 %@" = "Este nivel: %@";
+"从一个文件夹进来，就能一层层往下看" = "Entra en una carpeta y podrás ir bajando nivel a nivel";
+"还没选文件夹" = "Aún no hay carpeta seleccionada";
+"回空间总览，点一行文件夹的名字进来；也可以从大文件那页点「查看所在文件夹」。" = "Vuelve al Resumen y haz clic en el nombre de una carpeta para entrar; también puedes usar «Abrir su carpeta» en la página Archivos grandes.";
+"这一层没有读得出的东西" = "En este nivel no hay nada que leer";
+"可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "Puede que esté vacía o que necesite acceso total al disco para poder leerse.";
+"另有 %1$@（%2$@）没逐行列出" = "otros %1$@ (%2$@) sin listar uno a uno";
+"进入这个文件夹" = "Abrir esta carpeta";
+"进入 %@ 往下看" = "Entrar en %@ para ver dentro";
+"查看所在文件夹" = "Abrir su carpeta";

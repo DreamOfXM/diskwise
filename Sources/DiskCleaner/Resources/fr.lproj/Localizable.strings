@@ -689,4 +689,20 @@
 "已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 点开「没量到」那一行逐块点名。" = "%1$@ utilisés. Cette analyse en a mesuré %2$@ (%3$d%%) ; le reste, %4$@, est détaillé dans la ligne « Non mesuré ».";
 "只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Analyser seulement l'arborescence de %@ et lister ses plus gros fichiers dans la page Gros fichiers";
 
+// ── 文件夹详情：逐层下钻（从任意文件夹进去，一层层往下看） ─────────────────────
+"文件夹详情" = "Détails du dossier";
+"一层层往里走，看清每个文件夹和文件占了多少" = "Descendez niveau par niveau et voyez ce que prennent chaque dossier et chaque fichier";
+"回到空间总览" = "Retour à la vue d'ensemble";
+"正在量「%@」" = "Mesure de « %@ »";
+"这一层量到 %@" = "Ce niveau : %@";
+"从一个文件夹进来，就能一层层往下看" = "Entrez dans un dossier pour descendre niveau par niveau";
+"还没选文件夹" = "Aucun dossier sélectionné";
+"回空间总览，点一行文件夹的名字进来；也可以从大文件那页点「查看所在文件夹」。" = "Revenez à la vue d'ensemble et cliquez sur le nom d'un dossier pour entrer ; ou utilisez « Ouvrir son dossier » sur la page Gros fichiers.";
+"这一层没有读得出的东西" = "Rien de lisible à ce niveau";
+"可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "Il est peut-être vide, ou il a besoin de l'accès complet au disque pour être lisible.";
+"另有 %1$@（%2$@）没逐行列出" = "%1$@ de plus (%2$@) non listés un par un";
+"进入这个文件夹" = "Ouvrir ce dossier";
+"进入 %@ 往下看" = "Entrer dans %@ pour regarder";
+"查看所在文件夹" = "Ouvrir son dossier";
+
 // ── Fin de la table ─────────────────────────────────────────────────────────

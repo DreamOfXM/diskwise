@@ -199,7 +199,7 @@ func cnt(_ n: Int, _ zhUnit: String) -> String {
     // 键仍是源码里那串简体，值换成繁体写法。这样调用点不必知道自己被谁调用。
     if L10n.active == .zhHant {
         let hant: [String: String] = [
-            "项": "項", "个文件": "個檔案", "个副本": "個副本", "处残留": "處殘留",
+            "项": "項", "个文件": "個檔案", "个文件夹": "個檔案夾", "个副本": "個副本", "处残留": "處殘留",
             "个项目": "個專案", "组": "組", "份": "份", "天": "天",
             "组重复": "組重複", "个应用": "個應用程式", "个包": "個套件",
             "个 node_modules": "個 node_modules", "个可清理项": "個可清理項",
@@ -274,6 +274,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("件", "件"),
             "个文件": MeasureForms("ファイル", "ファイル"),
+            "个文件夹": MeasureForms("フォルダ", "フォルダ"),
             "个副本": MeasureForms("コピー", "コピー"),
             "处残留": MeasureForms("件の残存データ", "件の残存データ"),
             "个项目": MeasureForms("プロジェクト", "プロジェクト"),
@@ -297,6 +298,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("개 항목", "개 항목"),
             "个文件": MeasureForms("개 파일", "개 파일"),
+            "个文件夹": MeasureForms("개 폴더", "개 폴더"),
             "个副本": MeasureForms("개 사본", "개 사본"),
             "处残留": MeasureForms("개 잔여 항목", "개 잔여 항목"),
             "个项目": MeasureForms("개 프로젝트", "개 프로젝트"),
@@ -320,6 +322,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("Eintrag", "Einträge"),
             "个文件": MeasureForms("Datei", "Dateien"),
+            "个文件夹": MeasureForms("Ordner", "Ordner"),
             "个副本": MeasureForms("Kopie", "Kopien"),
             "处残留": MeasureForms("Überrest", "Überreste"),
             "个项目": MeasureForms("Projekt", "Projekte"),
@@ -343,6 +346,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("elemento", "elementos"),
             "个文件": MeasureForms("archivo", "archivos"),
+            "个文件夹": MeasureForms("carpeta", "carpetas"),
             "个副本": MeasureForms("copia", "copias"),
             "处残留": MeasureForms("residuo", "residuos"),
             "个项目": MeasureForms("proyecto", "proyectos"),
@@ -366,6 +370,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("élément", "éléments"),
             "个文件": MeasureForms("fichier", "fichiers"),
+            "个文件夹": MeasureForms("dossier", "dossiers"),
             "个副本": MeasureForms("copie", "copies"),
             "处残留": MeasureForms("résidu", "résidus"),
             "个项目": MeasureForms("projet", "projets"),
@@ -389,6 +394,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("элемент", "элемента", "элементов"),
             "个文件": MeasureForms("файл", "файла", "файлов"),
+            "个文件夹": MeasureForms("папка", "папки", "папок"),
             "个副本": MeasureForms("копия", "копии", "копий"),
             "处残留": MeasureForms("остаток", "остатка", "остатков"),
             "个项目": MeasureForms("проект", "проекта", "проектов"),
@@ -412,6 +418,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("item", "itens"),
             "个文件": MeasureForms("arquivo", "arquivos"),
+            "个文件夹": MeasureForms("pasta", "pastas"),
             "个副本": MeasureForms("cópia", "cópias"),
             "处残留": MeasureForms("resíduo", "resíduos"),
             "个项目": MeasureForms("projeto", "projetos"),
@@ -436,6 +443,7 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
         return [
             "项": MeasureForms("item", "items"),
             "个文件": MeasureForms("file", "files"),
+            "个文件夹": MeasureForms("folder", "folders"),
             "个副本": MeasureForms("copy", "copies"),
             "处残留": MeasureForms("leftover", "leftovers"),
             "个项目": MeasureForms("project", "projects"),
