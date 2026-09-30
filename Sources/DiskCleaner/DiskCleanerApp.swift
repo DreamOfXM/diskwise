@@ -55,6 +55,9 @@ final class ScanStore: ObservableObject {
     let caches = CachesModel(groupKeys: ["general", "cn_app"])
     let devcache = CachesModel(groupKeys: ["dev"])
     let orphans = OrphansModel()
+    /// 文件夹下钻。由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁——
+    /// 从某个文件夹跳去总览看一眼再回来，不该把刚量好的那一层白扔。
+    let folderDrill = FolderDrillModel()
 
     init() {
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
@@ -65,6 +68,7 @@ final class ScanStore: ObservableObject {
         forward(overview); forward(big); forward(old); forward(dup)
         forward(nodemodules); forward(docker); forward(caches); forward(orphans)
         forward(devcache)
+        forward(folderDrill)
     }
 
     private var bag = Set<AnyCancellable>()
@@ -89,7 +93,9 @@ final class ScanStore: ObservableObject {
         // 缓存页只量得出体积的那些行才算：没量出来的那格印的是「统计中…」，加不进任何账。
         case .caches, .devcache: return cacheAmount(panel == .devcache ? devcache : caches)
         case .orphans:     return orphans.started ? orphans.totalBytes : nil
-        case .overview, .trash, .appearance, .feedback: return nil
+        // 下钻页的那笔账是「当前这一层」，跟侧栏那一列（各页总量）不是一个口径，
+        // 报上去只会让同一格数字随用户点进点出地跳。
+        case .overview, .trash, .appearance, .feedback, .folderDrill: return nil
         }
     }
 
@@ -105,6 +111,11 @@ final class AppStore: ObservableObject {
     @Published var notice: String? = nil
     @Published var jumpTo: AppPanel? = nil
     @Published var bigScanDir: URL? = nil   // 总览跳过来的定向扫描目录
+    /// 「进这个文件夹往下看」——文件夹下钻页要落到哪一层。
+    ///
+    /// 跟 `jumpTo` 分工：这个只说「看哪儿」，切页由 `drill(into:)` 一起做。
+    /// 分开是因为从总览、大文件、下钻页三处都能发起下钻，而「跳页」这件事只有一处该管。
+    @Published var folderDrillPath: String? = nil
     /// 让总览页就地摊开某个名字的那一行，读完即清空。
     /// 现在只有截图链路会写它（`DISKWISE_DRILL`）：摊开出来的下级要点下去才看得见，
     /// 而批量拍图这一路没有键鼠。走的仍是行上那颗箭头调的同一个方法，不是另画的假界面。
@@ -156,6 +167,14 @@ final class AppStore: ObservableObject {
         trashHistory.append(r)
     }
 
+    /// 进某个文件夹往下看。三个入口（总览的账目行与明细行、大文件页的行、下钻页的面包屑）
+    /// 都收在这一条上：先写落点、再切页，顺序反了会先看见上一处的残留内容再跳。
+    func drill(into path: String) {
+        guard !path.isEmpty else { return }
+        folderDrillPath = path
+        jumpTo = .folderDrill
+    }
+
     func undoLast() -> String {
         guard let last = trashHistory.popLast() else { return L("没有可撤销的操作") }
         do {
@@ -173,7 +192,10 @@ final class AppStore: ObservableObject {
 }
 
 enum AppPanel: Hashable, CaseIterable {
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback
+    // `folderDrill` 追加在最后：`tileIndex` 拿 `allCases` 的下标当取色序号，
+    // 插在中间会把后面每一页的图标配色整体挪一格（那是一条看不见的回归）。
+    // 它也不进侧栏——下钻页是「从某一行进去」的，不是一栏常驻的目的地。
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill
 
     var symbol: String {
         switch self {
@@ -189,6 +211,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .trash: return "trash"
         case .appearance: return "paintpalette"
         case .feedback: return "text.bubble"
+        case .folderDrill: return "folder"
         }
     }
 
@@ -207,6 +230,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .trash: return "废纸篓"
         case .appearance: return "外观皮肤"
         case .feedback: return "问题反馈"
+        case .folderDrill: return "文件夹详情"
         }
     }
 
@@ -370,6 +394,7 @@ struct ContentView: View {
         case .trash: TrashView()
         case .appearance: AppearanceView()
         case .feedback: FeedbackView()
+        case .folderDrill: FolderDrillView(model: scans.folderDrill)
         }
     }
 }

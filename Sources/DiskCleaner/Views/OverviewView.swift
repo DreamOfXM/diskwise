@@ -1892,6 +1892,7 @@ private let drillIndent: CGFloat = 52
 /// 那句就永远加不回来——同一屏两本账是这一页塌过的每一次的形状。
 private struct DrillRow: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var store: AppStore
     /// 行首那一格：这一行的下一级就是一个真实目录，走同一套三档判图（归属 App →
     /// 品牌标 → 系统通用图）。原先这一列只有文字，24 格里 24 个名字，认不出谁是谁的。
     var icon: RowIcon
@@ -1909,16 +1910,30 @@ private struct DrillRow: View {
     var ruler: Int64
     var fraction: Double
 
+    @State private var hovering = false
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             RowIconView(icon: icon)
                 .frame(width: rowIconSide, height: rowIconSide)
             VStack(alignment: .leading, spacing: 6) {
-                Text(name)
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.ink)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                // 名字就是入口：点它进「文件夹详情」，一层层往下看。
+                // 这一页自己只摊得开一层（就地手风琴），再往下走是另一页的事——
+                // 分工：总览负责「看账」，下钻页负责「找文件」。
+                Button {
+                    store.drill(into: path)
+                } label: {
+                    Text(name)
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(hovering ? SweepRing.lamp(theme.palette.tint)
+                                                  : theme.palette.ink)
+                        .underline(hovering, color: SweepRing.lamp(theme.palette.tint))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(LF("进入 %@ 往下看", displayPath(URL(fileURLWithPath: path))))
                 // 条子定宽、不铺满：贴到行尾的长条会被读成分隔线，
                 // 而这一列上面那六行的条子就是这个宽度，两档尺没意义。
                 ProportionBar(fraction: fraction,
@@ -1946,6 +1961,7 @@ private struct DrillRow: View {
         // 图形落在名字左边那一格，缩进要让出图形位（26 + 间距 10）：
         // 名字仍跟上面账目行的名字在同一条竖线上，尾巴那句对账也才对得上这一列。
         .padding(.leading, drillIndent - rowIconSide - 10)
+        .onHover { hovering = $0 }
     }
 }
 

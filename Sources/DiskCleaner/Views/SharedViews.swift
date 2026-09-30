@@ -231,6 +231,14 @@ struct ItemRow<Detail: View>: View {
     /// 首行不画分段线（样稿 `.ledger>.mrow:first-child::before{display:none}`）
     var showRule: Bool = true
     var lockedHint: String? = nil
+    /// 这一行背后是个**目录**、点它要往里走一层（文件夹下钻页用）。
+    ///
+    /// 给了它就只改一处：行首那颗箭头从「展开行内明细」换成「进入」，点名字也走同一条路。
+    /// 不给就是那六页原来的样子。**不另写一份行布局**——六个列表页拆开各写一遍，
+    /// 正是当初收成这个 `ItemRow` 要消灭的东西。
+    var onOpen: (() -> Void)? = nil
+    /// 行尾那颗「访达显示」。只有下钻页用：那一页点名字是往里走，去访达得另给一个入口。
+    var onReveal: (() -> Void)? = nil
     /// 截图链路用：进这一页时把明细摊开，拍的就是「点开以后长什么样」。
     /// 批量拍图这一路没有键鼠，只能让视图自己展开，走的仍是那颗箭头改的同一个状态。
     var preopen: Bool = false
@@ -259,12 +267,23 @@ struct ItemRow<Detail: View>: View {
                     .frame(width: rowIconSide, height: rowIconSide)
 
                 Button {
-                    withAnimation(reduceMotion ? nil : theme.animation) {
-                        expanded.toggle()
+                    if let onOpen {
+                        onOpen()
+                    } else {
+                        withAnimation(reduceMotion ? nil : theme.animation) { expanded.toggle() }
                     }
                 } label: {
                     HStack(spacing: 10) {
-                        ThemeChevron(expanded: expanded, color: chevronColor)
+                        // 两副箭头共用那 10×10 的槽：往里走是「进入」，原地看是「展开」。
+                        // 宽度必须一致，否则同一列里两种行的名字会差开一格。
+                        if onOpen != nil {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(chevronColor)
+                                .frame(width: 10, height: 10)
+                        } else {
+                            ThemeChevron(expanded: expanded, color: chevronColor)
+                        }
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name)
                                 .font(theme.bodyFont(.callout))
@@ -284,11 +303,16 @@ struct ItemRow<Detail: View>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(onOpen == nil ? "" : L("进入这个文件夹"))
 
                 Spacer(minLength: 10)
 
                 if let badge {
                     ThemeBadge(text: badge.text, tone: badge.tone)
+                }
+
+                if let onReveal {
+                    ThemeButton(kind: .ghost, title: L("访达显示")) { onReveal() }
                 }
 
                 SizeNumber(shown: sizeText, size: act ? 21 : 17, color: numberColor)

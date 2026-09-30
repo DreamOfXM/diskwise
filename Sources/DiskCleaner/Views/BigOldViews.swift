@@ -164,7 +164,15 @@ struct BigFilesView: View {
                             lit: r.deletable,
                             showRule: model.rows.first?.id != r.id,
                             lockedHint: r.deletable ? nil : outsideScopeHint) {
-                        PathLine(path: r.url.path)
+                        VStack(alignment: .leading, spacing: 7) {
+                            PathLine(path: r.url.path)
+                            // 「这个文件到底在哪个文件夹」是这一页最常被追问的一句。
+                            // 摊开这一行顺手给个入口，省得自己去访达里一层层翻。
+                            ThemeButton(kind: .compact, symbol: "folder",
+                                        title: L("查看所在文件夹")) {
+                                store.drill(into: r.url.deletingLastPathComponent().path)
+                            }
+                        }
                     }
                 }
                 .ledgerCard()
@@ -358,7 +366,15 @@ struct OldFilesView: View {
                             lit: r.deletable,
                             showRule: model.rows.first?.id != r.id,
                             lockedHint: r.deletable ? nil : outsideScopeHint) {
-                        PathLine(path: r.url.path)
+                        VStack(alignment: .leading, spacing: 7) {
+                            PathLine(path: r.url.path)
+                            // 「这个文件到底在哪个文件夹」是这一页最常被追问的一句。
+                            // 摊开这一行顺手给个入口，省得自己去访达里一层层翻。
+                            ThemeButton(kind: .compact, symbol: "folder",
+                                        title: L("查看所在文件夹")) {
+                                store.drill(into: r.url.deletingLastPathComponent().path)
+                            }
+                        }
                     }
                 }
                 .ledgerCard()
