@@ -177,6 +177,20 @@ enum SnapshotMode {
         return raw.isEmpty ? nil : URL(fileURLWithPath: (raw as NSString).expandingTildeInPath)
     }
 
+    /// DISKWISE_DRILLDIR=<目录>：拍 `14-folder-drill` 那一张时从哪儿进去。不写就落在
+    /// 「还没选文件夹」那屏——那一屏本身也是要留档的，所以不设默认值。
+    private static var drillDir: URL? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_DRILLDIR"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? nil : URL(fileURLWithPath: (raw as NSString).expandingTildeInPath)
+    }
+
+    /// DISKWISE_DRILL_INTO=1：下钻页第一层量完自动钻第一个子目录一次，
+    /// 好让出的图里能看见面包屑和「深一层」长什么样。走的是行上那颗箭头调的同一条 `into`。
+    static var drillAutoDescend: Bool {
+        (ProcessInfo.processInfo.environment["DISKWISE_DRILL_INTO"] ?? "") == "1"
+    }
+
     /// DISKWISE_EXPAND=1：进列表页时把**第一行**的明细摊开。
     ///
     /// 展开态是行自己的状态，批量拍图这一路没有键鼠点不到那颗箭头，
@@ -264,6 +278,7 @@ enum SnapshotMode {
         (.trash, "09-trash", 6, 20),
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),
+        (.folderDrill, "14-folder-drill", 6, 60),
     ]
 
     /// DISKWISE_PICK=dup,caches：这些页各补两张——按一次底部清理条的「全选」，再按一次
@@ -379,6 +394,9 @@ enum SnapshotMode {
 
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         store.bigScanDir = bigDrillDir
+        // 只写落点、不切页：切页会把这一趟的画幅换掉（下钻页的理想高度跟总览页不同），
+        // 后面每一张图就都比 01 矮一截。等循环走到这一页时它自己读这个落点。
+        store.folderDrillPath = drillDir?.path
         pump(3)
         // 换页之前量一次，这就是整套图的画幅。之后窗口会被内容的理想尺寸撑高（SwiftUI 的
         // ScrollView 把自己的理想高度报成内容高度），但每张图都只从内容顶部截这一块——
@@ -427,7 +445,17 @@ enum SnapshotMode {
                     outDir: outDir, fps: fps)
             exit(0)
         }
-        for (panel, name, minWait, maxWait) in pages where only.isEmpty || only.contains(String(describing: panel)) {
+        // 比对前两边都转小写：口令本来就按小写收，而页名里有 `folderDrill` 这种带大写的，
+        // 不比一次的话 `DISKWISE_ONLY=folderDrill` 会静默地一张图都不出——拍图的人只会
+        // 以为自己敲错了，去翻半天命令行。
+        let known = Set(pages.map { String(describing: $0.0).lowercased() })
+        for miss in only.subtracting(known).sorted() {
+            FileHandle.standardError.write(
+                ("    ! DISKWISE_ONLY 里的「\(miss)」对不上任何一页，可用："
+                 + known.sorted().joined(separator: ", ") + "\n").data(using: .utf8)!)
+        }
+        for (panel, name, minWait, maxWait) in pages
+        where only.isEmpty || only.contains(String(describing: panel).lowercased()) {
             store.jumpTo = panel
             if midscanPanels.contains(String(describing: panel)) {
                 pump(midscanDelay)   // 只等布局，不等数据
