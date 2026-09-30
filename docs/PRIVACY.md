@@ -39,7 +39,7 @@ Questions: open an issue at <https://github.com/DreamOfXM/diskwise/issues>.
 ## 中文
 
 DiskWise 是一款本地磁盘清理工具。**我们不收集、不存储、不上传你的任何数据**：没有账号体系，
-没有统计埋点，没有崩溃上报，没有广告，也完全没有遥测——这个 App 不具备联网能力。
+没有统计埋点，没有崩溃上报，没有广告，也没有遥测——这个 App 不具备联网能力。
 
 所有处理都发生在你自己的 Mac 上、在你运行它的那一刻：
 

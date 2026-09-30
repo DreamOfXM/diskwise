@@ -6,6 +6,7 @@
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
+![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
 ![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
@@ -13,7 +14,8 @@
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具：SwiftUI 原生实现，专治开发者机器上的
 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、微信 / 钉钉 / 企业微信缓存和卸载残留。
 所有删除只进废纸篓，本次会话内随时可撤销。没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅。安装包约 5 MB，一个文件同时带 Apple Silicon 和 Intel 两个切片。
+没有端口、不联网、无遥测、无订阅，界面共十种语言。安装包约 5 MB，一个文件同时带
+Apple Silicon 和 Intel 两个切片。
 
 [English](./README.md) | 简体中文
 
@@ -130,6 +132,10 @@ DiskWise 走相反的路子：
 
 - **外观皮肤**：6 套。关键点是它们**不是换色**——每套各自改字体面、圆角、材质分层、动效签名、
   图表配色。晨雾 / 石墨 / 薄荷 / 极夜黑金 / 极光玻璃 / 水墨宣纸，六套全部随包可用。
+- **皮肤是数据，不是代码**：六套全在
+  [`Sources/DiskCleaner/Resources/skins.json`](Sources/DiskCleaner/Resources/skins.json) 这一个文件里，
+  文件自己带着每个字段的说明。加第七套就是加一个 JSON 对象：在 GitHub 网页上改这个文件、提 PR 即可，
+  不用 Xcode、不用编译、不用写 Swift。
 
 ## 界面截图
 
@@ -151,11 +157,15 @@ DiskWise 走相反的路子：
 |---|---|---|
 | <img src="docs/screenshots/zh/12-overview-graphite.png" width="270" alt="石墨皮肤"> | <img src="docs/screenshots/zh/13-overview-mint.png" width="270" alt="薄荷皮肤"> | <img src="docs/screenshots/zh/11-overview-midnight.png" width="270" alt="极夜黑金皮肤"> |
 
-界面中英双语，可在「外观皮肤」页顶部切换，默认跟随系统。同样的几屏，英文界面长这样：
+界面共十种语言——英语、简体中文、繁体中文、日语、韩语、德语、西班牙语、法语、俄语、巴西葡语——
+在「外观皮肤」页的语言菜单里切换，默认跟随系统。同样的几屏，英文界面长这样：
 
 | Overview | Dev Caches |
 |---|---|
 | <img src="docs/screenshots/en/01-overview.png" width="410" alt="Overview，英文界面"> | <img src="docs/screenshots/en/07-dev-cache.png" width="410" alt="Dev Caches，英文界面"> |
+
+数量不是把英文拼上去了事，每种语言各按各的规矩变形：俄语按数字挑形态（`1 файл`、`3 файла`、
+`11 групп`），德语法语西语巴葡分单复数，日韩用它们自己真在用的量词。
 
 ## 下载与安装
 
@@ -203,14 +213,15 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 swift build                    # debug 编译
 swift run SelfTest             # 全量自检，全绿是打包前提
 swift run DiskCleaner          # 直跑 App
-bash build_app/build.sh        # 双语对账 → 编译 → 自检 → .app → 签名 → dist/*.dmg + SHA256
+bash build_app/build.sh        # 多语言对账 → 编译 → 自检 → .app → 签名 → dist/*.dmg + SHA256
 ```
 
-三道闸门任一失败就不出包：缺译文、自检不过、资源没拷进去。
+三道闸门任一失败就不出包：缺译文、自检不过、资源没拷进去。译文那道闸门会自己解析 Swift 源码和
+`skins.json`，所以漏包 `L(…)` 的新字符串会和漏译一样被拦下——一门语言不可能悄悄只译一半。
 
 想提 PR 请先读 [CONTRIBUTING.md](CONTRIBUTING.md)、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 和 [docs/DESIGN.md](docs/DESIGN.md)——里面每条规则都是踩过坑定下来的。
-最受欢迎的第一个 PR 是往[缓存知识库](CONTRIBUTING.md#the-easiest-useful-contribution-cache-knowledge-base)里加一条真实条目。
+有三类 PR 完全不用碰 Swift：[缓存知识库](CONTRIBUTING.md#the-easiest-useful-contribution-cache-knowledge-base)加一条真实条目、[加一套皮肤](CONTRIBUTING.md#skins)、或者[补一门语言](CONTRIBUTING.md#translations)。
 
 ## 常见问题
 
@@ -231,7 +242,8 @@ DiskWise 不假设你知道这件事，每一条都写着「这是什么 / 删�
 GitHub、邮箱或 QQ 群的原因。
 
 **微信 / 钉钉的缓存管吗？**
-管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，界面也因此做成中英双语。
+管，缓存在知识库里。中文开发者的 Mac 上这几项往往是最占地方的，简体与繁体中文也因此都是一等公民，
+而不是挂在英文界面后面的补丁。
 
 **Intel 机器能用吗？**
 从 v1.3 起，发出去的每个 DMG 都是 `ARCH=universal` 出的，同一个文件里 arm64 和 x86_64 两个切片

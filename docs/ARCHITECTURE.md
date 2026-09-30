@@ -71,9 +71,8 @@ swift build                  # debug 编译
 swift run SelfTest           # ★全量逻辑自检，全绿是打包前提
 swift run DiskCleaner        # 直跑 App（调试用）
 
-swift build_app/l10n_tool.swift check      # 双语覆盖率对账（build.sh 会自动跑）
+swift build_app/l10n_tool.swift check      # 各语言覆盖率对账（build.sh 会自动跑）
 bash build_app/build.sh      # 完整打包：对账 → 编译 → 自检 → .app → 签名 → DMG + SHA256
-                             # 图标变体：ICON_VARIANT=b bash build_app/build.sh
                              # 商店版（进沙盒 + 出 .pkg）：CHANNEL=appstore ARCH=universal bash build_app/build.sh
 
 # 演示数据 + 截图（README 的图就是这么来的，不需要录屏权限）
@@ -126,10 +125,13 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
   「在访达中清空」——打开废纸篓窗口，由用户在访达里按 ⌘⇧⌫ 确认；
 - Docker 占用页只读不删（镜像/卷活在虚拟盘里，没有独立路径，只指路）。页头那个「共 X」只加**一行一个运行时的磁盘实占**；`docker system df` 那四段和镜像明细是引擎自己报的逻辑大小，同屏相加就是把同一段字节数两遍（实测一台机器：四段相加 38.4 GB，那块磁盘实占 22.8 GB）。
 
-### 4.4 双语（i18n）
+### 4.4 多语言（i18n）
 
-- **中文原文就是 key**：视图里写 `L("正在比对…")`，`en.lproj/Localizable.strings` 提供英文。没有 zh 侧文件——漏译只会静默退回中文，所以覆盖率靠工具卡。
-- `LF()` 带 `%@` / `%1$@` 参数；`cnt(n, "个文件")` 处理英文单复数；`errList()` 拼多条失败原因。
+- **中文原文就是 key**：视图里写 `L("正在比对…")`，各语言在自己那份 `<code>.lproj/Localizable.strings` 里给值。
+- 简体中文没有词表——读 key 本身就是简体渲染，所以 `zh-Hans.lproj` 里只有 `InfoPlist.strings`。目前九张表：
+  `en`、`zh-Hant`、`ja`、`ko`、`de`、`es`、`fr`、`ru`、`pt-BR`。漏译只会静默退回中文，所以覆盖率靠工具卡。
+- 语言靠目录发现，没有注册表：加一份 `<code>.lproj/Localizable.strings`、`AppLanguage` 里加一个 case，就是全部接线。
+- `LF()` 带 `%@` / `%1$@` 参数；`cnt(n, "个文件")` 处理量词变形（英德西法巴葡分单复数、俄语多一档 2–4 的少数形、日韩不分），`measureGap()` 决定数词与量词之间要不要空格（拉丁西里尔要，韩语不要）；`errList()` 拼多条失败原因。
 - ⚠️ `String(format:)` 的 `%@` 只接受对象：直接把 `Int` 喂给 `%@` 是 `EXC_BAD_ACCESS`，debug 跑不崩、英文界面一点就崩。`l10n_tool.swift` 会把这种写法拦成构建失败。
 - 位置参数两侧的 `%1$@` / `%2$@` 集合必须一致，工具同样会查。
 - ⚠️ **一条串里不能混用带序号和不带序号的参数**：写了 `%1$d` 就不许再有 `%@`。这种串解析时直接
@@ -138,7 +140,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - 切语言**当次生效**：`L10n.apply()` 换掉 `active` 与词表，`AppStore.setLanguage` 再发布一次选择状态让整棵树重画。
   只写 `AppleLanguages` 是不够的——那只影响下次启动，而商店版不允许自己起子进程重启。
   选「自动」用的是启动那一刻的系统语言快照（`systemResolved`），本会话写进的覆盖不会让「自动」在运行中变卦。
-- 品牌名不进词表：`Product.name` 在两种语言里都写作 DiskWise。bundle id 保持 `com.dreamofxm.diskcleaner`——它是钥匙串、自动化授权、UserDefaults 的锚点，改名等于让老用户的授权和购买记录作废。
+- 品牌名不进词表：`Product.name` 在任何语言里都写作 DiskWise。bundle id 保持 `com.dreamofxm.diskcleaner`——它是钥匙串、自动化授权、UserDefaults 的锚点，改名等于让老用户的授权和购买记录作废。
 
 ### 4.5 演示数据与截图
 

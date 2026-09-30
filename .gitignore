@@ -16,6 +16,8 @@ build_app/DiskCleaner.universal
 build_app/productbuild.log
 # 本地草稿笔记，还没到能发布的程度，一律不入库
 plans/
+# 编辑器/agent 的项目内工作数据，只对本机有意义
+.workbuddy/
 .DS_Store
 build_app/derived/
 

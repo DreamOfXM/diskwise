@@ -6,6 +6,7 @@
 
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
+![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
 ![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
@@ -13,7 +14,8 @@
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription. A ~5 MB DMG, one file for Apple Silicon and Intel.
+server, no telemetry, no subscription, and the whole UI in ten languages. A ~5 MB DMG, one
+file for Apple Silicon and Intel.
 
 English | [简体中文](./README.zh-CN.md)
 
@@ -146,6 +148,10 @@ It is built for machines that have been used by a developer for a few years — 
 - **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes
   typeface, corner radius, elevation, motion signature and chart palette. Morning Fog, Graphite,
   Mint, Polar Night, Aurora Glass, Ink & Paper — all six are in the box.
+- **Skins are data, not code** — all six live in a single file,
+  [`Sources/DiskCleaner/Resources/skins.json`](Sources/DiskCleaner/Resources/skins.json), which
+  documents its own fields. A seventh theme is one JSON object: edit that file in the browser on
+  GitHub and open a PR — no Xcode, no build, no Swift.
 
 ## Screenshots
 
@@ -168,12 +174,17 @@ Six skins, six skeletons. Same page, three of them — Graphite is the dark one:
 |---|---|---|
 | <img src="docs/screenshots/skins/graphite.png" width="270" alt="Graphite skin"> | <img src="docs/screenshots/skins/mint.png" width="270" alt="Mint skin"> | <img src="docs/screenshots/skins/midnight.png" width="270" alt="Polar Night skin"> |
 
-The UI is bilingual — English and Simplified Chinese, switchable in-app (Skins → language), and it
-follows the system language by default. Same screens in Chinese:
+The UI ships in ten languages — English, Simplified and Traditional Chinese, Japanese, Korean,
+German, Spanish, French, Russian and Brazilian Portuguese — switchable from the language menu on
+the Skins page, and following the system language by default. Same screens in Chinese:
 
 | 空间总览 | 开发缓存 |
 |---|---|
 | <img src="docs/screenshots/zh/01-overview.png" width="410" alt="Overview in Simplified Chinese"> | <img src="docs/screenshots/zh/07-dev-cache.png" width="410" alt="Dev Caches in Simplified Chinese"> |
+
+Counts are inflected per language rather than pasted together in English: Russian picks its own form
+for every number (`1 файл`, `3 файла`, `11 групп`), German and the Romance languages inflect
+singular/plural, and Japanese and Korean use the measure word those languages actually use.
 
 ## Install
 
@@ -229,13 +240,16 @@ swift run DiskCleaner          # run the app
 bash build_app/build.sh        # localize check → build → self-test → .app → sign → dist/*.dmg + SHA256
 ```
 
-`build.sh` refuses to produce a package if any of the three gates fails: missing translations,
-a failing self-test, or an unpacked resource.
+`build.sh` refuses to produce a package if any of the three gates fails: missing translations, a
+failing self-test, or an unpacked resource. The translation gate parses the Swift sources and
+`skins.json` itself, so it catches a user-visible string that was never wrapped in `L(…)` as well as
+a missing translation — a language can't silently ship half-translated.
 
 Contributing? Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DESIGN.md](docs/DESIGN.md) — both encode
-rules that were learned the expensive way. The most useful first PR is a
-[cache knowledge base](CONTRIBUTING.md#the-easiest-useful-contribution-cache-knowledge-base) entry.
+rules that were learned the expensive way. Three PRs need no Swift at all: a
+[cache knowledge base](CONTRIBUTING.md#the-easiest-useful-contribution-cache-knowledge-base) entry, a
+[skin](CONTRIBUTING.md#skins), or a [translation](CONTRIBUTING.md#translations).
 
 ## FAQ
 
@@ -262,7 +276,8 @@ is also why feedback goes through GitHub, email or the QQ group below.
 
 **What about WeChat / DingTalk / WeCom caches?**
 They're in the cache knowledge base, because on a Chinese developer's Mac those are often the
-single biggest consumers. That's also why the UI ships bilingual.
+single biggest consumers. That's why Simplified and Traditional Chinese are both first-class here
+rather than a translation bolted onto an English UI.
 
 **Intel Mac?**
 From v1.3 on, every published DMG is built with `ARCH=universal` and carries both the arm64 and

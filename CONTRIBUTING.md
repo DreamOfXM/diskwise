@@ -64,18 +64,64 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
   page: real app icon → brand mark → SF Symbol (rows with no path) → one generic fallback. Only ship
   an `icon` whose official vector exists there, and keep `SelfTest`'s slug check green.
 
+## Skins
+
+The six themes are data. They live in `Sources/DiskCleaner/Resources/skins.json` — one array, one
+object per theme — and the file documents every field it accepts under `_字段` at the top. The app
+parses it at launch with per-field fallbacks and drops back to a plain built-in theme if the file is
+unreadable, so a malformed PR can't leave anyone with a blank window; `SelfTest` will still fail,
+so run it anyway.
+
+To add a theme:
+
+1. Append one object to `skins` in `skins.json`. `id` must be new, lowercase and hyphenated —
+   changing an existing `id` is a different theme as far as saved preferences are concerned.
+2. `name` and `tagline` are Chinese source text. They go through the same gate as the rest of the
+   UI, so a new theme adds two strings that need translating into all nine tables. Mention it in the
+   PR description so a reviewer knows to expect them.
+3. Leave `tier` at `free` unless you are the maintainer — `premium` only groups anything when
+   `Channel.showsPricing` is true.
+4. Keep the house rule: `ink` / `inkSecondary` carry all body text and are never tinted; colour goes
+   only to icon tiles, the ring chart, buttons and badges; a page header never gets a saturated fill.
+
+Array order is the order on the Skins page, and the first entry is the default theme. The page
+renders a live thumbnail of each theme from its own tokens, so a new theme shows a reviewer what it
+looks like before anyone installs it.
+
 ## Translations
 
-Chinese source text **is** the localization key. There is no `zh.lproj`; you only maintain
-`Sources/DiskCleaner/Resources/en.lproj/Localizable.strings`.
+Chinese source text **is** the localization key: `L("扫描完成")` looks up the string `扫描完成`.
+Simplified Chinese needs no table at all — reading the key *is* the Simplified rendering — which is
+why `zh-Hans.lproj` holds only `InfoPlist.strings`. Every other language owns one
+`Sources/DiskCleaner/Resources/<code>.lproj/Localizable.strings`, and there are nine of them:
+`en`, `zh-Hant`, `ja`, `ko`, `de`, `es`, `fr`, `ru`, `pt-BR`.
 
 - Wrap every user-visible string: `L("…")`, or `LF("已选 %d 项", n)` when it takes arguments.
-- Counts go through `cnt(n, "个文件")` so English gets singular/plural. Don't also write the unit
-  inside the template — that's how "27 items items listed" was born.
+- Counts go through `cnt(n, "个文件")`; each language inflects its own measure word. English and the
+  Romance languages pick singular/plural, Russian picks a separate form for 2–4 (`3 файла` but
+  `11 групп`), Japanese and Korean don't inflect. Don't also write the unit inside the template —
+  that's how "27 items items listed" was born.
 - `%@` in `String(format:)` only accepts objects. Passing a Swift `Int` is an `EXC_BAD_ACCESS` that
   reproduces in English only. Use `%d`.
 - `bash build_app/build.sh` fails the build if coverage, positional specifiers, or the `%@`-with-Int
   pattern check out of line. Run it before opening a PR.
+
+Languages are discovered by directory, so there is no registry to update — dropping in a
+`<code>.lproj/Localizable.strings` and adding the case to `AppLanguage` is the whole wiring.
+
+**Adding a language**
+
+1. Copy `en.lproj/Localizable.strings` to `<code>.lproj/Localizable.strings` — the keys stay Chinese.
+2. Translate the values. Keep the leading space where the English value has one (some values are
+   fragments concatenated after a `。`), and keep `%1$@`-style positional specifiers exactly as they
+   are: mixing positional and non-positional in one string is an `EXC_BAD_ACCESS`.
+3. Add the case plus its `code` and `menuLabel` to `AppLanguage` in `Sources/DiskCleaner/L10n.swift`.
+   Language self-names don't get translated; mark them `// l10n-scan: skip` or the gate will ask
+   every table to translate the word "日本語".
+4. Unless the language is Chinese (which `cnt(…)` short-circuits), add a measure-word table to
+   `measureWords(_:)` in the same file. Follow the `measureGap(_:)` next to it for spacing — Korean
+   measure words attach to the numeral (`6개`), Latin and Cyrillic ones need the space.
+5. `swift build_app/l10n_tool.swift check .` must end with `N 种语言覆盖完整 ✓`.
 
 ## Visual changes
 
@@ -96,9 +142,11 @@ canvas and the README tables don't start wrapping.
 Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
 
 - `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
-- `DISKWISE_LANG=en|zh` — the language to shoot in. Don't `defaults write` the stored choice
-  instead: while an instance is running, `cfprefsd` serves that process's cached copy back and
-  the app reads the old value. Same trap as `DISKWISE_SKIN` — both are per-run overrides.
+- `DISKWISE_LANG=ja` — the language to shoot in; it accepts either the `code` or the raw value, so
+  `en`, `zh-Hans`, `zh-Hant`, `ja`, `ko`, `de`, `es`, `fr`, `ru` and `pt-BR` all work. Don't
+  `defaults write` the stored choice instead: while an instance is running, `cfprefsd` serves that
+  process's cached copy back and the app reads the old value. Same trap as `DISKWISE_SKIN` — both are
+  per-run overrides.
 - `DISKWISE_PICK=dup,caches` — press that page's bottom-bar select-all twice and shoot
   `-selected` / `-deselected`. A checkbox list you can't un-check is a defect, and only an
   actual press proves it's gone.
@@ -119,14 +167,28 @@ Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
   timing. Keep the same `DISKWISE_WIN=1280x800` and demo home as the still shots, then drop the
   moving frames into `gifski` at 1500 px wide; encoding every frame at a flat 10 fps costs ~10× the
   bytes for no extra motion, because most of the run is a screen sitting still.
+  Two things about that run are only true because the script keeps them true:
+  - The ring's orbiting glint and its breathing halo **do** move in the burst. Snapshot mode
+    normally stops both (`waitSettled` compares consecutive frames), so the burst advances its own
+    clock one tick per captured frame — same 9 s/revolution and 6.5 s/breath as the live app,
+    just driven by the frame counter instead of the wall clock.
+  - Beat ⑤ (first tap, armed) is only 5 frames. A frame costs more wall-clock than its nominal
+    1/10 s — the PNG encode and write land on top of the pump — and the arc's two-step confirm
+    expires after 3.2 s. Give ⑤ more room and the second tap arrives on a disarmed ring: the run
+    still prints 155 frames, but ⑥⑦ silently become "armed, then timed out", and the GIF ends up
+    advertising a move that never happened. The run says so on stderr (`放回 0 处` plus a ✗ line) —
+    read that line before you encode.
+  Cut the scan beat (f0001…f0042) when you assemble the GIF: the README already carries
+  `01-overview-scanning.png` as a still, and starting the loop on a settled ring means the last
+  frame and the first frame match. 113 frames ≈ 3.1 MB.
 
-English copy runs ~30% wider than Chinese, so check **both** languages — a lot of layout bugs are
-only visible in one of them.
+English copy runs ~30% wider than Chinese, so check more than one language — a lot of layout bugs
+are only visible in one of them, and `DISKWISE_LANG` takes any of the ten.
 
 ## Before opening a PR
 
 ```bash
-swift run SelfTest        # 77/77
+swift run SelfTest        # must end in ALL PASS
 bash build_app/build.sh   # localization gate + self-test + resource assertions + DMG
 ```
 
