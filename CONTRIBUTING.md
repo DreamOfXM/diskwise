@@ -123,6 +123,19 @@ Languages are discovered by directory, so there is no registry to update — dro
    measure words attach to the numeral (`6개`), Latin and Cyrillic ones need the space.
 5. `swift build_app/l10n_tool.swift check .` must end with `N 种语言覆盖完整 ✓`.
 
+## Translated READMEs
+
+`README.md` is the source of truth. Every other `README.<code>.md` is a translation of it, and each
+one says so at the top — where a translation and the English file disagree, the English file wins.
+
+Nothing checks them. `l10n_tool.swift` guards the nine in-app tables and nothing else, so forgetting
+a translation will not fail the build. Change `README.md` and the translated files in the same PR, or
+say in the PR description that the translations are still behind.
+
+They share assets. The screenshots under `docs/screenshots/` and `docs/demo/` are shot in English and
+referenced by every translation, which is why each one carries a note saying so. Don't shoot a set
+per language — the app's ten languages are the app's job, not the README's.
+
 ## Visual changes
 
 Screenshot them. `SnapshotMode` renders every page to PNG without needing screen-recording

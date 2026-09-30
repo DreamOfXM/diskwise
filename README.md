@@ -17,7 +17,7 @@ the Trash and stays undoable until *you* empty it. No Electron, no Python sideca
 server, no telemetry, no subscription, and the whole UI in ten languages. A ~5 MB DMG, one
 file for Apple Silicon and Intel.
 
-English | [简体中文](./README.zh-CN.md)
+English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 ![The Overview page in one loop: a rescan grows the ring segment by segment until it settles, its light sweeping round the band, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back](docs/demo/overview-en.gif)
 
