@@ -692,9 +692,10 @@
 "只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Escanear só %@ e listar seus maiores arquivos na página «Arquivos grandes»";
 
 // ── 文件夹详情：逐层下钻（从任意文件夹进去，一层层往下看） ─────────────────────
+"上一级" = "Subir um nível";
+"退到上一层文件夹" = "Subir para a pasta acima";
 "文件夹详情" = "Detalhes da pasta";
 "一层层往里走，看清每个文件夹和文件占了多少" = "Desça nível a nível e veja quanto cada pasta e cada arquivo ocupa";
-"回到空间总览" = "Voltar à Visão geral";
 "正在量「%@」" = "Medindo «%@»";
 "这一层量到 %@" = "Este nível: %@";
 "从一个文件夹进来，就能一层层往下看" = "Entre em uma pasta e você poderá descer nível a nível";

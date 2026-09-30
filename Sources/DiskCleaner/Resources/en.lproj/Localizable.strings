@@ -683,9 +683,10 @@
 "只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Scan only %@ and list its largest files on the Large Files page";
 
 // ── 文件夹详情：逐层下钻（从任意文件夹进去，一层层往下看） ─────────────────────
+"上一级" = "Up one level";
+"退到上一层文件夹" = "Go up to the parent folder";
 "文件夹详情" = "Folder details";
 "一层层往里走，看清每个文件夹和文件占了多少" = "Go deeper level by level and see how much each folder and file takes up";
-"回到空间总览" = "Back to Overview";
 "正在量「%@」" = "Measuring “%@”";
 "这一层量到 %@" = "This level: %@";
 "从一个文件夹进来，就能一层层往下看" = "Open a folder to start drilling down level by level";

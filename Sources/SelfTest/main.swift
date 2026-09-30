@@ -893,16 +893,23 @@ Task {
 }
 sem5.wait()
 
-// 10b. 面包屑的根：从一条深路径进来，根要落在「包含它的那条扫描根」上，
-//      而不是一路退到 `/`——`/` 那一层的列表对谁都没意义。
-check(enclosingScanRoot(home + "/Library/Caches", scope: .user) == home,
-      "家目录底下的深路径，根落在整个家目录")
-check(enclosingScanRoot("/Applications/Xcode.app/Contents", scope: .user) == "/Applications",
-      "/Applications 底下的根就是 /Applications")
-check(enclosingScanRoot("/tmp/diskwise-no-root-\(getpid())", scope: .user) == nil,
-      "哪条根都不匹配时返回 nil，由调用方退化成单级面包屑")
-check(enclosingScanRoot("/usr/local/bin/foo", scope: .disk) == "/usr/local",
-      "几条根都能套上时取最长的那条，不退回 /")
+// 10b. 面包屑：盘顶 → 当前，每一格都得是一个能点回去的真实祖先。
+//      不从扫描根起头：`/Library` 本身就是一条扫描根，以根起头那一屏就只剩一格，
+//      上面全不见——而人是在「进太深了、想退出去」的时候才看这一条。
+check(crumbChain(for: "/") == ["/"], "盘顶就一格")
+check(crumbChain(for: "/Library") == ["/", "/Library"],
+      "本身就是扫描根的地方，上面那层照样在（得 \(crumbChain(for: "/Library"))）")
+check(crumbChain(for: "/Applications/Xcode.app") == ["/", "/Applications", "/Applications/Xcode.app"],
+      "两格都在，一路能点回去")
+let deep = home + "/Library/Developer/CoreSimulator"
+check(crumbChain(for: deep) == ["/", home, home + "/Library",
+                                home + "/Library/Developer", deep],
+      "家目录那两段并成一格 `~`，中间每一级都不落（得 \(crumbChain(for: deep))）")
+check(crumbChain(for: deep).allSatisfy { $0 == "/" || deep.hasPrefix($0) },
+      "每一格都是当前路径的祖先，没有一格是编出来的")
+check(crumbChain(for: "/Users/别人/Documents") == ["/", "/Users", "/Users/别人", "/Users/别人/Documents"],
+      "别人的家目录不折叠：那里没有 `~` 可写")
+check(crumbChain(for: home) == ["/", home], "就在家目录本身时，`~` 是最后一格")
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

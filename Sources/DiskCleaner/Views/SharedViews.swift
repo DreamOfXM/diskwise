@@ -371,7 +371,10 @@ struct ItemRow<Detail: View>: View {
     }
 
     private var chevronColor: Color {
-        act ? SweepRing.lamp(theme.palette.tint).opacity(0.72) : theme.palette.inkTertiary
+        // 往里走那颗箭头不跟着可删性变暗：「能不能删」和「能不能进去看」是两件事，
+        // 而系统区那些行恰恰是最需要进去看的地方——压成三级墨色等于把它们画成死行。
+        if onOpen != nil { return SweepRing.lamp(theme.palette.tint) }
+        return act ? SweepRing.lamp(theme.palette.tint).opacity(0.72) : theme.palette.inkTertiary
     }
 
     /// 勾选那一行从左缘打进来一道光，不是描边：整列都是格子的时候再多两个矩形框，

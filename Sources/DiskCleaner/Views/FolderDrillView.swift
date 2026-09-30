@@ -21,7 +21,7 @@ import DiskCleanerCore
 final class FolderDrillModel: ObservableObject {
     /// 当前这一层的路径。
     @Published private(set) var path: String = ""
-    /// 面包屑：从扫描根到当前，含根。最后一条就是 `path`。
+    /// 面包屑：**盘顶 → 当前**，一路都能点。最后一条就是 `path`。
     @Published private(set) var crumbs: [String] = []
     @Published private(set) var level: DirLevel? = nil
     @Published private(set) var busy = false
@@ -35,8 +35,6 @@ final class FolderDrillModel: ObservableObject {
 
     private var cache: [String: DirLevel] = [:]
     private var task: Task<Void, Never>? = nil
-    /// 最近一次进来时用的范围。重扫/重量得沿用同一条根，否则面包屑会凭空长一格。
-    private var lastScope: ScanScope = ScanScope.effective
     /// 只给截图链路用（`DISKWISE_DRILL_INTO=1`）：第一层量完自动钻一次，
     /// 好把「面包屑 ＋ 深一层」这一屏拍进图里。走的是同一颗箭头调的那个 `into`。
     private var autoDescended = false
@@ -45,28 +43,39 @@ final class FolderDrillModel: ObservableObject {
     var selectedEntries: [ChildEntry] { rows.filter { selected.contains($0.path) } }
     var selectedBytes: Int64 { selectedEntries.reduce(Int64(0)) { $0 + $1.size } }
 
+    /// 还能不能往上退一层。盘顶那一层没有上一级。
+    var canGoUp: Bool {
+        !path.isEmpty && (path as NSString).deletingLastPathComponent != path
+    }
+
+    /// 退到上一层。面包屑之外还得有一颗常驻的：深到十几层时，「往上退一层」是
+    /// 这一页里唯一一个不用先看清自己在哪儿就能按的动作。
+    func upOneLevel() {
+        guard canGoUp else { return }
+        open((path as NSString).deletingLastPathComponent)
+    }
+
     /// 进一个目录。同一处再点一次不重量（缓存直接回填）。
-    func open(_ target: String, scope: ScanScope) {
+    func open(_ target: String) {
         guard !target.isEmpty else { return }
         if target == path, level != nil, !busy { return }
         path = target
-        lastScope = scope
-        rebuildCrumbs(scope: scope)
+        rebuildCrumbs()
         selected.removeAll()
         load(target)
     }
 
-    /// 面包屑点第 `index` 级回退。
-    func up(to index: Int, scope: ScanScope) {
+    /// 面包屑点第 `index` 格回退。
+    func up(to index: Int) {
         guard crumbs.indices.contains(index) else { return }
-        open(crumbs[index], scope: scope)
+        open(crumbs[index])
     }
 
     /// 点行：目录才往里走，文件不动（文件在这一页只能勾选）。双保险——行上那颗
     /// 「进入」本来就不给文件画，但键盘/无障碍那一路仍可能调到这里。
-    func into(_ child: ChildEntry, scope: ScanScope) {
+    func into(_ child: ChildEntry) {
         guard child.isDir else { return }
-        open(child.path, scope: scope)
+        open(child.path)
     }
 
     /// 重扫一轮就把整本缓存作废：盘的账会走样，隔着一轮还挂着旧数字，
@@ -95,7 +104,6 @@ final class FolderDrillModel: ObservableObject {
         busy = true
         pendingPath = target
         let limit = Self.cap
-        let scope = lastScope
         task = Task { [weak self] in
             let lv = await dirLevel(URL(fileURLWithPath: target), includeFiles: true, limit: limit)
             guard !Task.isCancelled, let self, self.path == target else { return }
@@ -105,28 +113,16 @@ final class FolderDrillModel: ObservableObject {
             if SnapshotMode.drillAutoDescend, !self.autoDescended,
                let first = lv.entries.first(where: { $0.isDir }) {
                 self.autoDescended = true
-                self.open(first.path, scope: scope)
+                self.open(first.path)
             }
         }
     }
 
-    /// 面包屑从「包含它的那条扫描根」长下来。
-    ///
-    /// 不以 `/` 为根：从 `~/Library/Caches` 进来一路退到盘顶，中间那几级列出来没有意义，
-    /// 而根那一格本该是「这一趟是从哪儿开始看的」。找不到根（深链进来的野路径）
-    /// 就退化成单级。
-    private func rebuildCrumbs(scope: ScanScope) {
-        let root = enclosingScanRoot(path, scope: scope) ?? path
-        var out: [String] = []
-        var cur = path
-        while cur.count > root.count, cur.hasPrefix(root) {
-            out.append(cur)
-            let parent = (cur as NSString).deletingLastPathComponent
-            if parent == cur { break }
-            cur = parent
-        }
-        out.append(root)
-        crumbs = out.reversed()
+    /// 面包屑从**盘顶**长下来（规则见 `crumbChain`），不从上一条扫描根长——
+    /// 以扫描根为起点的话，`/Library`、`/Applications` 这类本身就是根的地方只剩
+    /// 孤零零一格，上面全不见，而人恰恰是在「进太深了、想退出去」时看这一条。
+    private func rebuildCrumbs() {
+        crumbs = path.isEmpty ? [] : crumbChain(for: path)
     }
 }
 
@@ -143,8 +139,12 @@ struct FolderDrillView: View {
                 PageHeader(symbol: "folder", title: L("文件夹详情"),
                            subtitle: L("一层层往里走，看清每个文件夹和文件占了多少"),
                            variant: .display) {
-                    ThemeButton(kind: .compact, symbol: "arrow.uturn.backward",
-                                title: L("回到空间总览")) { store.jumpTo = .overview }
+                    ThemeButton(kind: .compact, symbol: "arrow.up",
+                                title: L("上一级"),
+                                isDisabled: !model.canGoUp) {
+                        model.upOneLevel()
+                    }
+                    .help(L("退到上一层文件夹"))
                 }
                 crumbsBar
                 ControlStrip {
@@ -208,7 +208,7 @@ struct FolderDrillView: View {
                         selectable: isDeletable(r.url),
                         lit: isDeletable(r.url),
                         lockedHint: isDeletable(r.url) ? nil : outsideScopeHint,
-                        onOpen: r.isDir ? { model.into(r, scope: store.scope) } : nil,
+                        onOpen: r.isDir ? { model.into(r) } : nil,
                         onReveal: { reveal(r.path) }) {
                     PathLine(path: r.path)
                 }
@@ -227,7 +227,7 @@ struct FolderDrillView: View {
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
                     crumb(shortLabel(p), active: i == model.crumbs.count - 1) {
-                        model.up(to: i, scope: store.scope)
+                        model.up(to: i)
                     }
                 }
             }
@@ -319,7 +319,7 @@ struct FolderDrillView: View {
 
     private func start() {
         guard let p = store.folderDrillPath else { return }
-        model.open(p, scope: store.scope)
+        model.open(p)
     }
 
     private func reveal(_ path: String) {
@@ -344,10 +344,14 @@ struct FolderDrillView: View {
     }
 }
 
-/// 面包屑/状态行里那一小截名字：家目录缩成 `~`，盘顶 `/` 原样，其余取尾段。
+/// 面包屑/状态行里那一小截名字：盘顶换成宗卷名（跟访达路径栏同一个词），
+/// 家目录缩成 `~`，其余取尾段。
 private func shortLabel(_ path: String) -> String {
     if path.isEmpty { return "" }
-    if path == "/" { return "/" }
+    if path == "/" {
+        let name = FileManager.default.displayName(atPath: "/")
+        return name.isEmpty ? "/" : name
+    }
     if path == homePath() { return "~" }
     let last = (path as NSString).lastPathComponent
     return last.isEmpty ? path : last

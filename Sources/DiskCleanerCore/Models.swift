@@ -91,6 +91,33 @@ public func expandHome(_ raw: String) -> String {
     return s
 }
 
+/// 一条路径的完整面包屑：**盘顶 → 该路径**，每一格都是一个能点回去的真实祖先。
+///
+/// 不从「包含它的那条扫描根」起头：`/Library`、`/Applications` 本身就是扫描根，
+/// 以根为起点的话那些地方只剩孤零零一格，上面全不见——而人恰恰是在「进太深了、
+/// 想退出去」的时候才看这一条。
+///
+/// 家目录那两段（`Users` ＋ 自己）并成一格 `~`：全 App 都把它写成 `~`，
+/// 拆成两格只是把同一个意思写两遍。
+public func crumbChain(for path: String, home: String = homePath()) -> [String] {
+    let std = URL(fileURLWithPath: path).standardizedFileURL.path
+    let homeStd = URL(fileURLWithPath: home).standardizedFileURL.path
+    let me = (homeStd as NSString).lastPathComponent
+    var out: [String] = ["/"]
+    var cur = ""
+    for part in std.split(separator: "/").map(String.init) {
+        if cur == "/Users", part == me {
+            // 刚补上的 `/Users` 撤掉：它跟 `~` 指的是同一处。
+            out.removeLast()
+            cur = homeStd
+        } else {
+            cur += "/" + part
+        }
+        out.append(cur)
+    }
+    return out
+}
+
 // ── 缓存条目（UI 模型）──
 
 public struct CacheItem: Identifiable {

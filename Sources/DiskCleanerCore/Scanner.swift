@@ -247,20 +247,6 @@ public func dirLevel(_ url: URL, includeFiles: Bool = true, limit: Int = 40) asy
                     fileCount: out.lazy.filter { !$0.isDir }.count)
 }
 
-/// `path` 落在哪一条扫描根底下（最长的那条）。面包屑的根就用它——
-/// 不认根的话，从某个深路径进来会一路往上退到 `/`，而 `/` 这一层的列表没有意义。
-/// 都不匹配（比如用户从别处深链进来）返回 nil，调用方退化成单级面包屑。
-public func enclosingScanRoot(_ path: String, scope: ScanScope) -> String? {
-    let target = URL(fileURLWithPath: path).standardizedFileURL.path
-    var best: String? = nil
-    for root in scanRoots(scope: scope) {
-        let r = root.standardizedFileURL.path
-        guard target == r || target.hasPrefix(r + "/") else { continue }
-        if best == nil || r.count > best!.count { best = r }
-    }
-    return best
-}
-
 /// 单个文件占盘
 public func fileSize(_ url: URL) -> Int64 {
     var st = stat()
