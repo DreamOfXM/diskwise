@@ -1920,17 +1920,27 @@ private struct DrillRow: View {
                 // 名字就是入口：点它进「文件夹详情」，一层层往下看。
                 // 这一页自己只摊得开一层（就地手风琴），再往下走是另一页的事——
                 // 分工：总览负责「看账」，下钻页负责「找文件」。
+                //
+                // 名字后面常驻一颗小箭头。这一行的版式跟上面账目行几乎一样，少了它，
+                // 线索就只剩「悬停时名字变色＋下划线」——而人不会先把鼠标在每个名字上扫一遍
+                // 再决定点哪儿。箭头用的是下钻页行内那颗同一个字符，一处的意思一处用。
                 Button {
                     store.drill(into: path)
                 } label: {
-                    Text(name)
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(hovering ? SweepRing.lamp(theme.palette.tint)
-                                                  : theme.palette.ink)
-                        .underline(hovering, color: SweepRing.lamp(theme.palette.tint))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 4) {
+                        Text(name)
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(hovering ? SweepRing.lamp(theme.palette.tint)
+                                                      : theme.palette.ink)
+                            .underline(hovering, color: SweepRing.lamp(theme.palette.tint))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(hovering ? SweepRing.lamp(theme.palette.tint)
+                                                      : theme.palette.inkTertiary)
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(LF("进入 %@ 往下看", displayPath(URL(fileURLWithPath: path))))
@@ -1961,6 +1971,11 @@ private struct DrillRow: View {
         // 图形落在名字左边那一格，缩进要让出图形位（26 + 间距 10）：
         // 名字仍跟上面账目行的名字在同一条竖线上，尾巴那句对账也才对得上这一列。
         .padding(.leading, drillIndent - rowIconSide - 10)
+        // 整行都能点。名字只占行首那一小截，右边一大片是空的，落在空处的那一下
+        // 不该没反应——「点了没动」和「这儿不能点」在这屏上长得一模一样。
+        // 行内那颗「访达显示」是 Button，自己会先接住落在它身上的点击。
+        .contentShape(Rectangle())
+        .onTapGesture { store.drill(into: path) }
         .onHover { hovering = $0 }
     }
 }
