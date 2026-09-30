@@ -29,9 +29,10 @@ final class FolderDrillModel: ObservableObject {
     @Published private(set) var pendingPath: String = ""
     @Published var selected: Set<String> = []
 
-    /// 每层一次，最多列这么多行。`/Applications` 那种一级几百个，
-    /// 全列出来没人逐行扫，多出来的并进尾巴那句。
-    static let cap = 40
+    /// 文件最多列这么多行。**只掐文件**：`/Applications` 那种一级几百个，
+    /// 全列出来没人逐行扫，多出来的并进尾巴那句。目录不受这条管——这一页里
+    /// 少一个目录就是少一条往下走的路，而「往下走」正是它存在的理由。
+    static let fileCap = 200
 
     private var cache: [String: DirLevel] = [:]
     private var task: Task<Void, Never>? = nil
@@ -103,9 +104,9 @@ final class FolderDrillModel: ObservableObject {
         level = nil
         busy = true
         pendingPath = target
-        let limit = Self.cap
+        let limit = Self.fileCap
         task = Task { [weak self] in
-            let lv = await dirLevel(URL(fileURLWithPath: target), includeFiles: true, limit: limit)
+            let lv = await dirLevel(URL(fileURLWithPath: target), includeFiles: true, fileLimit: limit)
             guard !Task.isCancelled, let self, self.path == target else { return }
             self.cache[target] = lv
             self.level = lv
@@ -202,7 +203,7 @@ struct FolderDrillView: View {
                         icon: .path(r.url),
                         name: r.name,
                         sub: subLine(r),
-                        sizeText: shown[r.id] ?? human(r.size),
+                        sizeText: sizeCell(r),
                         fraction: Double(r.size) / Double(maxSize),
                         badge: isDeletable(r.url) ? nil : ItemBadge(text: L("只能看"), tone: .neutral),
                         selectable: isDeletable(r.url),
@@ -273,6 +274,16 @@ struct FolderDrillView: View {
         return out
     }
 
+    /// 这一行的数字。**整个读不动**的那几行给破折号，不给 `0 B`——它们的 0 是「没量到」，
+    /// 不是「没有」，写成 0 就等于替系统那几十个 GB 担保说「这儿是空的」。
+    /// 但只是**一部分**读不动的（子树里有一块受保护，外面照样量到了几十个 GB）照常给数字，
+    /// 那一行的破绽由副标题去说：把 `Application Support` 显示成破折号，是从一处错
+    /// 改成另一处错。
+    private func sizeCell(_ r: ChildEntry) -> String {
+        if r.unreadable && r.size == 0 { return "—" }
+        return shown[r.id] ?? human(r.size)
+    }
+
     /// 尾巴那句：没逐行列出来的那些。**不能省**——省了用户就会把这一列去加页头那个数，
     /// 加不上就以为数字是编的。
     private var tailNote: String {
@@ -282,6 +293,17 @@ struct FolderDrillView: View {
             parts.append(LF("另有 %1$@（%2$@）没逐行列出",
                             cnt(lv.unlistedCount, "项"), human(lv.unlistedBytes)))
         }
+        // 读不动的那几块压根没进 total，不在这儿说一句，页头那个数就是个偏小的数，
+        // 而偏小在这个 App 里比偏大更危险：那是在说「这儿没什么可看的」。
+        // 两类分开数：「整个量不到」和「量到一部分」对那个合计数的影响不是一回事。
+        let stuck = model.rows.filter { $0.unreadable && $0.size == 0 }.count
+        if stuck > 0 {
+            parts.append(LF("其中 %1$@读不动，没算进这一层", cnt(stuck, "个文件夹")))
+        }
+        let partial = model.rows.filter { $0.unreadable && $0.size > 0 }.count
+        if partial > 0 {
+            parts.append(LF("%1$@只量到一部分", cnt(partial, "个文件夹")))
+        }
         return parts.joined(separator: " · ") + "。"
     }
 
@@ -289,9 +311,17 @@ struct FolderDrillView: View {
     /// 光有字节数的话，10 GB 的一堆碎缓存和 10 GB 的单个镜像长得一样，
     /// 而前者能一条条判、后者不能。
     private func subLine(_ r: ChildEntry) -> String? {
-        if r.isDir { return contentsLine(r.files, r.newest) }
-        guard let n = r.newest else { return nil }
-        return LF("最近改动 %@", shortDate(n))
+        if r.unreadable && r.size == 0 { return L("读不动，数字没算进来") }
+        var line: String?
+        if r.isDir {
+            line = contentsLine(r.files, r.newest)
+        } else if let n = r.newest {
+            line = LF("最近改动 %@", shortDate(n))
+        }
+        if r.unreadable {
+            line = [line, L("有读不动的地方")].compactMap { $0 }.joined(separator: " · ")
+        }
+        return line
     }
 
     private func selection(_ r: ChildEntry) -> Binding<Bool> {
