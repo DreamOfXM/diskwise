@@ -704,6 +704,10 @@
 "这一层没有读得出的东西" = "Nada legível neste nível";
 "可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "Pode estar vazia, ou precisa de acesso total ao disco para ser lida.";
 "另有 %1$@（%2$@）没逐行列出" = "mais %1$@ (%2$@) não listados um a um";
+"读不动，数字没算进来" = "Não é possível ler, então não entra nos totais";
+"有读不动的地方" = "tem partes ilegíveis";
+"%1$@只量到一部分" = "%1$@ medidas apenas em parte";
+"其中 %1$@读不动，没算进这一层" = "%1$@ não podem ser lidas e ficam fora do total deste nível";
 "进入这个文件夹" = "Abrir esta pasta";
 "进入 %@ 往下看" = "Entrar em %@ para ver dentro";
 "查看所在文件夹" = "Abrir a pasta dela";

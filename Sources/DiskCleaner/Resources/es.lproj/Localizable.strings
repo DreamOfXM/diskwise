@@ -696,6 +696,10 @@
 "这一层没有读得出的东西" = "En este nivel no hay nada que leer";
 "可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "Puede que esté vacía o que necesite acceso total al disco para poder leerse.";
 "另有 %1$@（%2$@）没逐行列出" = "otros %1$@ (%2$@) sin listar uno a uno";
+"读不动，数字没算进来" = "No se puede leer, así que no entra en los totales";
+"有读不动的地方" = "tiene partes ilegibles";
+"%1$@只量到一部分" = "%1$@ medidas solo en parte";
+"其中 %1$@读不动，没算进这一层" = "%1$@ no se pueden leer y quedan fuera del total de este nivel";
 "进入这个文件夹" = "Abrir esta carpeta";
 "进入 %@ 往下看" = "Entrar en %@ para ver dentro";
 "查看所在文件夹" = "Abrir su carpeta";

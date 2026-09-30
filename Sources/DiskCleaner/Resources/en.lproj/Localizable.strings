@@ -695,6 +695,10 @@
 "这一层没有读得出的东西" = "Nothing readable at this level";
 "可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "It may be empty, or it may need Full Disk Access to read.";
 "另有 %1$@（%2$@）没逐行列出" = "%1$@ more (%2$@) not listed one by one";
+"读不动，数字没算进来" = "Can't be read, so it's not in the totals";
+"有读不动的地方" = "has unreadable parts";
+"%1$@只量到一部分" = "%1$@ measured only in part";
+"其中 %1$@读不动，没算进这一层" = "%1$@ can't be read and aren't in this level's total";
 "进入这个文件夹" = "Open this folder";
 "进入 %@ 往下看" = "Enter %@ to look inside";
 "查看所在文件夹" = "Open containing folder";

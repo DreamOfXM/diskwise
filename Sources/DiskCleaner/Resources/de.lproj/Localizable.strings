@@ -699,6 +699,10 @@
 "这一层没有读得出的东西" = "Auf dieser Ebene gibt es nichts Lesbares";
 "可能是空目录，或它需要「完全磁盘访问权限」才读得动。" = "Vielleicht ist er leer, oder er braucht den vollständigen Festplattenzugriff, um lesbar zu sein.";
 "另有 %1$@（%2$@）没逐行列出" = "weitere %1$@ (%2$@) nicht einzeln aufgelistet";
+"读不动，数字没算进来" = "Nicht lesbar, daher nicht in den Summen enthalten";
+"有读不动的地方" = "enthält nicht lesbare Teile";
+"%1$@只量到一部分" = "%1$@ nur teilweise messbar";
+"其中 %1$@读不动，没算进这一层" = "%1$@ nicht lesbar und nicht in der Summe dieser Ebene";
 "进入这个文件夹" = "Diesen Ordner öffnen";
 "进入 %@ 往下看" = "%@ öffnen und hineinsehen";
 "查看所在文件夹" = "Ordner öffnen";
