@@ -177,6 +177,90 @@ public func childDirSizes(_ url: URL, limit: Int = 12) async -> [(name: String, 
     return Array(out.prefix(max(1, limit)))
 }
 
+/// 某一层的**完整拆分**：子目录 + 文件混排，按占盘降序。
+///
+/// 跟 `childDirSizes` 是两种用途：那个给总览页列「下一级目录」，只收目录；这一版给
+/// 「文件夹下钻」页，目录和文件都要——用户钻进来恰恰是要看「这个文件夹底下的具体文件」。
+///
+/// 文件不跑 `dirSizeReport`（那是遍历整棵子树），`lstat` 一次读 `st_blocks * 512` 就够，
+/// 与 `fileSize` 同一口径。目录仍按子树递归量、并发压 6（同 `childDirSizes` 的理由：
+/// 一级四十多个目录全塞进一个 TaskGroup 会跟主扫描抢线程）。
+///
+/// 符号链接不进名单、不跨卷——两条都跟 `dirSizeReport` 同规矩，不然共享的字节会被数两遍。
+/// `total` 覆盖**全部**子项（不只是 `entries` 里那 `limit` 条），所以页面上
+/// 「列出来的几行 ＋ 尾巴那句」永远等于 `total`。
+public func dirLevel(_ url: URL, includeFiles: Bool = true, limit: Int = 40) async -> DirLevel {
+    let fm = FileManager.default
+    guard let names = try? fm.contentsOfDirectory(atPath: url.path) else { return DirLevel() }
+    let rootDev = deviceOf(url)
+    var dirs: [(name: String, path: String)] = []
+    var files: [(name: String, path: String, size: Int64, newest: Date?)] = []
+    for name in names where name != ".Trash" {
+        let p = (url.path as NSString).appendingPathComponent(name)
+        var st = stat()
+        guard lstat(p, &st) == 0 else { continue }
+        let mode = st.st_mode & S_IFMT
+        if mode == S_IFLNK { continue }
+        if let d = rootDev, st.st_dev != d { continue }
+        if mode == S_IFDIR {
+            dirs.append((name, p))
+        } else if includeFiles {
+            let size = Int64(st.st_blocks) * 512
+            if size > 0 {
+                let mt = Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec))
+                files.append((name, p, size, mt))
+            }
+        }
+    }
+    var out: [ChildEntry] = []
+    var i = 0
+    while i < dirs.count {
+        if Task.isCancelled { break }
+        let wave = Array(dirs[i..<min(i + 6, dirs.count)])
+        i += wave.count
+        await withTaskGroup(of: (String, String, Int64, Int, Date?).self) { group in
+            for d in wave {
+                group.addTask {
+                    let report = await dirSizeReport(URL(fileURLWithPath: d.path))
+                    return (d.name, d.path, report.bytes, report.files, report.newest)
+                }
+            }
+            for await (name, path, size, files, newest) in group where size > 0 {
+                out.append(ChildEntry(path: path, name: name, size: size, isDir: true,
+                                      files: files, newest: newest))
+            }
+        }
+    }
+    for f in files {
+        out.append(ChildEntry(path: f.path, name: f.name, size: f.size, isDir: false,
+                              files: 1, newest: f.newest))
+    }
+    out.sort { $0.size > $1.size }
+    let total = out.reduce(Int64(0)) { $0 + $1.size }
+    let shown = Array(out.prefix(max(1, limit)))
+    let rest = out.dropFirst(shown.count)
+    return DirLevel(entries: shown,
+                    total: total,
+                    unlistedCount: rest.count,
+                    unlistedBytes: rest.reduce(Int64(0)) { $0 + $1.size },
+                    dirCount: out.lazy.filter { $0.isDir }.count,
+                    fileCount: out.lazy.filter { !$0.isDir }.count)
+}
+
+/// `path` 落在哪一条扫描根底下（最长的那条）。面包屑的根就用它——
+/// 不认根的话，从某个深路径进来会一路往上退到 `/`，而 `/` 这一层的列表没有意义。
+/// 都不匹配（比如用户从别处深链进来）返回 nil，调用方退化成单级面包屑。
+public func enclosingScanRoot(_ path: String, scope: ScanScope) -> String? {
+    let target = URL(fileURLWithPath: path).standardizedFileURL.path
+    var best: String? = nil
+    for root in scanRoots(scope: scope) {
+        let r = root.standardizedFileURL.path
+        guard target == r || target.hasPrefix(r + "/") else { continue }
+        if best == nil || r.count > best!.count { best = r }
+    }
+    return best
+}
+
 /// 单个文件占盘
 public func fileSize(_ url: URL) -> Int64 {
     var st = stat()

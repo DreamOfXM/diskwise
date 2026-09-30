@@ -830,5 +830,79 @@ Task {
 }
 sem4.wait()
 
+// 10. 文件夹下钻（dirLevel）：目录与文件混排、按占盘降序，`total` 覆盖**全部**子项。
+//     「列出来的那几行 ＋ 尾巴那句」必须正好等于页头那个合计——这是这一页唯一的账，
+//     对不上就等于让人拿两本凑不起来的数做决定。
+let lbase = fm.temporaryDirectory.appendingPathComponent("leveltest-\(UUID().uuidString)")
+for (n, mb) in [("small", 1), ("mid", 2), ("big", 3)] {
+    let d = lbase.appendingPathComponent(n)
+    try! fm.createDirectory(at: d, withIntermediateDirectories: true)
+    try! Data(count: mb * 1024 * 1024).write(to: d.appendingPathComponent("f.bin"))
+}
+try! Data(count: 4 * 1024 * 1024).write(to: lbase.appendingPathComponent("top.bin"))
+try! Data(count: 4096).write(to: lbase.appendingPathComponent("tiny.bin"))
+try! fm.createSymbolicLink(atPath: lbase.appendingPathComponent("linkdir").path,
+                           withDestinationPath: lbase.appendingPathComponent("big").path)
+let lbaseEmpty = lbase.appendingPathComponent("empty")
+try! fm.createDirectory(at: lbaseEmpty, withIntermediateDirectories: true)
+let sem5 = DispatchSemaphore(value: 0)
+Task {
+    let lv = await dirLevel(lbase)
+    check(lv.entries.first?.name == "top.bin",
+          "目录和文件混在一张榜上按占盘降序（第一名 \(lv.entries.first?.name ?? "-")）")
+    check(lv.entries.contains { $0.name == "top.bin" && !$0.isDir },
+          "这一层自己的文件也要列出来——钻进来多半就是为了看它们")
+    check(!lv.entries.contains { $0.name == "linkdir" },
+          "指向目录的符号链接不占一格（不然共享的字节被数两遍）")
+    check(lv.dirCount == 3 && lv.fileCount == 2,
+          "一层里 3 个目录 2 个文件（得 \(lv.dirCount) 目录 / \(lv.fileCount) 文件）")
+    let listed = lv.entries.reduce(Int64(0)) { $0 + $1.size }
+    check(listed + lv.unlistedBytes == lv.total,
+          "列出来的几行 ＋ 尾巴那句 ＝ 页头那个合计（\(listed) + \(lv.unlistedBytes) = \(lv.total)）")
+    check(lv.entries.allSatisfy { $0.isDir ? $0.files > 0 : $0.files == 1 },
+          "目录带得住它名下多少文件，文件那一格就是 1")
+    let parentTotal = await dirSize(lbase)
+    check(lv.total <= parentTotal,
+          "这一层量到的合计量不超过父目录整棵树的量（\(lv.total) ≤ \(parentTotal)）")
+
+    let capped = await dirLevel(lbase, limit: 2)
+    check(capped.entries.count == 2, "掐到上限就只列 2 行（得 \(capped.entries.count)）")
+    check(capped.total == lv.total, "掐不动合计：total 覆盖全部子项，不只是列出来那两行")
+    check(capped.unlistedCount == 3 && capped.unlistedBytes > 0,
+          "没逐行列出并进尾巴那句（\(capped.unlistedCount) 项 / \(capped.unlistedBytes) 字节）")
+
+    let dirsOnly = await dirLevel(lbase, includeFiles: false)
+    check(dirsOnly.fileCount == 0 && dirsOnly.entries.allSatisfy(\.isDir),
+          "只要目录时，文件一格都不掺进来")
+
+    let onlyFiles = await dirLevel(lbase.appendingPathComponent("small"))
+    check(onlyFiles.dirCount == 0 && onlyFiles.fileCount == 1
+          && onlyFiles.entries.first?.isDir == false,
+          "只有文件的目录：列出来的是文件，目录数归 0")
+
+    let empty = await dirLevel(lbaseEmpty)
+    check(empty.entries.isEmpty && empty.total == 0 && empty.unlistedCount == 0,
+          "空目录不编一行 0 出来")
+
+    let missing = await dirLevel(lbase.appendingPathComponent("no-such-dir-\(UUID().uuidString)"))
+    check(missing.entries.isEmpty && missing.total == 0,
+          "读不动的目录给一层空的，不崩、也不编数")
+
+    try? fm.removeItem(at: lbase)
+    sem5.signal()
+}
+sem5.wait()
+
+// 10b. 面包屑的根：从一条深路径进来，根要落在「包含它的那条扫描根」上，
+//      而不是一路退到 `/`——`/` 那一层的列表对谁都没意义。
+check(enclosingScanRoot(home + "/Library/Caches", scope: .user) == home,
+      "家目录底下的深路径，根落在整个家目录")
+check(enclosingScanRoot("/Applications/Xcode.app/Contents", scope: .user) == "/Applications",
+      "/Applications 底下的根就是 /Applications")
+check(enclosingScanRoot("/tmp/diskwise-no-root-\(getpid())", scope: .user) == nil,
+      "哪条根都不匹配时返回 nil，由调用方退化成单级面包屑")
+check(enclosingScanRoot("/usr/local/bin/foo", scope: .disk) == "/usr/local",
+      "几条根都能套上时取最长的那条，不退回 /")
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

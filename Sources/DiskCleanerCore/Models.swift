@@ -390,6 +390,64 @@ public func contentsUnionSize(_ sizes: [(path: String, bytes: Int64)]) -> Int64 
     return dropNested(Array(byPath.keys)).reduce(Int64(0)) { $0 + (byPath[$1] ?? 0) }
 }
 
+// ── 一层里的一个子项：子目录或文件（文件夹下钻页用）──
+
+/// 下钻页某一行的身份。跟缓存页那些「解释条目」不同，这里没有知识库、没有四元组解释——
+/// 它只是「这个目录底下有这么个东西，占这么多」。判「动不动得了」靠 `isDeletable`，
+/// 不靠知识库白名单：这一页列的是**任意**一层，绝大多数位置本来就不在知识库里。
+public struct ChildEntry: Identifiable, Hashable {
+    public let path: String
+    public let name: String
+    public let size: Int64
+    /// 目录能继续钻，文件不能——这一格决定行尾给不给「进入」。
+    public let isDir: Bool
+    /// 这一棵子里的文件个数（文件行恒为 1）。光有字节数的话，10 GB 的一堆碎缓存和
+    /// 10 GB 的单个镜像在界面上长得一样，而前者能一条条判、后者不能。
+    public let files: Int
+    /// 最近一次改动。`nil` = 没读到（权限、或路上全失败）。
+    public let newest: Date?
+
+    public var id: String { path }
+    public var url: URL { URL(fileURLWithPath: path) }
+
+    public init(path: String, name: String, size: Int64, isDir: Bool,
+                files: Int = 0, newest: Date? = nil) {
+        self.path = path
+        self.name = name
+        self.size = size
+        self.isDir = isDir
+        self.files = files
+        self.newest = newest
+    }
+}
+
+/// 一个目录**这一层**的完整拆分。
+///
+/// `entries` 是逐行列出来的那几行（目录与文件混排、按占盘降序），`total` 是这一层
+/// **全部**子项的合计。两者之差就是尾巴那句「另有 N 项，合计 X」——所以列表里那几行
+/// 加上尾巴那句，正好等于 `total`，这一屏的账加得起来。
+///
+/// 为什么要跟 `childDirSizes` 分开：那个是总览页专用的口径（只列子目录、只给名字和字节），
+/// 这一版要文件、要个数、还要那个「没列出来的尾巴」，硬塞进同一个签名会两边都不好用。
+public struct DirLevel {
+    public var entries: [ChildEntry]
+    public var total: Int64
+    public var unlistedCount: Int
+    public var unlistedBytes: Int64
+    public var dirCount: Int
+    public var fileCount: Int
+
+    public init(entries: [ChildEntry] = [], total: Int64 = 0, unlistedCount: Int = 0,
+                unlistedBytes: Int64 = 0, dirCount: Int = 0, fileCount: Int = 0) {
+        self.entries = entries
+        self.total = total
+        self.unlistedCount = unlistedCount
+        self.unlistedBytes = unlistedBytes
+        self.dirCount = dirCount
+        self.fileCount = fileCount
+    }
+}
+
 /// 一批桶路径里谁离得最近算谁的：给 `path` 找**最长**的那个祖先前缀。
 ///
 /// 用最长而不是第一个，是因为环形同时有 `~/Library` 和 `~/Library/Developer` 这样的父子桶，
