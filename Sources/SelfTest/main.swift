@@ -845,6 +845,20 @@ try! fm.createSymbolicLink(atPath: lbase.appendingPathComponent("linkdir").path,
                            withDestinationPath: lbase.appendingPathComponent("big").path)
 let lbaseEmpty = lbase.appendingPathComponent("empty")
 try! fm.createDirectory(at: lbaseEmpty, withIntermediateDirectories: true)
+// 读不动的目录：自己名下 2 MB，但整棵子树设成 000——`dirSizeReport` 会在它这一层
+// 拿到 EACCES，于是它的量出 0。这个 0 跟 `empty` 那个 0 在屏幕上必须分得开。
+let lbaseBlocked = lbase.appendingPathComponent("blocked")
+try! fm.createDirectory(at: lbaseBlocked, withIntermediateDirectories: true)
+try! Data(count: 2 * 1024 * 1024).write(to: lbaseBlocked.appendingPathComponent("f.bin"))
+try! fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: lbaseBlocked.path)
+// 只缺一块的目录：自己读得动、量得出 1 MB，里面却藏着一个 000 的子目录。
+// 它跟 `blocked` 在界面上必须长得不一样——一个给破折号，一个给数字。
+let lbasePartial = lbase.appendingPathComponent("partial")
+let lbasePartialSub = lbasePartial.appendingPathComponent("sub")
+try! fm.createDirectory(at: lbasePartialSub, withIntermediateDirectories: true)
+try! Data(count: 1 * 1024 * 1024).write(to: lbasePartial.appendingPathComponent("f.bin"))
+try! Data(count: 2 * 1024 * 1024).write(to: lbasePartialSub.appendingPathComponent("f.bin"))
+try! fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: lbasePartialSub.path)
 let sem5 = DispatchSemaphore(value: 0)
 Task {
     let lv = await dirLevel(lbase)
@@ -854,22 +868,41 @@ Task {
           "这一层自己的文件也要列出来——钻进来多半就是为了看它们")
     check(!lv.entries.contains { $0.name == "linkdir" },
           "指向目录的符号链接不占一格（不然共享的字节被数两遍）")
-    check(lv.dirCount == 3 && lv.fileCount == 2,
-          "一层里 3 个目录 2 个文件（得 \(lv.dirCount) 目录 / \(lv.fileCount) 文件）")
+    check(lv.dirCount == 6 && lv.fileCount == 2,
+          "一层里 6 个目录 2 个文件（得 \(lv.dirCount) 目录 / \(lv.fileCount) 文件）")
     let listed = lv.entries.reduce(Int64(0)) { $0 + $1.size }
     check(listed + lv.unlistedBytes == lv.total,
           "列出来的几行 ＋ 尾巴那句 ＝ 页头那个合计（\(listed) + \(lv.unlistedBytes) = \(lv.total)）")
-    check(lv.entries.allSatisfy { $0.isDir ? $0.files > 0 : $0.files == 1 },
-          "目录带得住它名下多少文件，文件那一格就是 1")
+    check(["small", "mid", "big"].allSatisfy { n in
+        lv.entries.contains { $0.name == n && $0.files > 0 } },
+        "有内容的目录带得住它名下有多少文件")
+    check(lv.entries.allSatisfy { $0.isDir || $0.files == 1 },
+          "文件那一格恒为 1")
+    check(lv.entries.contains { $0.name == "empty" && $0.size == 0 && !$0.unreadable },
+          "空目录也占一行：量到 0 ≠ 不存在，而且它的 0 是真 0（不标 unreadable）")
+    check(lv.entries.contains { $0.name == "blocked" && $0.unreadable },
+          "读不动的目录照样进榜并标上 unreadable——把它按 size>0 剔掉，就等于把"
+          + "用户最想进去看的那一批从界面上抹掉（~/Library 一级丢 25 个）")
+    check(lv.entries.first { $0.name == "blocked" }?.size == 0,
+          "读不懂的那棵子树量出 0，界面据此显示破折号而不是 0 B")
+    let partial = lv.entries.first { $0.name == "partial" }
+    check(partial?.unreadable == true && (partial?.size ?? 0) > 0,
+          "只缺一块的目录照样给出量到的数（这里是 1 MB）——把它也画成破折号，"
+          + "是从一处错改成另一处错（得 \(partial?.size ?? -1) 字节）")
     let parentTotal = await dirSize(lbase)
     check(lv.total <= parentTotal,
           "这一层量到的合计量不超过父目录整棵树的量（\(lv.total) ≤ \(parentTotal)）")
 
-    let capped = await dirLevel(lbase, limit: 2)
-    check(capped.entries.count == 2, "掐到上限就只列 2 行（得 \(capped.entries.count)）")
-    check(capped.total == lv.total, "掐不动合计：total 覆盖全部子项，不只是列出来那两行")
-    check(capped.unlistedCount == 3 && capped.unlistedBytes > 0,
-          "没逐行列出并进尾巴那句（\(capped.unlistedCount) 项 / \(capped.unlistedBytes) 字节）")
+    let capped = await dirLevel(lbase, fileLimit: 1)
+    check(capped.entries.filter { !$0.isDir }.count == 1,
+          "上限掐文件：只留 1 行（得 \(capped.entries.filter { !$0.isDir }.count)）")
+    check(capped.entries.filter(\.isDir).count == capped.dirCount && capped.dirCount == 6,
+          "上限不掐目录：6 个目录一个不少——少一个就是少一条往下走的路（得 \(capped.dirCount)）")
+    check(capped.entries.contains { $0.name == "blocked" },
+          "读不动的目录也不受上限影响，任何情况下都推不到榜外")
+    check(capped.total == lv.total, "掐不动合计：total 覆盖全部子项，不只是列出来那几行")
+    check(capped.unlistedCount == 1 && capped.unlistedBytes > 0,
+          "没逐行列出的文件并进尾巴那句（\(capped.unlistedCount) 项 / \(capped.unlistedBytes) 字节）")
 
     let dirsOnly = await dirLevel(lbase, includeFiles: false)
     check(dirsOnly.fileCount == 0 && dirsOnly.entries.allSatisfy(\.isDir),
@@ -882,12 +915,15 @@ Task {
 
     let empty = await dirLevel(lbaseEmpty)
     check(empty.entries.isEmpty && empty.total == 0 && empty.unlistedCount == 0,
-          "空目录不编一行 0 出来")
+          "空目录里面不编一行 0 出来")
 
     let missing = await dirLevel(lbase.appendingPathComponent("no-such-dir-\(UUID().uuidString)"))
     check(missing.entries.isEmpty && missing.total == 0,
           "读不动的目录给一层空的，不崩、也不编数")
 
+    // 收尾：先把自己设的 000 摘掉，再删——留着它，下面 removeItem 会递归进不去。
+    try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: lbaseBlocked.path)
+    try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: lbasePartialSub.path)
     try? fm.removeItem(at: lbase)
     sem5.signal()
 }

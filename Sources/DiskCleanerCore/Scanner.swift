@@ -187,9 +187,18 @@ public func childDirSizes(_ url: URL, limit: Int = 12) async -> [(name: String, 
 /// 一级四十多个目录全塞进一个 TaskGroup 会跟主扫描抢线程）。
 ///
 /// 符号链接不进名单、不跨卷——两条都跟 `dirSizeReport` 同规矩，不然共享的字节会被数两遍。
-/// `total` 覆盖**全部**子项（不只是 `entries` 里那 `limit` 条），所以页面上
+/// `total` 覆盖**全部**子项（不只是 `entries` 里列出来那些），所以页面上
 /// 「列出来的几行 ＋ 尾巴那句」永远等于 `total`。
-public func dirLevel(_ url: URL, includeFiles: Bool = true, limit: Int = 40) async -> DirLevel {
+///
+/// **量到 0 的目录照样进榜。** 0 在这个层级上几乎总是「读不动」，不是「不存在」：
+/// `~/Library` 一级九十多个目录里就有二十多个是系统看着的，把它们按 `size > 0` 剔掉，
+/// 等于从界面上抹掉用户最想进去看的那一批，逼他去访达——而下钻页的全部意义就是
+/// 「系统区也让你进去看」。真的空目录进榜也无妨，它本来就是这一层的一个事实。
+///
+/// `fileLimit` **只掐文件**。目录是这一页的导航骨架，少一格就少一条往下走的路；
+/// 文件是内容，一个几万项的目录全列出来没人滚得完，所以按占盘降序留前几条、
+/// 其余并进 `unlistedCount` / `unlistedBytes`。
+public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200) async -> DirLevel {
     let fm = FileManager.default
     guard let names = try? fm.contentsOfDirectory(atPath: url.path) else { return DirLevel() }
     let rootDev = deviceOf(url)
@@ -218,16 +227,20 @@ public func dirLevel(_ url: URL, includeFiles: Bool = true, limit: Int = 40) asy
         if Task.isCancelled { break }
         let wave = Array(dirs[i..<min(i + 6, dirs.count)])
         i += wave.count
-        await withTaskGroup(of: (String, String, Int64, Int, Date?).self) { group in
+        await withTaskGroup(of: (String, String, Int64, Int, Date?, Bool).self) { group in
             for d in wave {
                 group.addTask {
                     let report = await dirSizeReport(URL(fileURLWithPath: d.path))
-                    return (d.name, d.path, report.bytes, report.files, report.newest)
+                    // 权限是**跟着这一棵子树**报的：`dirSizeReport` 只在 `contentsOfDirectory`
+                    // 失败且 errno 是 EPERM/EACCES 时才记，所以只要数组非空，就说明这里面
+                    // 有一块我们没量到——那么这个 0 就不能当「空的」往外说。
+                    let stuck = !report.needFullDiskAccess.isEmpty || !report.needAdmin.isEmpty
+                    return (d.name, d.path, report.bytes, report.files, report.newest, stuck)
                 }
             }
-            for await (name, path, size, files, newest) in group where size > 0 {
+            for await (name, path, size, files, newest, stuck) in group {
                 out.append(ChildEntry(path: path, name: name, size: size, isDir: true,
-                                      files: files, newest: newest))
+                                      files: files, newest: newest, unreadable: stuck))
             }
         }
     }
@@ -237,12 +250,19 @@ public func dirLevel(_ url: URL, includeFiles: Bool = true, limit: Int = 40) asy
     }
     out.sort { $0.size > $1.size }
     let total = out.reduce(Int64(0)) { $0 + $1.size }
-    let shown = Array(out.prefix(max(1, limit)))
-    let rest = out.dropFirst(shown.count)
-    return DirLevel(entries: shown,
+    // 上限只作用在文件上：目录一个都不能少。整表已经按占盘降序排好，这里顺序扫一遍、
+    // 把超出上限的那些**文件**挑出去，剩下的相对次序原样不动。
+    var kept: [ChildEntry] = []
+    var droppedFiles: [ChildEntry] = []
+    var filesKept = 0
+    for e in out {
+        if e.isDir { kept.append(e); continue }
+        if filesKept < max(0, fileLimit) { kept.append(e); filesKept += 1 } else { droppedFiles.append(e) }
+    }
+    return DirLevel(entries: kept,
                     total: total,
-                    unlistedCount: rest.count,
-                    unlistedBytes: rest.reduce(Int64(0)) { $0 + $1.size },
+                    unlistedCount: droppedFiles.count,
+                    unlistedBytes: droppedFiles.reduce(Int64(0)) { $0 + $1.size },
                     dirCount: out.lazy.filter { $0.isDir }.count,
                     fileCount: out.lazy.filter { !$0.isDir }.count)
 }

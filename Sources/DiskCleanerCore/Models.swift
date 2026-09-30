@@ -433,18 +433,25 @@ public struct ChildEntry: Identifiable, Hashable {
     public let files: Int
     /// 最近一次改动。`nil` = 没读到（权限、或路上全失败）。
     public let newest: Date?
+    /// 这棵子树里有没有读不动的目录（errno 是 EPERM/EACCES）。
+    ///
+    /// 为真时 `size` 只是**读得动的那部分**，不是它真实占盘。界面上得把两种情形分开：
+    /// `size == 0` 是整棵读不动，那个 0 一个字都不能信，不能写成 `0 B`；
+    /// `size > 0` 是只缺了一块，数字照给，但得说明它是个下限。
+    public let unreadable: Bool
 
     public var id: String { path }
     public var url: URL { URL(fileURLWithPath: path) }
 
     public init(path: String, name: String, size: Int64, isDir: Bool,
-                files: Int = 0, newest: Date? = nil) {
+                files: Int = 0, newest: Date? = nil, unreadable: Bool = false) {
         self.path = path
         self.name = name
         self.size = size
         self.isDir = isDir
         self.files = files
         self.newest = newest
+        self.unreadable = unreadable
     }
 }
 
