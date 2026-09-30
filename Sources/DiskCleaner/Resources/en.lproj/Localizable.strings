@@ -255,6 +255,9 @@
 "会呼吸的那一层" = "A layer that breathes";
 "水墨宣纸" = "Ink & Paper";
 "一纸一印，墨分五色" = "Ink on rice paper, five shades deep";
+// skins.json 读不出来时露面的兜底皮肤名。正常构建下看不到它，
+// 但真看到了也该是用户看得懂的那门语言。
+"默认" = "Default";
 "材质与分层" = "Material & layering";
 "真实玻璃材质 + 高光描边" = "Real glass material with a highlight edge";
 "独立分层语言，不是换个色" = "Its own layering language, not a recolor";

@@ -46,6 +46,8 @@ import SwiftUI
 // 要出 README 顶部那张 GIF：改成 DISKWISE_FILM=10（总览页连拍，帧落 <目录>/film/f####.png），
 // 这一趟不逐页出静图。摊开哪一格用 DISKWISE_FILM_DRILL=rest|gap|<路径> 选，
 // 拼图在外面的 ffmpeg 里做，剧本逐拍见 `runFilm`。
+// 连拍这一趟环上那两道光**会走**：反光与余晖由逐帧推进的连拍时钟驱动（见 `filmClock`），
+// 节拍与真机一致；静图那一趟仍然钉住，否则 `waitSettled` 永远等不到静帧。
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -79,11 +81,17 @@ enum SnapshotMode {
     static var requestedLang: AppLanguage? {
         let raw = (ProcessInfo.processInfo.environment["DISKWISE_LANG"] ?? "")
             .trimmingCharacters(in: .whitespaces).lowercased()
+        guard !raw.isEmpty else { return nil }
         switch raw {
-        case "en", "english": return .en
-        case "zh", "zh-hans", "chinese": return .zhHans
         case "auto", "system": return .system
-        default: return nil
+        case "zh", "zh-hans", "chinese": return .zhHans
+        case "english": return .en
+        default:
+            // 其余按 rawValue（en / ja / ru / ptBR…）或语言码（zh-Hant / pt-BR…）认，
+            // 加一门语言不用回来改这里
+            return AppLanguage.allCases.first {
+                !$0.code.isEmpty && ($0.rawValue.lowercased() == raw || $0.code.lowercased() == raw)
+            }
         }
     }
 
@@ -212,6 +220,30 @@ enum SnapshotMode {
         return raw.isEmpty ? "rest" : raw
     }
 
+    // ── 连拍时钟：环上那两道「动」的东西在 GIF 里也得动 ────────────────────────
+    //
+    // 常驻反光与余晖呼吸走的是 Core Animation 的 `repeatForever`，而截图模式把这条永续
+    // 循环关掉了（见 `active`）：`waitSettled` 靠比对连续帧判静帧，光带一直转就永远等不到
+    // 静帧，每一张总览图都会拖到上限。代价是 README 顶部那张 GIF 拍出来环是死的——
+    // 而「光在绕环走」正是这一屏的招牌，静图证明不了它。
+    //
+    // 所以连拍这一趟不取消永续，只是换驱动源：`roll()` 每落一帧把 `filmClock` 推 `1/fps` 秒，
+    // 视图按它算相位。节拍与真机同速（反光 9 秒一圈、余晖 6.5 秒一伏一起）、画的是同一个
+    // `orbitGlint`，只是不再靠墙钟。只有 `roll()` 会推进它：`gap()` 与 `waitSettled()` 期间
+    // 一动不动，静帧判定照旧成立。
+    static var filmClock: Double = 0
+    /// 连拍是否在跑。静图那一趟（只有 `DISKWISE_SHOTS`）永远为 false，行为一字不变。
+    static var filmMotion: Bool { filmFPS != nil }
+    /// 这一帧的反光相位（度）：9 秒一圈 = 40°/秒。
+    static var filmGlintAngle: Double {
+        (filmClock * 40).truncatingRemainder(dividingBy: 360)
+    }
+    /// 这一帧的呼吸档位（0~1，0 = 最暗、1 = 最亮）：6.5 秒一轮回，
+    /// 用余弦近似真机那条 `easeInOut(3.25).repeatForever(autoreverses:)` 的起伏。
+    static var filmBreathLevel: Double {
+        0.5 - 0.5 * cos(filmClock / 6.5 * 2 * .pi)
+    }
+
     /// (页面, 文件名, 最少先等, 最多等到扫描静下来)
     ///
     /// 哈希大文件的那几页要给足预算：一趟 640 MB 的全量哈希能安静好几秒，
@@ -312,7 +344,7 @@ enum SnapshotMode {
         let store = AppStore()
         let manager = ThemeManager.shared
         let skinID = ProcessInfo.processInfo.environment["DISKWISE_SKIN"] ?? ""
-        let skin = Theme.byID(skinID) ?? manager.effective
+        let skin = SkinCatalog.byID(skinID) ?? manager.effective
         // 连 `current` 一起换掉：皮肤页的「使用中」徽章读的是它，只注入渲染器会拍出一张
         // 画着晨雾、徽章却指着作者上次那套的图。不写偏好，退出后一切照旧。
         manager.useForSnapshot(skin)
@@ -509,6 +541,11 @@ enum SnapshotMode {
                 pump(tick)
                 left -= tick
                 frame += 1
+                // 落帧之前把连拍时钟推一格，并喊 SwiftUI 重画一次：相位是个静态量，
+                // 不喊这一嗓子视图不会自己重算，拍出来还是上一帧那张静图。
+                filmClock += tick
+                store.objectWillChange.send()
+                pump(0.04)
                 guard let data = pngData(window, paper: paper, canvas: canvas) else {
                     FileHandle.standardError.write("    ✗ f\(frame) 拍不到\n".data(using: .utf8)!)
                     continue
@@ -538,12 +575,28 @@ enum SnapshotMode {
         store.overviewCollapsePulse += 1
         roll(1.6)      // ④ 收回去：环长回招牌尺寸
         store.overviewRing = "arm"
-        roll(1.6)      // ⑤ 第一下：那条弧上膛，3.2 秒自动解除的倒计时在走
+        let armedFrom = Date()
+        roll(0.5)      // ⑤ 第一下：那条弧上膛
+        let armedGap = Date().timeIntervalSince(armedFrom)
         store.overviewRing = "arm"   // 同一条弧的第二下 —— 这才真搬
         roll(3.0)      // ⑥ 弧让位、账当场重算、顶上那句「已移入废纸篓」
         let restored = restoreAllMoved(store)
         store.notice = nil
         roll(1.6)      // ⑦ 撤销放回，账回到原位
+        // 这一趟到底搬没搬，只有这个数能证明：没搬走的话 ⑥⑦ 两拍是「上膛 → 自己解除」，
+        // 和「搬走 → 撤销」在图上几乎一样，而 GIF 从此撒一句「两下就搬进废纸篓」的谎。
+        // 上一版正是这样悄悄过了好几轮——标称 1.6 秒的那一拍，实际落帧要连着写 16 张 PNG，
+        // 墙钟早过了 3.2 秒，膛在两下之间自己掉了。
+        if restored == 0 {
+            // l10n-scan: off —— 以下是拍片工具写进 stderr 的诊断，不是界面文案，
+            // 不该进词表：译成八种语言只是把一行开发者看的话复制八遍。
+            FileHandle.standardError.write(
+                ("    ✗ 这一趟没有真的搬走任何东西：两下之间走了 "
+                 + String(format: "%.2f", armedGap)
+                 + " 秒，而膛只保 3.2 秒，第二下落时它已经自己解除。"
+                 + "把 ⑤ 的帧数调小重拍，别把这一段剪进 GIF。\n").data(using: .utf8)!)
+            // l10n-scan: on
+        }
         FileHandle.standardError.write("  film: \(frame) 帧 @ \(fps)fps，放回 \(restored) 处\n"
             .data(using: .utf8)!)
     }

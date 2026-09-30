@@ -1,13 +1,17 @@
 #!/usr/bin/env swift
-// ── 双语覆盖率闸门 ──────────────────────────────────────────────────────────
+// ── 多语言覆盖率闸门 ────────────────────────────────────────────────────────
 //
 // 这个项目的本地化不靠 NSLocalizedString 的隐式查找：中文原文就是 key。
 // 好处是漏译不会崩，退回显示中文；坏处是「漏了」这件事本身看不见。
-// 所以出包前跑一遍：把源码 + 知识库 + 皮肤里所有该有英文的中文全数出来，
-// 跟 en.lproj/Localizable.strings 对账。少一条就退出码 1，build.sh 直接挂。
+// 所以出包前跑一遍：把源码 + 知识库 + 皮肤里所有该有译文的中文全数出来，
+// 跟 Resources 下每一张 <语言>.lproj/Localizable.strings 逐一对账。
+// 任何一门语言少一条、或位置参数对不上，退出码就是 1，build.sh 直接挂。
+//
+// 语言清单来自目录本身（见 availableLanguages）——没有第二份需要同步的名单。
 //
 //   swift build_app/l10n_tool.swift check   [包根目录]
-//   swift build_app/l10n_tool.swift keys    [包根目录]   # 打印缺的 key，照着补
+//   swift build_app/l10n_tool.swift keys    [包根目录] [语言]   # 打印这门语言缺的 key
+//   swift build_app/l10n_tool.swift interp  [包根目录]          # 列出带插值的中文拼接
 //
 // 不参与对账的中文：注释、Swift 插值拼接（那些本来就不该进词表）、
 // 以及 L10n.swift 里 `// l10n-scan: off` 圈住的量词表（英文在代码里，不在词表里）。
@@ -21,11 +25,12 @@ let swiftDirs = ["Sources/DiskCleaner", "Sources/DiskCleanerCore"]
 /// 知识库：这四个字段是给人读的文案，必须条条有译文
 let dbFields = ["name", "what", "whatif", "rec"]
 let dbPath = "Sources/DiskCleaner/Resources/safety_db.json"
-/// 皮肤名与标语同样是展示文案
-let skinsPath = "Sources/DiskCleaner/Theme/Skins.swift"
+/// 皮肤名与标语同样是展示文案，现在住在 skins.json 里
+let skinsPath = "Sources/DiskCleaner/Resources/skins.json"
 let skinsFields = ["name", "tagline"]
 
-let tablePath = "Sources/DiskCleaner/Resources/en.lproj/Localizable.strings"
+/// 词表根目录。下面每一个 *.lproj 都是一门已接入的语言，逐张对账。
+let resourcesDir = "Sources/DiskCleaner/Resources"
 let scanOff = "// l10n-scan: off"
 let scanOn = "// l10n-scan: on"
 
@@ -157,19 +162,34 @@ func collectFromSwift(_ root: String) -> (Set<String>, [String]) {
     return (keys, interp)
 }
 
-/// Skins.swift 里的 name:/tagline: 值——它们是展示文案，但写在数据里
+/// skins.json 里的 name / tagline。跟知识库一个道理：写在数据里，但也是给人读的文案。
 func collectFromSkins(_ root: String) -> Set<String> {
     var keys = Set<String>()
-    guard let text = try? String(contentsOfFile: "\(root)/\(skinsPath)", encoding: .utf8) else { return keys }
-    for raw in text.components(separatedBy: "\n") {
-        let line = raw.trimmingCharacters(in: .whitespaces)
-        if line.hasPrefix("//") { continue }
+    let url = URL(fileURLWithPath: "\(root)/\(skinsPath)")
+    guard let data = try? Data(contentsOf: url),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let list = obj["skins"] as? [[String: Any]] else { return keys }
+    for skin in list {
         for f in skinsFields {
-            guard line.hasPrefix("\(f):") else { continue }
-            for lit in stringLiterals(in: line) where hasHan(lit) { keys.insert(lit) }
+            if let s = skin[f] as? String, hasHan(s) { keys.insert(s) }
         }
     }
     return keys
+}
+
+/// Sources/DiskCleaner/Resources 下的 *.lproj，就是这份 App 会加载的全部语言。
+/// 目录本身就是登记表：加一门语言 = 建一个 <语言>.lproj，这里自动发现，
+/// 不必再维护第二份清单——两份清单迟早对不上。
+///
+/// 只认带 Localizable.strings 的目录：zh-Hans.lproj 只有 InfoPlist.strings
+/// （中文是源码原文，不需要一份自己译自己的词表），它不是一门「要翻译的语言」。
+func availableLanguages(_ root: String) -> [String] {
+    let dir = "\(root)/\(resourcesDir)"
+    let items = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+    return items.filter { $0.hasSuffix(".lproj") }
+        .filter { FileManager.default.fileExists(atPath: "\(dir)/\($0)/Localizable.strings") }
+        .map { String($0.dropLast(".lproj".count)) }
+        .sorted()
 }
 
 /// 知识库里的中文说明
@@ -197,8 +217,7 @@ func err(_ msg: String) -> NSError {
     NSError(domain: "l10n", code: 3, userInfo: [NSLocalizedDescriptionKey: msg])
 }
 
-func readTable(_ root: String) throws -> [String: String] {
-    let path = "\(root)/\(tablePath)"
+func readTable(_ path: String) throws -> [String: String] {
     guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
         throw NSError(domain: "l10n", code: 2,
                       userInfo: [NSLocalizedDescriptionKey: "找不到译文表：\(path)"])
@@ -376,48 +395,70 @@ var need = swiftKeys.union(collectFromSkins(root))
 do { try need.formUnion(collectFromDB(root)) }
 catch { FileHandle.standardError.write("读取失败：\((error as NSError).description)\n".data(using: .utf8)!) ; exit(2) }
 
-let table: [String: String]
-do {
-    table = try readTable(root)
-} catch {
-    FileHandle.standardError.write("\((error as NSError).localizedDescription)\n".data(using: .utf8)!)
+let langs = availableLanguages(root)
+guard !langs.isEmpty else {
+    FileHandle.standardError.write("在 \(root)/\(resourcesDir) 下找不到任何 *.lproj\n".data(using: .utf8)!)
     exit(2)
 }
 
-let tableKeys = Set(table.keys)
-let missing = need.subtracting(tableKeys).sorted()
-let unused = tableKeys.subtracting(need).sorted()
+// 逐门语言读表。读不出来直接退出：一张坏表比一张缺表更危险——运行时它整张静默失效，
+// 界面全体退回中文，而覆盖率照样报「完整」。
+var tables: [(lang: String, dict: [String: String])] = []
+for lang in langs {
+    do {
+        tables.append((lang, try readTable("\(root)/\(resourcesDir)/\(lang).lproj/Localizable.strings")))
+    } catch {
+        FileHandle.standardError.write("\((error as NSError).localizedDescription)\n".data(using: .utf8)!)
+        exit(2)
+    }
+}
 
 switch mode {
 case "keys":
-    for k in missing { print("\"\(k)\"\n    = \"\";") }
+    // 给翻译用：swift build_app/l10n_tool.swift keys . zh-Hant > 待译.txt
+    let lang = args.count > 3 ? args[3] : "en"
+    guard let t = tables.first(where: { $0.lang == lang })?.dict else {
+        FileHandle.standardError.write(
+            "没有 \(lang) 这张表。现有：\(langs.joined(separator: " "))\n".data(using: .utf8)!)
+        exit(2)
+    }
+    for k in need.subtracting(Set(t.keys)).sorted() { print("\"\(k)\"\n    = \"\";") }
 
 case "interp":
     for k in interpKeys.sorted() { print(k) }
 
 default:
-    print("词条：需要 \(need.count)，已有 \(table.count)，缺 \(missing.count)，冗余 \(unused.count)")
-    if !missing.isEmpty {
-        print("\n缺译文（\(missing.count) 条）：")
-        for k in missing.prefix(400) { print("  \(k)") }
-    }
-    let specBad = checkSpecs(need, table)
-    if !specBad.isEmpty {
-        print("\n位置参数不匹配（\(specBad.count) 条）：")
-        for m in specBad { print(m) }
+    var failed = false
+    for (lang, dict) in tables {
+        let keys = Set(dict.keys)
+        let missing = need.subtracting(keys).sorted()
+        let unused = keys.subtracting(need).sorted()
+        print("[\(lang)] 需要 \(need.count)，已有 \(dict.count)，缺 \(missing.count)，冗余 \(unused.count)")
+        if !missing.isEmpty {
+            failed = true
+            print("  缺译文（\(missing.count) 条）：")
+            for k in missing.prefix(400) { print("    \(k)") }
+        }
+        let specBad = checkSpecs(need, dict)
+        if !specBad.isEmpty {
+            failed = true
+            print("  位置参数不匹配（\(specBad.count) 条）：")
+            for m in specBad { print(m) }
+        }
+        // 冗余只对 en 报：en 是覆盖率的基准表，多出来的就是死词条。
+        // 其它语言的冗余多半是翻译时顺手留的注记，一律报出来只会淹掉真问题。
+        if lang == "en" && !unused.isEmpty {
+            print("  表里有、源码已不用的 key（\(unused.count) 条，删掉即可）：")
+            for k in unused.prefix(60) { print("    \(k)") }
+        }
     }
     let intBad = checkIntFormat(root)
     if !intBad.isEmpty {
+        failed = true
         print("\n%@ 收到整数，运行时会闪退（\(intBad.count) 条）：")
         for m in intBad { print(m) }
     }
-    if !unused.isEmpty {
-        print("\n表里有、源码已不用的 key（\(unused.count) 条，删掉即可）：")
-        for k in unused.prefix(60) { print("  \(k)") }
-    }
-    if missing.isEmpty && specBad.isEmpty && intBad.isEmpty {
-        print("双语覆盖完整 ✓")
-        exit(0)
-    }
-    exit(1)
+    if failed { exit(1) }
+    print("\n\(tables.count) 种语言覆盖完整 ✓")
+    exit(0)
 }

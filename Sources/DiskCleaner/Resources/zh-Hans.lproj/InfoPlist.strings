@@ -1,0 +1,14 @@
+/*
+  DiskWise · Info.plist 本地化（简体中文）
+
+  这里只有 Dock、访达和系统权限弹窗读得到的少数几条：界面文案不在这张表里，
+  中文原文就是源码里的字面量（见 L10n.swift）。
+
+  本目录刻意没有 Localizable.strings —— 中文是源码原文，不需要一份自己译自己的词表。
+  代价是 build_app/l10n_tool.swift 的语言发现会跳过本目录（它只认有词表的语言），
+  所以 build.sh 单独对这份文件做了一次到位断言。
+*/
+
+"CFBundleDisplayName" = "DiskWise";
+"CFBundleName" = "DiskWise";
+"NSAppleEventsUsageDescription" = "「清空废纸篓」这一步由访达执行，需要你的授权。工具本身从不永久删除文件。";

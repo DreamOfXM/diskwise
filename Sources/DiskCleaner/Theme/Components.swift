@@ -1009,8 +1009,11 @@ struct SweepRing: View {
     }
     /// 会不会「一直动」：「减弱动态效果」下不转、不呼吸；截图模式下同样停住——
     /// `waitSettled` 靠比对连续三帧判静帧，光带永续绕环会让每一张总览图都拖到上限。
-    /// 注意这里关的只是**循环**：光带本身不藏，截图里钉在 0°（一圈量完的边界就在正上方，
-    /// 相位可用 `DISKWISE_RING_GLINT` 挪去别处取证），静止态在真机上长什么样，截图就得是什么。
+    /// 注意这里关的只是**由 Core Animation 驱动的那条永续循环**：光带本身不藏，截图里钉在 0°
+    /// （一圈量完的边界就在正上方，相位可用 `DISKWISE_RING_GLINT` 挪去别处取证），
+    /// 静止态在真机上长什么样，截图就得是什么。
+    /// 而 `DISKWISE_FILM` 那一趟要证的恰恰是「它在走」，所以那条路不从这里过：
+    /// 相位改由连拍时钟逐帧推（`SnapshotMode.filmClock`），静帧判定不受影响。
     private var canAnimate: Bool { !reduceMotion && !SnapshotMode.active }
     /// 皮肤性格：极夜黑金与水墨宣纸的签名是「静」——段不脉冲、不弹跳，
     /// 但反照样绕环、余晖照样呼吸。那道光是这块盘的招牌，不是皮肤的装饰。
@@ -1021,18 +1024,28 @@ struct SweepRing: View {
     /// 截图模式取中位当定值，或用 `DISKWISE_RING_BREATH` 钉在指定档取证。
     private var haloOpacity: Double {
         let (lo, hi) = theme.motion == .still ? (0.50, 0.78) : (0.34, 0.9)
-        guard canAnimate else {
-            // 钉的是**呼吸区间的几分位**，不是原始透明度：0 = 最暗那档、1 = 最亮那档，
-            // 这样同一张相位表在静皮与会动的皮肤上量的是同一件事。
-            guard let b = SnapshotMode.ringBreath else { return (lo + hi) / 2 }
-            return lo + (hi - lo) * b
-        }
-        return breath ? hi : lo
+        if canAnimate { return breath ? hi : lo }
+        // 连拍那一趟按连拍时钟走这一伏一起，见 `SnapshotMode.filmClock`。
+        if SnapshotMode.filmMotion { return lo + (hi - lo) * SnapshotMode.filmBreathLevel }
+        // 钉的是**呼吸区间的几分位**，不是原始透明度：0 = 最暗那档、1 = 最亮那档，
+        // 这样同一张相位表在静皮与会动的皮肤上量的是同一件事。
+        guard let b = SnapshotMode.ringBreath else { return (lo + hi) / 2 }
+        return lo + (hi - lo) * b
     }
     /// 缩放只给会呼吸的皮肤：它比亮度更「活」，静皮留着就是穿帮。
     /// 往外扩那一档只作用在内孔那团光上，它本来就在环里，扩不出去。
     private var haloScale: CGFloat {
-        canAnimate && theme.motion != .still ? (breath ? 1.02 : 0.98) : 1.0
+        guard theme.motion != .still else { return 1.0 }
+        if canAnimate { return breath ? 1.02 : 0.98 }
+        if SnapshotMode.filmMotion { return 0.98 + 0.04 * SnapshotMode.filmBreathLevel }
+        return 1.0
+    }
+    /// 反光此刻的相位：真机读 Core Animation 的累计角，连拍读连拍时钟，
+    /// 普通静图钉在 `DISKWISE_RING_GLINT`（不给就停在 0°）。
+    private var glintAngle: Double {
+        if canAnimate { return spin }
+        if SnapshotMode.filmMotion { return SnapshotMode.filmGlintAngle }
+        return SnapshotMode.ringGlintPhase ?? 0
     }
 
     var body: some View {
@@ -1609,7 +1622,7 @@ struct SweepRing: View {
     /// 所以这里只画一次、把角度交给 Core Animation 的线性 `repeatForever` 去转。
     @ViewBuilder private var lights: some View {
         if glint {
-            orbitGlint(canAnimate ? spin : (SnapshotMode.ringGlintPhase ?? 0))
+            orbitGlint(glintAngle)
                 .allowsHitTesting(false)
         }
         if entryBeam || scanning {
@@ -1731,7 +1744,7 @@ struct SweepRing: View {
 
     private var accessibilitySummary: String {
         let parts = segments.map { "\($0.label) \($0.sizeShown)" }
-        return LF("磁盘占用环形图：%@", parts.joined(separator: L10n.isChinese ? "，" : ", "))
+        return LF("磁盘占用环形图：%@", parts.joined(separator: L10n.isHanScript ? "，" : ", "))
     }
 }
 

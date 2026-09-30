@@ -11,15 +11,16 @@ import DiskCleanerCore
 // 默认这一页就是普通的皮肤选择器，六套随便穿。
 // 开关为真时可用性判定只落在 ThemeManager.canUse / unlock 两处，视图不动。
 //
-// 这一页同时是「个性化」的总入口：明暗、语言都在右上角那两个分段控件里。
+// 这一页同时是「个性化」的总入口：明暗还是分段条，语言改成了下拉菜单——
+// 语言从两种涨到十一种之后，十一段横排要 700 pt，会把页头那行别的控件挤掉。
 
 struct AppearanceView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.theme) private var theme
     @State private var paywallSkin: Theme? = nil
 
-    private var freeSkins: [Theme] { Theme.all.filter { $0.tier == .free } }
-    private var premiumSkins: [Theme] { Theme.all.filter { $0.tier == .premium } }
+    private var freeSkins: [Theme] { SkinCatalog.all.filter { $0.tier == .free } }
+    private var premiumSkins: [Theme] { SkinCatalog.all.filter { $0.tier == .premium } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +34,7 @@ struct AppearanceView: View {
                     LanguagePicker()
                 }
 
-                if let trying = themeManager.tryingID.flatMap({ Theme.byID($0) }) {
+                if let trying = themeManager.tryingID.flatMap({ SkinCatalog.byID($0) }) {
                     tryOnBar(trying)
                 }
 
@@ -44,7 +45,7 @@ struct AppearanceView: View {
                             skinSection(L("付费精选"), themes: premiumSkins)
                             footnote
                         } else {
-                            skinSection(L("全部皮肤"), themes: Theme.all)
+                            skinSection(L("全部皮肤"), themes: SkinCatalog.all)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -385,15 +386,44 @@ private struct SchemePicker: View {
 
 private struct LanguagePicker: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.theme) private var theme
 
-    private let symbols = ["globe", "a.square", "character"]
-    private var labels: [String] { AppLanguage.allCases.map(\.menuLabel) }
+    private var current: AppLanguage { store.languageChoice }
 
     var body: some View {
-        SegmentedStrip(symbols: symbols, labels: labels,
-                       isOn: { store.languageChoice == AppLanguage.allCases[$0] },
-                       select: { store.setLanguage(AppLanguage.allCases[$0]) },
-                       a11yPrefix: L("界面语言"))
+        Menu {
+            ForEach(AppLanguage.allCases, id: \.self) { lang in
+                Button {
+                    store.setLanguage(lang)
+                } label: {
+                    // 菜单里画不了自定义的选中样式，用一颗对勾当记号；
+                    // 未选中的那条只给文字，免得十一个对勾列成一排树。
+                    if lang == current {
+                        Label(lang.menuLabel, systemImage: "checkmark")
+                    } else {
+                        Text(lang.menuLabel)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "globe").font(.system(size: 10, weight: .semibold))
+                Text(current.menuLabel).font(theme.bodyFont(.caption))
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(theme.palette.inkSecondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(theme.controlShape().fill(theme.palette.surface))
+            .overlay(theme.controlShape().stroke(theme.palette.separator,
+                                                 lineWidth: theme.metric.stroke))
+            .clipShape(theme.controlShape())
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(LF("%1$@：%2$@", L("界面语言"), current.menuLabel))
     }
 }
 

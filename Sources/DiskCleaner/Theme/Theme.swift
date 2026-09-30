@@ -7,7 +7,8 @@ import SwiftUI
 // v2 把「结构」也纳入 token：字体设计、圆角、描边粗细、分层方式（材质）、背景做法、
 // 密度、动效签名。两套皮肤要在骨架上就不一样，否则没有存在的必要。
 //
-// 加皮肤 = 在 Skins.swift 加一份数据，视图零改动。
+// 加皮肤 = 往 Resources/skins.json 的 skins 数组里加一个对象，视图零改动。
+// 数据的解析与兜底见 SkinCatalog.swift。
 // 视图只准读 @Environment(\.theme)，禁止硬编码色值。
 // 铁律：正文永不染色（ink/inkSecondary 之外不许出现彩色文字），
 //       彩色只给图标块、环形图、按钮、徽章。
@@ -100,10 +101,10 @@ struct Theme: Identifiable {
     var displayTracking: Double
 
     /// displayTracking 是照着汉字调的——方块字要透气，衬线皮肤给到 0.8/1.2。
-    /// 同一套值套拉丁字母就散成一排省略号，所以英文只收正值，
-    /// 负值（无衬线/圆体的紧排）两种文字通用，原样放行。
+    /// 同一套值套拉丁字母就散成一排省略号，所以拉丁文字只收正值，
+    /// 负值（无衬线/圆体的紧排）两种文字通用，原样放行。简繁一样是汉字，同一条规矩。
     var titleTracking: Double {
-        L10n.isChinese ? displayTracking : min(displayTracking, 0.3)
+        L10n.isHanScript ? displayTracking : min(displayTracking, 0.3)
     }
 
     var elevation: Elevation
@@ -133,7 +134,7 @@ enum TileStrategy: Hashable {
 }
 
 extension Theme {
-    static let fallback = Theme.dawn
+    static let fallback = Theme.builtIn
 }
 
 // MARK: - 字体
@@ -234,9 +235,13 @@ extension Theme {
 // .id(skin) 强制重建整棵子树——副作用是换肤时所有 @StateObject 被重建，
 // 用户每换一次皮肤就把全盘扫描重跑一遍。v2 走 Environment，换肤只是改色，
 // 扫描状态完好保留。
+//
+// 这里的默认值刻意指向 builtIn 而不是当前皮肤：它是拿不到注入时的保命值，
+// 顺手去读 skins.json 会把文件 I/O 拖进环境解析这条热路径。真正的皮肤由
+// DiskCleanerApp 在根部注入。
 
 private struct ThemeEnvironmentKey: EnvironmentKey {
-    static let defaultValue: Theme = .dawn
+    static let defaultValue: Theme = .builtIn
 }
 
 extension EnvironmentValues {

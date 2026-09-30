@@ -38,15 +38,15 @@ final class ThemeManager: ObservableObject {
 
     init() {
         let stored = defaults.string(forKey: Keys.selected)
-        let saved = stored ?? defaults.string(forKey: Keys.legacySelected) ?? Theme.dawn.id
-        let migrated = Theme.migrateLegacyID(saved)
-        let candidate = Theme.byID(migrated) ?? .dawn
+        let saved = stored ?? defaults.string(forKey: Keys.legacySelected) ?? SkinCatalog.defaultSkin.id
+        let migrated = SkinCatalog.migrateLegacyID(saved)
+        let candidate = SkinCatalog.byID(migrated) ?? SkinCatalog.defaultSkin
         let unlocked = Set(defaults.stringArray(forKey: Keys.unlocked) ?? [])
         unlockedPremiumIDs = unlocked
-        current = Self.usable(candidate, unlocked: unlocked) ? candidate : .dawn
+        current = Self.usable(candidate, unlocked: unlocked) ? candidate : SkinCatalog.defaultSkin
         // 逐屏实拍要用深色/玻璃皮验外框，但偏好里存的是浅皮：给个环境变量入口，
         // 只在正常启动时生效（截图模式自己注入 Theme，走不到这里）。
-        if let forced = SnapshotMode.requestedSkinID, let skin = Theme.byID(forced) {
+        if let forced = SnapshotMode.requestedSkinID, let skin = SkinCatalog.byID(forced) {
             current = skin
         }
         if let raw = defaults.string(forKey: Keys.forcedScheme) {
@@ -57,7 +57,7 @@ final class ThemeManager: ObservableObject {
 
     /// 实际生效的皮肤：试穿优先于已选
     var effective: Theme {
-        (tryingID.flatMap { Theme.byID($0) }) ?? current
+        (tryingID.flatMap { SkinCatalog.byID($0) }) ?? current
     }
 
     /// 实际生效的明暗：App 级开关优先于皮肤自带

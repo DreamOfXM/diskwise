@@ -5,7 +5,6 @@
 # 用法：
 #   bash build.sh                        默认：arm64 + 自动探测签名身份
 #   ARCH=universal bash build.sh         arm64 + x86_64 通用包（两个 triple 各编一次再 lipo）
-#   ICON_VARIANT=b bash build.sh         换浅底版图标（默认 a 深底冷光，见 make_icon.swift）
 #   CHANNEL=appstore bash build.sh       商店版：进沙盒 + 出 .pkg + 找 Apple Distribution 签名
 #                                        （收费展示是另一个开关，见 Sources/DiskCleaner/Product.swift）
 #   NOTARIZE=1 bash build.sh             出包后送 Apple 公证并钉票据（需要下面的凭据，商店包不用）
@@ -26,7 +25,7 @@
 # 需要 xcbuild（只有完整 Xcode 里有），所以通用包走 --triple 两遍 + lipo。
 #
 # 构建闸门，任一失败即不出包：
-#   1. 双语覆盖率（少一条英文译文就构建失败，漏译只会静默退回中文）
+#   1. 各语言覆盖率（任一语言少一条译文就构建失败，漏译只会静默退回中文）
 #   2. swift run SelfTest（全量逻辑自检）
 #   3. 资源到位断言（知识库 + 图标 + 译文目录 + 反馈二维码）
 #   4. 通用包：两个切片都在，且 x86_64 那个真能跑起来
@@ -81,7 +80,7 @@ RES_DIR="$ROOT_DIR/Sources/DiskCleaner/Resources"
 # 运行时先查 Contents/Resources，查不到回落到这个仓库相对路径（见 FeedbackView）。
 QR_SRC="$ROOT_DIR/docs/contact/qq-group.png"
 
-echo "==> [1/7] 双语覆盖率对账"
+echo "==> [1/7] 多语言覆盖率对账"
 cd "$ROOT_DIR"
 swift "$ROOT_DIR/build_app/l10n_tool.swift" check | sed 's/^/    /'
 
@@ -90,9 +89,9 @@ ICONSET="$BUILD_DIR/AppIcon.iconset"
 ICNS="$BUILD_DIR/AppIcon.icns"
 if [ ! -f "$ICNS" ] || [ "$BUILD_DIR/make_icon.swift" -nt "$ICNS" ]; then
 	rm -rf "$ICONSET"
-	swift "$BUILD_DIR/make_icon.swift" "$ICONSET" "${ICON_VARIANT:-a}" | sed 's/^/    /'
+	swift "$BUILD_DIR/make_icon.swift" "$ICONSET" | sed 's/^/    /'
 	iconutil -c icns -o "$ICNS" "$ICONSET"
-	echo "    AppIcon.icns：$(du -h "$ICNS" | cut -f1)（变体 ${ICON_VARIANT:-a}）"
+	echo "    AppIcon.icns：$(du -h "$ICNS" | cut -f1)"
 else
 	echo "    复用已有 AppIcon.icns（改过 make_icon.swift 会自动重生成）"
 fi
@@ -158,18 +157,34 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN" "$APP_DIR/Contents/MacOS/DiskCleaner"
 cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$RES_DIR/safety_db.json" "$APP_DIR/Contents/Resources/"
-cp -R "$RES_DIR/en.lproj" "$APP_DIR/Contents/Resources/"
+cp "$RES_DIR/skins.json" "$APP_DIR/Contents/Resources/"
+# 所有语言一次进包：漏一门那门会静默退回中文，而构建照样成功。所以下面按目录数核。
+for LPROJ in "$RES_DIR"/*.lproj; do
+	cp -R "$LPROJ" "$APP_DIR/Contents/Resources/"
+done
 cp -R "$RES_DIR/BrandIcons" "$APP_DIR/Contents/Resources/"
 cp "$QR_SRC" "$APP_DIR/Contents/Resources/qq-group.png"
 # 缓存清理页整页内容都来自这份知识库；丢了不会崩，但会静默变空白页
 [ -f "$APP_DIR/Contents/Resources/safety_db.json" ] \
 	|| { echo "错误：safety_db.json 没进 .app，缓存清理页会是空的" >&2; exit 1; }
+# 皮肤目录丢了不崩，但六套皮肤会一起消失、只剩内置那套朴素的
+[ -f "$APP_DIR/Contents/Resources/skins.json" ] \
+	|| { echo "错误：skins.json 没进 .app，皮肤页会只剩内置兜底皮肤" >&2; exit 1; }
 # 图标丢了不报错，Dock 就退回那张通用白纸——正是这次要消灭的「裸打包」
 [ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ] \
 	|| { echo "错误：AppIcon.icns 没进 .app，Dock 会显示通用图标" >&2; exit 1; }
-# 译文目录丢了不报错，只是英文界面整体退回中文——静默发布等于没做双语
-[ -f "$APP_DIR/Contents/Resources/en.lproj/Localizable.strings" ] \
-	|| { echo "错误：en.lproj/Localizable.strings 没进 .app，英文界面会退回中文" >&2; exit 1; }
+# 译文目录丢了不报错，只是那门语言整体退回中文——静默发布等于没做多语言。
+# 按「目录数」和「每门都有词表」两层核，不只看 en 在不在。
+LPROJ_N_IN=$(find "$RES_DIR" -maxdepth 1 -name '*.lproj' | wc -l | tr -d ' ')
+LPROJ_N_OUT=$(find "$APP_DIR/Contents/Resources" -maxdepth 1 -name '*.lproj' | wc -l | tr -d ' ')
+[ "$LPROJ_N_IN" = "$LPROJ_N_OUT" ] && [ "$LPROJ_N_OUT" != "0" ] \
+	|| { echo "错误：语言目录只进了 $LPROJ_N_OUT/$LPROJ_N_IN 个" >&2; exit 1; }
+for LPROJ in "$APP_DIR/Contents/Resources"/*.lproj; do
+	# 词表只有 en 有：中文是源码里的原文，其余语言各一份 Localizable.strings
+	[ "$(basename "$LPROJ")" = "zh-Hans.lproj" ] && continue
+	[ -f "$LPROJ/Localizable.strings" ] \
+		|| { echo "错误：$(basename "$LPROJ")/Localizable.strings 没进 .app，这门语言会退回中文" >&2; exit 1; }
+done
 # 反馈页没图不会崩，但只剩一行群号——用户找到人的入口不能这么静默丢掉
 [ -f "$APP_DIR/Contents/Resources/qq-group.png" ] \
 	|| { echo "错误：qq-group.png 没进 .app，反馈页的二维码会是空的" >&2; exit 1; }
@@ -179,6 +194,14 @@ BRAND_N_IN=$(find "$RES_DIR/BrandIcons" -name '*.png' | wc -l | tr -d ' ')
 BRAND_N_OUT=$(find "$APP_DIR/Contents/Resources/BrandIcons" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
 [ "$BRAND_N_IN" = "$BRAND_N_OUT" ] && [ "$BRAND_N_OUT" != "0" ] \
 	|| { echo "错误：BrandIcons 只进了 $BRAND_N_OUT/$BRAND_N_IN 张，无 .app 的工具行会退回通用文件夹" >&2; exit 1; }
+
+# CFBundleLocalizations 跟着语言目录走：写死清单的话，加一门语言要记得改两处，
+# 迟早有一门因为漏改而拿不到系统级语言匹配。
+LOCALIZATIONS=""
+for LPROJ in "$RES_DIR"/*.lproj; do
+	LOCALIZATIONS="${LOCALIZATIONS}		<string>$(basename "$LPROJ" .lproj)</string>
+"
+done
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -206,9 +229,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 	<string>zh_CN</string>
 	<key>CFBundleLocalizations</key>
 	<array>
-		<string>zh-Hans</string>
-		<string>en</string>
-	</array>
+$LOCALIZATIONS	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>$MIN_MACOS</string>
 	<key>LSApplicationCategoryType</key>
@@ -223,18 +244,12 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 </plist>
 PLIST_EOF
 
-# Dock / 权限弹窗里显示的名字：跟着界面语言走，不靠单一语言打包
-mkdir -p "$APP_DIR/Contents/Resources/en.lproj" "$APP_DIR/Contents/Resources/zh-Hans.lproj"
-cat > "$APP_DIR/Contents/Resources/en.lproj/InfoPlist.strings" <<EN_EOF
-"CFBundleDisplayName" = "DiskWise";
-"CFBundleName" = "DiskWise";
-"NSAppleEventsUsageDescription" = "DiskWise asks Finder to empty the Trash. The app never deletes files permanently on its own.";
-EN_EOF
-cat > "$APP_DIR/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" <<ZH_EOF
-"CFBundleDisplayName" = "DiskWise";
-"CFBundleName" = "DiskWise";
-"NSAppleEventsUsageDescription" = "「清空废纸篓」这一步由访达执行，需要你的授权。工具本身从不永久删除文件。";
-ZH_EOF
+# Dock / 权限弹窗里显示的名字与说明：跟着界面语言走。
+# 内容住在源码树的 <语言>.lproj/InfoPlist.strings 里，上面那个循环已经一起拷进来了。
+# 这里只单独断言 zh-Hans 那份：它是唯一没有 Localizable.strings 的语言目录，
+# 上面那圈「每门都得有词表」的检查会跳过它，漏拷了就没人管。
+[ -f "$APP_DIR/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" ] \
+	|| { echo "错误：zh-Hans.lproj/InfoPlist.strings 没进 .app，Dock 名与权限弹窗会退回英文" >&2; exit 1; }
 
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 plutil -lint "$ENTITLEMENTS" >/dev/null

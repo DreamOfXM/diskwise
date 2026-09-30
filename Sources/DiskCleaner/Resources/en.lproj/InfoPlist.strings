@@ -1,0 +1,10 @@
+/*
+  DiskWise · Info.plist localisation (English)
+
+  Only the few strings Dock, Finder and the system permission prompts read.
+  UI copy is not here — it lives in Localizable.strings, keyed by the Chinese source text.
+*/
+
+"CFBundleDisplayName" = "DiskWise";
+"CFBundleName" = "DiskWise";
+"NSAppleEventsUsageDescription" = "DiskWise asks Finder to empty the Trash. The app never deletes files permanently on its own.";

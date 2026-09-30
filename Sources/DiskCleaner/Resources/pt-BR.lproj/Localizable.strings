@@ -1,0 +1,692 @@
+/*
+  DiskWise · tabela de tradução para português do Brasil
+
+  A chave é o próprio texto em chinês exibido na interface, então este arquivo é
+  «a única tradução que precisa de manutenção». Se faltar uma entrada, o app não
+  quebra: ele volta a mostrar o chinês. O build.sh roda build_app/l10n_tool.swift
+  para conferir a tabela — faltando uma linha, a build falha. Ao acrescentar texto
+  novo na interface, adicione também a linha equivalente aqui.
+
+  Convenções:
+  · uma linha por entrada; nada de aspas duplas dentro do valor (a ferramenta de
+    conferência lê os dois primeiros literais de string de cada linha);
+  · os parâmetros posicionais (%1$@ e afins) precisam bater com a chave — a
+    ferramenta confere isso;
+  · autodenominações como «Idioma / Language» não são traduzidas, veja
+    L10n.menuLabel.
+
+  Vocabulário: skin — «tema» (três grátis mudam as cores, três pagos refazem
+  toda a estrutura), Lixeira continua Lixeira, e o tratamento é por «você».
+*/
+
+// ── Barra lateral e cabeçalho ───────────────────────────────────────────────
+"看清空间" = "Veja seu armazenamento";
+"开发机专项" = "Máquina de dev";
+"清理" = "Limpeza";
+"关于" = "Sobre";
+"依赖能重装，空间先拿回" = "As dependências se reinstalam; recupere o espaço antes";
+"空间总览" = "Visão geral";
+"大文件" = "Arquivos grandes";
+"很久没动" = "Sem tocar há tempo";
+"重复文件" = "Duplicados";
+"Docker 占用" = "Uso do Docker";
+"开发缓存" = "Caches de dev";
+"应用缓存" = "Caches de apps";
+"卸载残留" = "Sobras de desinstalação";
+"废纸篓" = "Lixeira";
+"外观皮肤" = "Temas";
+"问题反馈" = "Feedback";
+
+// ── Visão geral ─────────────────────────────────────────────────────────────
+"停止" = "Parar";
+"重新扫描" = "Escanear de novo";
+"统计中…" = "Contando…";
+"空闲" = "Livre";
+"系统可清除" = "Removível pelo sistema";
+"其他已统计" = "Outros contabilizados";
+"覆盖范围：你授权过的目录。系统区在沙盒里读不到，所以单列为「没量到的地方」。" = "Escopo: as pastas às quais você deu acesso. A área do sistema não pode ser lida dentro do sandbox, por isso aparece sozinha como a fatia «não medida».";
+"覆盖范围：家目录（含隐藏项）与 /Applications，另外 %1$d 处盘上普通用户读得动的位置（%2$@）。剩下的「没量到」是密封系统卷、引导与恢复分区，和只有 root 读得动的系统数据——那几块任何清理工具都动不了。" = "Escopo: sua pasta pessoal (incluindo itens ocultos) e /Applications, além de outros locais do disco que um usuário comum consegue ler — %1$d no total (%2$@). O que fica «não medido» é o volume de sistema selado, as partições de inicialização e recuperação, e os dados de sistema que só o root lê — nenhuma ferramenta de limpeza alcança isso.";
+"正在量" = "Medindo…";
+// Linha de leitura em tempo real durante a varredura (LoadingRow): caminho + verificado + percorrido + tempo.
+"正在看" = "Verificando agora";
+"刚开始，还没进到目录里" = "Acabou de começar — ainda sem pasta";
+"已检查 %@" = "Verificado %@";
+"已走过 %@" = "Percorrido %@";
+"用时 %@" = "Decorrido %@";
+"整块盘 %1$@：可用 %2$@（空闲 %3$@ ＋ 系统可清除 %4$@），" = "O disco inteiro tem %1$@: %2$@ disponíveis (%3$@ livres + %4$@ que o sistema pode liberar), ";
+"整块盘 %1$@：可用 %2$@（全是空闲），" = "O disco inteiro tem %1$@: %2$@ disponíveis, tudo genuinamente livre. ";
+"没量到" = "Não medido";
+"数据卷里没量到的部分" = "Não medido no volume de dados";
+"没量到的部分" = "Espaço que não conseguimos medir";
+"授权能补一部分" = "Dar acesso recupera parte disso";
+"已授权仍读不到" = "Autorizado, ainda ilegível";
+"这一轮量不到的都归在这里：要么是读不动的目录，要么是盘上对不到具体文件夹的账。" = "Tudo o que esta passagem não conseguiu medir cai aqui: ou uma pasta que não abriu, ou espaço que não corresponde a nenhuma pasta no disco.";
+"这一轮没扫到、或目录打不开的都归在这里。这台机器的分卷账拆不出来，所以没法替你把系统分区单独挑出去。" = "O que esta passagem não alcançou ou não pôde abrir cai aqui. A contabilidade por volume desta máquina não é legível, então as partições de sistema não podem ser separadas para você.";
+"演示树只画得出这一块。真机上这里会按卷点名：系统卷、虚拟内存、引导分区各占多少，一眼分清哪些能追回来。" = "A árvore de exemplo só desenha este bloco. Num Mac de verdade cada volume aparece nomeado aqui — volume de sistema, memória virtual e partições de inicialização — para você ver de relance o que dá para recuperar.";
+"沙盒只放行了你授权过的目录，其余位置量不到。这不是盘上的死账：授权范围里的东西量到之后都能进废纸篓。" = "O sandbox só libera as pastas às quais você deu acesso; o resto fica não medido. Não é peso morto: o que está dentro do escopo medido pode ir para a Lixeira.";
+"完全磁盘访问权限已经开着，其中 %1$d 处仍然读不到——那是系统自己看着的位置，重启或提权都换不回来。" = "O Acesso Total ao Disco já está ligado e %1$d deles ainda não abrem — são locais que o sistema reserva para si. Nem reiniciar nem elevar privilégios os trazem de volta.";
+"沙盒读不到的目录 %1$d 处。" = "Pastas que o sandbox não consegue ler: %1$d.";
+"另有 %1$d 处只有管理员能读，工具不提权，也就量不出它们多大。" = "Algumas pastas aqui são só para administradores (%1$d delas), e esta ferramenta nunca eleva privilégios — por isso o tamanho delas não pode ser medido.";
+"macOS 系统卷" = "Volume de sistema do macOS";
+"删不动" = "Intocável";
+"只读、签名封存，由 SIP 看着。任何清理工具都动不了它，真要瘦只能等系统更新自己整理。" = "Somente leitura, selado e protegido pelo SIP. Nenhum limpador mexe nele — só uma atualização do sistema o remodela.";
+"虚拟内存与休眠镜像" = "Memória virtual e imagem de repouso";
+"系统自己收回" = "O macOS recupera";
+"内存吃紧时 macOS 借硬盘喘息，深度休眠前还会把整份内存写下来。关掉占内存的应用就会缩，不该由工具去删。" = "Quando a RAM aperta, o macOS toma emprestado do disco, e antes do repouso profundo grava toda a memória ali. Feche os apps que comem memória e isso encolhe sozinho — não é nosso para apagar.";
+"启动与恢复分区" = "Partições de inicialização e recuperação";
+"开不了机时才用得上，属于固件的地盘。恢复卷平时不挂载，也一起算在这一行。" = "Só servem quando o Mac não liga — território do firmware. O volume de recuperação nem fica montado no dia a dia; mesmo assim entra nesta linha.";
+"卷之间的未归属占用" = "Espaço não atribuído entre volumes";
+"对不到目录" = "Sem pasta por trás";
+"APFS 容器自己的元数据，加上各卷共享的那点取整差。这一坨对不到具体文件夹，只能整体看着。" = "Os metadados do próprio contêiner APFS, mais o arredondamento compartilhado entre os volumes. Nada disso corresponde a uma pasta que você possa apontar.";
+"去授权" = "Dar acesso";
+"演示数据：这一屏的目录、文件和整块盘的容量都是造的，不是你机器上的真实账。" = "Dados de exemplo: as pastas, os arquivos e a capacidade do disco nesta tela são inventados — não são os números reais da sua máquina.";
+"用户区" = "Área do usuário";
+"整盘" = "Disco inteiro";
+"范围：%@" = "Escopo: %@";
+"系统区" = "Área do sistema";
+"这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。" = "Não mexemos neste lugar: ou só um administrador consegue escrever, ou ele pertence ao Homebrew / Xcode — o comando de limpeza deles é a ferramenta mais segura.";
+"范围「%@」，要把每个目录走一遍才出列表。" = "Escopo «%@»: é preciso percorrer cada pasta antes de a lista aparecer.";
+"磁盘占用环形图：%@" = "Anel de uso do disco: %@";
+"访达显示" = "Mostrar no Finder";
+"深挖" = "Aprofundar";
+"只能看" = "Só visualizar";
+"在访达里打开 %@" = "Abrir %@ no Finder";
+"这一层没有读得出的子目录。" = "Nenhuma subpasta legível neste nível.";
+"这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。" = "%2$@ está nos próprios arquivos desta pasta e em subpastas além das %1$d principais, por isso não aparece linha a linha.";
+"%1$d 处不到 %2$@ 的小目录 %3$@" = "%1$d pastas pequenas abaixo de %2$@: %3$@";
+
+// ── Arquivos grandes / Sem tocar há tempo ───────────────────────────────────
+"跳过开发目录" = "Pular pastas de dev";
+"前" = "Top";
+"正在翻你的文件夹…" = "Percorrendo suas pastas…";
+"共扫到 %@" = "Encontrados %@";
+"只看 %@" = "Só %@";
+"返回空间总览" = "Voltar à visão geral";
+"不限这个目录" = "Mostrar todas as pastas";
+"还没扫到大文件" = "Nenhum arquivo grande ainda";
+"点右上角重新扫描，或回总览换个目录深挖" = "Toque em «Escanear de novo» no canto superior direito, ou escolha outra pasta na visão geral";
+"超过" = "Mais de";
+"天" = "dias";
+"扫过的地方里，好久没碰的东西" = "Coisas há muito intocadas, onde a varredura chegou";
+"正在看哪些文件落灰…" = "Procurando arquivos encostados…";
+"扫过的地方很干净，保持住" = "Nada encostado onde olhamos — continue assim";
+"没有落灰的文件" = "Nada encostado";
+
+// ── Duplicados ──────────────────────────────────────────────────────────────
+"每组日期最新的那份永远保留，动其余的" = "A cópia mais recente de cada grupo fica sempre; mexemos no resto";
+"正在比对…" = "Comparando…";
+"遍历文件…" = "Percorrendo arquivos…";
+"比对内容（%@ 个候选）…" = "Comparando conteúdo (%@ candidatos)…";
+"发现 %1$@，可收回约 %2$@" = "Encontrados %1$@, cerca de %2$@ recuperáveis";
+"没有重复文件" = "Nenhum duplicado";
+"%1$@以上的都查过了，调低还能再找些小的，但更慢" = "Tudo acima de %1$@ já foi verificado; baixar o limite acha mais, mas roda mais devagar";
+"%1$@ 等 %2$@" = "%1$@ — %2$@";
+"重复组" = "Grupo de duplicados";
+"每份 %@" = "%@ cada";
+"保留" = "Mantido";
+
+// ── node_modules ────────────────────────────────────────────────────────────
+"正在翻项目目录找 node_modules…" = "Procurando node_modules nos seus projetos…";
+"%1$@，共 %2$@" = "%1$@, %2$@ no total";
+"没找到 node_modules" = "Nenhum node_modules encontrado";
+"这台机器大概不写前端" = "Esta máquina provavelmente não mexe com frontend";
+"Node.js 项目的依赖文件夹，只在开发这个项目时用到" = "A pasta de dependências de um projeto Node.js — usada só enquanto se desenvolve esse projeto";
+"这个项目暂时跑不起来；不影响源码与 package.json" = "O projeto não roda até reinstalar; o código-fonte e o package.json ficam intactos";
+"在项目目录执行 npm install（或 pnpm/yarn），按 package.json 原样装回" = "Rode npm install (ou pnpm/yarn) na pasta do projeto e o package.json restaura tudo igual";
+"在项目目录执行 %@，按 package.json 原样装回" = "Rode %@ na pasta do projeto e o package.json restaura tudo igual";
+"部分" = "Parcial";
+"部分统计" = "Contado em parte";
+
+// ── Uso do Docker ───────────────────────────────────────────────────────────
+"共 %@" = "%@ no total";
+"本页不设删除键" = "Esta página não tem botão de excluir";
+"没找到容器运行时" = "Nenhum runtime de contêiner encontrado";
+"这台机器上没有 Docker Desktop、OrbStack、Podman、colima 的数据目录" = "Não há pasta de dados aqui para Docker Desktop, OrbStack, Podman ou colima";
+"容器引擎" = "o motor de contêineres";
+"%@ 数据" = "Dados do %@";
+"磁盘实占" = "Real no disco";
+"引擎报的总量" = "Total informado pelo motor";
+"镜像 · 合计" = "Imagens · Total";
+"容器 · 合计" = "Contêineres · Total";
+"卷 · 合计" = "Volumes · Total";
+"构建缓存 · 合计" = "Cache de build · Total";
+"%@ · 合计" = "%@ · Total";
+"悬空镜像（%@）" = "Imagem órfã (%@)";
+"共 %1$@ 个，活跃 %2$@ 个" = "%1$@ no total, %2$@ em uso";
+"，%1$@ 里还能清 %2$@（%3$@）" = ", e dá para liberar %2$@ dos %1$@ (%3$@)";
+"，%1$@ 里还能清 %2$@" = ", e dá para liberar %2$@ dos %1$@";
+"怎么清" = "Como limpar";
+"这台机器上找不到这一家的数据目录，这一行是引擎报的几段相加" = "A pasta de dados deste runtime não está nesta máquina, então esta linha soma o que o motor informa";
+"%@ 的镜像、容器、卷都存在一块虚拟机磁盘里；这一行是那块磁盘在这台机器上实际占掉的量" = "%@ guarda imagens, contêineres e volumes num único disco virtual. Esta linha é o que esse disco de fato ocupa neste Mac";
+"这一段是 %@ 自己报的账，量的是引擎内部的逻辑大小，不是这块盘上另外的字节" = "Este segmento é a conta do próprio %@ — o tamanho lógico interno do motor, não bytes adicionais neste disco";
+"%@ 的镜像都躺在那块虚拟机磁盘里" = "As imagens do %@ ficam todas dentro daquele disco virtual";
+"在 OrbStack 里清：它的 docker 命令是通的（docker system prune -a 删不用的镜像与构建缓存），删完那块磁盘会自动收缩" = "Limpe dentro do OrbStack: os comandos docker dele funcionam (docker system prune -a remove imagens e cache de build sem uso), e o disco encolhe sozinho depois";
+"colima 的删法是删掉整个虚拟机（colima delete）；本工具不代删" = "No colima, a saída é apagar a máquina virtual inteira (colima delete); esta ferramenta não apaga por você";
+"用 podman 自己的命令清（podman system prune）；本工具不代删" = "Limpe com o comando do próprio podman (podman system prune); esta ferramenta não apaga por você";
+"打开 %@ 对应页面删除；本工具不代删（虚拟盘内无独立路径）" = "Abra a página correspondente no %@ e apague por lá; esta ferramenta não apaga por você (não há caminhos separados dentro de um disco virtual)";
+"在 %@ 里删这个镜像（命令行是 docker rmi）" = "Apague esta imagem no %@ (na linha de comando, docker rmi)";
+"本工具不代删；在跑起来的那一家里清" = "Esta ferramenta não apaga — limpe no runtime que estiver rodando";
+
+// ── Caches de apps / de dev ─────────────────────────────────────────────────
+"每项都写明来历，勾你认得的，不认识的别碰" = "Cada item diz o que é. Marque o que você reconhece, deixe o resto.";
+"正在翻你的缓存目录，稍等…" = "Vasculhando suas pastas de cache…";
+"%d 项可查" = "%d itens para consultar";
+"知识库没加载出来" = "A base de conhecimento não carregou";
+"点右上角重新扫描，还不行就提个 Issue" = "Toque em «Escanear de novo» no canto superior direito; se persistir, abra uma Issue";
+"这是什么" = "O que é";
+"删了会怎样" = "O que quebra se apagar";
+"怎么恢复" = "Como recuperar";
+"内容" = "Conteúdo";
+"最近改动 %@" = "Última alteração %@";
+"逐台看" = "Por dispositivo";
+"正在一台一台量，稍等…" = "Medindo cada dispositivo…";
+"上次启动 %@" = "Último boot %@";
+"从没启动过" = "Nunca inicializado";
+"常规缓存" = "Caches do dia a dia";
+"国产 App" = "Apps chineses";
+"留意" = "Atenção";
+"安全" = "Seguro";
+
+// ── Sobras de desinstalação ─────────────────────────────────────────────────
+"App 卸载了，数据没带走——按已装应用逐一对过" = "O app foi desinstalado e deixou dados — conferido app por app com os que ainda estão instalados";
+"正在盘点已装应用、对孤儿…" = "Inventariando apps instalados, casando órfãos…";
+"对过 %1$@，%2$@，共 %3$@" = "Conferidos %1$@, encontrados %2$@, %3$@ no total";
+"宁可漏报，不可误删" = "Prefere não reportar a apagar por engano";
+"没有卸载残留" = "Nenhuma sobra de desinstalação";
+"每个犄角旮旯都对得上号，挺干净" = "Tudo corresponde a um app instalado. Bem limpo.";
+"已卸载应用「%1$@」留在 %2$@ 里的数据" = "Dados deixados em %2$@ pelo app desinstalado «%1$@»";
+"重装这个应用时不会带回到这些配置；其他应用不受影响" = "Reinstalar o app não traz estas configurações de volta; outros apps não são afetados";
+"基本没影响：应用下次需要时会自己重建" = "Sem impacto prático: o app recria isso quando precisar";
+"从废纸篓还原，或重装该应用" = "Restaure da Lixeira ou reinstale o app";
+"微信" = "WeChat";
+"企业微信" = "WeCom";
+"钉钉" = "DingTalk";
+"腾讯系应用" = "App da Tencent";
+
+// ── Lixeira ─────────────────────────────────────────────────────────────────
+"东西都在这躺着，后悔药管够——清空才真没" = "Tudo espera aqui, dá para voltar atrás — só esvaziar é que é definitivo";
+"废纸篓现在" = "Lixeira agora";
+"未知" = "Desconhecido";
+"正在数过每一个条目…" = "Contando cada item…";
+"这里读不到，以访达为准" = "Não dá para ler aqui — o Finder tem o número real";
+"本次移入" = "Movido nesta sessão";
+"%@可撤销" = "%@ pode ser desfeito";
+"本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——这一步由访达执行，访达会让你确认后才动手。" = "Todo «apagar» aqui apenas move para a Lixeira. Liberar espaço de verdade exige esvaziar — um passo que o Finder executa, e o Finder pede sua confirmação antes.";
+"访达中打开" = "Abrir no Finder";
+"重新统计" = "Recontar";
+"撤销上次" = "Desfazer o último";
+"清空废纸篓" = "Esvaziar a Lixeira";
+"在访达中清空" = "Esvaziar no Finder";
+"本次操作记录" = "Registro desta sessão";
+"从新到旧" = "Mais recentes primeiro";
+"清空废纸篓？" = "Esvaziar a Lixeira?";
+"交给访达清空" = "Esvaziar pelo Finder";
+"这一步交给访达执行，本工具不会自己永久删除任何东西；清空后不可恢复。" = "Este passo é executado pelo Finder — este app nunca apaga nada em definitivo por conta própria. Esvaziar não tem volta.";
+"已请访达清空，真实释放约 %@（以访达完成为准）。" = "Pedi ao Finder para esvaziar — cerca de %@ liberados de fato (conte quando o Finder terminar).";
+"正在请访达清空…" = "Pedindo ao Finder para esvaziar…";
+"清空失败：%@。" = "Falha ao esvaziar: %@.";
+"清空失败：%@。系统没放行本工具指挥访达——在「隐私与安全性 → 自动化」里勾上 Finder，勾完重启本工具再试。" = "Falha ao esvaziar: %@. O sistema não deixou este app comandar o Finder — marque Finder em «Privacidade e Segurança → Automação», reinicie o DiskWise e tente de novo.";
+"打开自动化设置" = "Abrir ajustes de Automação";
+"已打开废纸篓所在的访达窗口：按 ⌘⇧⌫，访达会让你确认后才动手。" = "A Lixeira está aberta no Finder — pressione ⌘⇧⌫ e o Finder pedirá sua confirmação antes de esvaziar.";
+"清空失败：%@。这一步只能在访达里做——已打开废纸篓所在的访达窗口，按 ⌘⇧⌫，访达会让你确认后才动手。" = "Falha ao esvaziar: %@. Este passo só pode ser feito no Finder — a janela da Lixeira está aberta lá: pressione ⌘⇧⌫ e o Finder pedirá sua confirmação antes.";
+"%@。废纸篓里的东西还在，没有清空。" = "%@. Nada foi esvaziado — os itens continuam na Lixeira.";
+"清空失败：%@。也可以手动清空：点上面的「访达中打开」，在访达窗口里按 ⌘⇧⌫。" = "Falha ao esvaziar: %@. Você também pode esvaziar na mão: toque em «Abrir no Finder» acima e pressione ⌘⇧⌫ na janela do Finder.";
+
+// ── Temas ───────────────────────────────────────────────────────────────────
+"免费三套随便穿；付费三套连骨架都不一样" = "Três temas grátis à vontade; três pagos mudam até a estrutura";
+"六套皮肤，连骨架都不一样" = "Seis temas, cada um com estrutura diferente";
+"正在试穿「%@」——不满意随时还原，不会自动扣费" = "Experimentando «%@» — reverta quando quiser, nada é cobrado";
+"正在试穿「%@」——不满意随时还原" = "Experimentando «%@» — reverta quando quiser";
+"还原" = "Reverter";
+"免费" = "Grátis";
+"付费精选" = "Escolhas pagas";
+"全部皮肤" = "Todos os temas";
+"付费皮肤是买断制，一次解锁永久可用。" = "Os temas pagos são compra única, liberados para sempre.";
+"内购尚未接入：现在点「解锁」会直接放行，方便先看效果；接上 StoreKit 后这里换成真实交易。" = "A compra no app ainda não está ligada: por ora «Desbloquear» libera na hora, para você ver o efeito. Isso vira uma transação real quando o StoreKit entrar.";
+"使用中" = "Em uso";
+"试穿中" = "Experimentando";
+"付费" = "Pago";
+"已解锁" = "Desbloqueado";
+"使用" = "Usar";
+"试穿" = "Experimentar";
+"解锁" = "Desbloquear";
+"付费皮肤" = "Tema pago";
+"晨雾" = "Névoa da manhã";
+"像系统自带的那样自然" = "Natural como se viesse com o sistema";
+"石墨" = "Grafite";
+"夜里干活不刺眼" = "Não cansa a vista à noite";
+"薄荷" = "Menta";
+"刚擦过的桌子" = "Uma mesa recém-limpa";
+"极夜黑金" = "Noite Polar";
+"直角、细线、不解释" = "Cantos retos, linhas finas, sem explicação";
+"极光玻璃" = "Vidro Auroral";
+"会呼吸的那一层" = "A camada que respira";
+"水墨宣纸" = "Tinta e Papel";
+"一纸一印，墨分五色" = "Uma folha, um selo, tinta em cinco tons";
+// Nome do tema de reserva, mostrado caso o skins.json não possa ser lido. Numa
+// build normal ele não aparece, mas se aparecer deve estar no idioma do usuário.
+"默认" = "Padrão";
+"材质与分层" = "Material e camadas";
+"真实玻璃材质 + 高光描边" = "Material de vidro real com borda em alto-relevo";
+"独立分层语言，不是换个色" = "Linguagem de camadas própria, não só uma troca de cor";
+"字体" = "Tipografia";
+"衬线标题，字距单独调过" = "Títulos com serifa e espaçamento próprio";
+"独立字体设计与字重" = "Design e pesos de fonte próprios";
+"图表" = "Gráficos";
+"环形图配色单独配过，深色下同样清楚" = "A paleta do anel é ajustada por tema e continua legível no escuro";
+"动效" = "Movimento";
+"静：几乎不动，越克制越贵" = "Parado: quase não se mexe — o comedimento soa sofisticado";
+"独立动效签名" = "Assinatura de movimento própria";
+"明暗" = "Aparência";
+"自带深色，不受系统拉扯" = "Traz o próprio modo escuro, imune ao sistema";
+"浅色优先，深色可控" = "Claro primeiro, escuro quando quiser";
+"语言" = "Idioma";
+"中英文各调过一版字距，换语言不串味" = "Espaçamento ajustado para chinês e inglês em separado";
+"买断制，一次解锁永久可用。价格以内购面板为准；StoreKit 尚未接入，点解锁会直接放行。" = "Compra única, liberada para sempre. O preço vem do painel de compras; o StoreKit ainda não entrou, então «Desbloquear» apenas libera na hora.";
+"再试穿一下" = "Experimentar de novo";
+"恢复购买" = "Restaurar compras";
+"跟随" = "Automático";
+"浅色" = "Claro";
+"深色" = "Escuro";
+"明暗模式" = "Modo claro ou escuro";
+"界面语言" = "Idioma da interface";
+"自动" = "Automático";
+
+// ── Feedback ────────────────────────────────────────────────────────────────
+"App 不联网，反馈得由你亲手发出来" = "O app não acessa a rede, então o feedback tem de sair de você";
+"邮箱" = "E-mail";
+"写邮件" = "Escrever e-mail";
+"复制地址" = "Copiar endereço";
+"QQ 群" = "Grupo de QQ";
+"群号 %@" = "Nº do grupo %@";
+"复制群号" = "Copiar nº do grupo";
+"手机打开 QQ，扫这个码进群" = "Abra o QQ no celular e escaneie este código para entrar";
+"QQ 群二维码" = "QR code do grupo de QQ";
+"加不上就按群号搜索，或直接把问题发到邮箱" = "Não conseguiu entrar? Busque pelo nº do grupo, ou mande o problema por e-mail";
+"群里聊什么：清理求助、缓存知识库补条目、使用技巧" = "O que se fala no grupo: ajuda com limpeza, novas entradas para a base de caches, dicas de uso";
+"二维码没能加载出来。在 QQ 里按群号 %@ 搜索也能加。" = "O QR code não carregou. No QQ, buscar pelo nº do grupo %@ também funciona.";
+"仓库 %@" = "Repositório %@";
+"复制仓库" = "Copiar URL do repositório";
+"提 Issue" = "Abrir uma issue";
+"怎么提才有用" = "O que faz um relato útil";
+"你在哪一步" = "Onde";
+"哪一页、点了哪个按钮、扫的是哪个目录" = "Qual página, qual botão, qual pasta você escaneou";
+"看到了什么" = "O que você viu";
+"报错原文整段贴过来，截图也行" = "Cole o erro exatamente como apareceu, ou anexe uma captura";
+"你的机器" = "Sua máquina";
+"macOS 版本、Apple Silicon 还是 Intel" = "Versão do macOS, Apple Silicon ou Intel";
+"已复制到剪贴板：%@" = "Copiado: %@";
+"复制失败，请手动选中复制" = "Falha ao copiar — selecione o texto e copie na mão";
+"打不开 %@，可能被系统拦了" = "Não foi possível abrir %@ — seu sistema pode ter bloqueado";
+"这个 App 不联网，也没有任何遥测：以上信息只有你主动发出来时才存在。" = "Sem rede, sem telemetria: nada disso existe até você mesmo enviar.";
+
+// ── Controles compartilhados e avisos ───────────────────────────────────────
+"还没勾选任何东西" = "Nada selecionado ainda";
+"已选 %1$d 项" = "%1$d selecionados";
+"只进废纸篓，可撤销" = "Só para a Lixeira, dá para desfazer";
+"把选中的 %1$d 项移入废纸篓，随时可撤销" = "Mover os %1$d itens selecionados para a Lixeira — dá para desfazer quando quiser";
+"全选" = "Selecionar tudo";
+"取消全选" = "Desmarcar tudo";
+"选中本页列出的全部" = "Seleciona todas as linhas listadas aqui";
+"选中本页列出的全部，另有 %d 项不在全选范围内" = "Seleciona todas as linhas listadas aqui; %d itens ficam fora da seleção em massa";
+"移入废纸篓" = "Mover para a Lixeira";
+"确认清理？" = "Confirmar a limpeza?";
+"取消" = "Cancelar";
+"将 %1$@（%2$@）移入废纸篓。" = "Mover %1$@ (%2$@) para a Lixeira.";
+"将 %1$@的依赖（%2$@）移入废纸篓。" = "Mover as dependências de %1$@ (%2$@) para a Lixeira.";
+"将 %1$@移入废纸篓（每组日期最新的一份永远保留）。" = "Mover %1$@ para a Lixeira (a cópia mais recente de cada grupo fica sempre).";
+"每组留下日期最新的那一份：备份、导出这类目录是按日期递增的，留最旧的等于把最新那份删了" = "Cada grupo mantém a cópia mais recente: pastas de backup e exportação têm datas em ordem crescente, então manter a mais antiga seria descartar o backup mais novo";
+"删除只进废纸篓，随时可撤销；真正释放空间需要之后清空废纸篓。" = " O apagamento só move para a Lixeira, e dá para desfazer quando quiser. O espaço só é liberado depois de esvaziar a Lixeira.";
+"增加" = "Aumentar";
+"减少" = "Diminuir";
+"开" = "Ligado";
+"关" = "Desligado";
+"撤销" = "Desfazer";
+"关闭提示" = "Dispensar aviso";
+"已移入废纸篓 %@" = "%@ movidos para a Lixeira";
+"，%@ 项失败" = ", %@ falharam";
+"没有可撤销的操作" = "Nada para desfazer";
+"已放回：%@" = "Restaurado: %@";
+"撤销失败：%@" = "Falha ao desfazer: %@";
+"移入废纸篓失败" = "Falha ao mover para a Lixeira";
+"系统保护路径，不能整体删除" = "Caminho protegido pelo sistema; apagar tudo de uma vez não é permitido";
+"超出允许范围（仅限家目录与 /Applications）" = "Fora das raízes permitidas (só pasta pessoal e /Applications)";
+"系统未返回废纸篓位置" = "O sistema não retornou um local da Lixeira";
+"无法创建访达指令" = "Não foi possível montar o comando do Finder";
+"访达拒绝执行" = "O Finder se recusou a executar";
+"没有控制访达的权限" = "Sem permissão para controlar o Finder";
+"指令没能送到访达" = "O comando não chegou ao Finder";
+"访达的确认被取消了" = "A confirmação do Finder foi cancelada";
+"清空前随时可在访达里把文件拖回原位置" = "Arraste os arquivos de volta no Finder antes de esvaziar";
+"清空后才真正释放空间，清空后不可恢复" = "O espaço só é liberado ao esvaziar, e esvaziar não tem volta";
+
+// ── Acesso a pastas (sandbox) ───────────────────────────────────────────────
+"访问授权" = "Acesso a pastas";
+"还没拿到访问授权" = "Ainda sem acesso a pastas";
+"沙盒版不能自己翻你的硬盘。选一次家目录，DiskWise 才知道空间去了哪；之后不会再问。" = "A versão do sandbox não consegue vasculhar seu disco sozinha. Aponte uma vez para a sua pasta pessoal e o DiskWise descobre para onde foi o espaço; depois não pergunta mais.";
+"授权家目录" = "Dar acesso à pasta pessoal";
+"授权访问" = "Dar acesso";
+"已经帮你定位到家目录了，直接点「授权访问」就行。DiskWise 只读你选中的这一个目录。" = "Sua pasta pessoal já está selecionada — é só tocar em «Dar acesso». O DiskWise lê apenas esta pasta.";
+"它只读你选中的这一个目录：不联网、不上传，删除一律进废纸篓。" = "Ele lê só a pasta que você escolher: sem rede, sem envio, e todo apagamento vai para a Lixeira.";
+"授权没生效，再试一次。" = "Não funcionou — tente de novo.";
+"沙盒授权" = "Acesso a pastas";
+"已授权：%@" = "Liberado: %@";
+"尚未授权" = "Ainda não liberado";
+"重新授权" = "Liberar de novo";
+
+// ── Nomes das entradas da base de conhecimento (safety_db.json) ──────────────
+"无需恢复；下次程序崩溃会自动生成新的报告" = "Não há o que restaurar; na próxima falha um relatório novo é gerado";
+"Qoder 崩溃转储" = "Dumps de falha do Qoder";
+"Qoder 崩溃时生成的报告文件堆积" = "Arquivos de relatório gerados nas falhas do Qoder";
+"Chrome 崩溃转储" = "Dumps de falha do Chrome";
+"Chrome 崩溃时生成的报告文件堆积" = "Arquivos de relatório gerados nas falhas do Chrome";
+"删掉不影响任何功能" = "Apagar não quebra nada";
+"系统崩溃诊断报告" = "Relatórios de falha do sistema";
+"DiagnosticReports，系统与应用的崩溃诊断日志" = "DiagnosticReports — logs de falha do sistema e dos apps";
+"删掉不影响系统运行" = "O sistema continua funcionando igual";
+"无需恢复；有新崩溃时系统会自动写入新报告" = "Não há o que restaurar; numa falha nova o sistema grava outro relatório";
+"nvm 下载缓存" = "Cache de downloads do nvm";
+"nvm 下载过的 Node 安装包缓存" = "Cache dos instaladores do Node baixados pelo nvm";
+"删掉后已安装的 Node 版本不受影响" = "As versões do Node já instaladas não são afetadas";
+"无需恢复；需要时 nvm install 会重新下载" = "Não há o que restaurar; o nvm install baixa de novo quando precisar";
+"npm 缓存目录" = "Pasta de cache do npm";
+"无需恢复；npm install 自动重建" = "Não há o que restaurar; o npm install recria";
+"tnpm 缓存" = "Cache do tnpm";
+"集团 npm 镜像（tnpm）的缓存目录" = "Pasta de cache do espelho corporativo do npm (tnpm)";
+"删掉后下次安装会重新下载" = "Na próxima instalação, baixa de novo";
+"无需恢复；下次安装自动重建" = "Não há o que restaurar; a próxima instalação recria";
+"npminstall 安装包" = "Pacotes do npminstall";
+"npminstall 下载的 .tgz 安装包缓存" = "Cache dos pacotes .tgz baixados pelo npminstall";
+"pnpm 的全局包仓库，各项目通过硬链接复用" = "O armazém global de pacotes do pnpm; os projetos o reutilizam por hard links";
+"删掉后各项目 node_modules 里已链接的文件本体仍在，只是仓库清空" = "Os arquivos já ligados em cada node_modules continuam; só o armazém fica vazio";
+"无需恢复；pnpm install 会重新下载缺失的包" = "Não há o que restaurar; o pnpm install baixa os pacotes que faltam";
+"yarn 缓存" = "Cache do yarn";
+"yarn 的下载缓存" = "Cache de downloads do yarn";
+"无需恢复；yarn install 自动重建" = "Não há o que restaurar; o yarn install recria";
+"bun 缓存" = "Cache do bun";
+"bun 的安装缓存" = "Cache de instalação do bun";
+"无需恢复；bun install 自动重建" = "Não há o que restaurar; o bun install recria";
+"Gradle 缓存" = "Cache do Gradle";
+"Gradle 的构建缓存与依赖仓库" = "Cache de build e repositório de dependências do Gradle";
+"删掉后下次构建要全量重新下载依赖（首次构建明显变慢）" = "Na próxima build, todas as dependências baixam de novo (bem mais lento na primeira vez)";
+"无需恢复；下次构建自动重新下载，离线环境请先确认依赖仓库可用" = "Não há o que restaurar; a próxima build baixa de novo. Sem rede, confirme antes que o espelho responde";
+"Maven 本地依赖仓库 ~/.m2/repository" = "Repositório local de dependências do Maven em ~/.m2/repository";
+"删掉后首次构建会全量重新下载（可能较慢）" = "A primeira build baixa tudo de novo (pode demorar)";
+"无需恢复；构建时 Maven 按需重新下载，离线机器需先配置好镜像仓库" = "Não há o que restaurar; na build o Maven baixa o que precisa. Sem rede, configure o espelho antes";
+"pip 缓存" = "Cache do pip";
+"pip 下载的源码包/轮子缓存" = "Cache dos pacotes-fonte e wheels baixados pelo pip";
+"无需恢复；pip install 自动重建" = "Não há o que restaurar; o pip install recria";
+"Homebrew 缓存" = "Cache do Homebrew";
+"brew 下载的安装包缓存" = "Cache dos pacotes de instalação baixados pelo brew";
+"删掉不影响已安装的软件" = "Os programas já instalados não são afetados";
+"无需恢复；重装时 brew 会重新下载" = "Não há o que restaurar; ao reinstalar, o brew baixa de novo";
+"conda 包缓存" = "Cache de pacotes do conda";
+"conda 的包缓存目录 pkgs" = "A pasta de cache de pacotes do conda, pkgs";
+"删掉后已创建的环境不受影响" = "Os ambientes já criados não são afetados";
+"无需恢复；conda 会按需重新下载" = "Não há o que restaurar; o conda baixa conforme a necessidade";
+"Xcode 每个项目的构建中间产物与索引" = "Artefatos intermediários de build e índices por projeto que o Xcode mantém";
+"删掉后首次构建/索引会慢一次" = "A primeira build e indexação ficam mais lentas uma vez";
+"无需恢复；下次打开项目 Xcode 自动重建" = "Não há o que restaurar; o Xcode recria ao abrir o projeto";
+"Xcode 归档文件" = "Archives do Xcode";
+"Xcode 打包上传时生成的历史归档（.xcarchive）" = "Archives históricos (.xcarchive) que o Xcode gerou ao empacotar para envio";
+"删掉后对应版本的归档没了，无法再导出该次打包的 ipa" = "O archive daquela versão some — não dá mais para exportar o ipa daquela build";
+"无法直接恢复；如有上架/留存需求请先备份，或用同一代码提交重新打包" = "Não dá para restaurar direto; faça backup antes se precisar dele para publicação, ou recompile a partir do mesmo commit";
+"真机调试时拷贝的旧系统版本调试符号" = "Símbolos de depuração de versões antigas do sistema, copiados para depurar em aparelhos reais";
+"删掉后连旧系统真机调试要重新生成" = "Depurar em aparelhos reais com sistemas antigos gera tudo de novo";
+"无需恢复；连接对应系统的真机时 Xcode 会自动重新生成" = "Não há o que restaurar; o Xcode recria ao conectar um aparelho com aquela versão";
+"iOS 设备备份" = "Backups de dispositivos iOS";
+"iPhone/iPad 通过这台电脑做的整机备份" = "Backups completos do seu iPhone/iPad feitos neste Mac";
+"删掉后这些历史备份没了，设备本身不受影响" = "Esses backups antigos somem; o aparelho em si não é afetado";
+"已删的备份无法恢复；重新用数据线连接设备可再做一次全新备份" = "Backups apagados não voltam; reconecte o aparelho por cabo para fazer um novo";
+"Docker 数据" = "Dados do Docker";
+"Docker Desktop 的镜像、容器与卷数据" = "Imagens, contêineres e volumes do Docker Desktop";
+"删掉等于清空全部本地镜像和容器" = "Apagar isso zera todas as imagens e contêineres locais";
+"无法逐项恢复；重新打开 Docker Desktop 后可重新拉取镜像、重建容器。更稳妥的做法是在 Docker Desktop 里清理" = "Não há restauração item a item; reabra o Docker Desktop para baixar imagens e recriar contêineres. Limpar dentro do Docker Desktop é mais seguro";
+"应用缓存总目录" = "Pasta principal de caches dos apps";
+"~/Library/Caches，各应用的缓存总目录" = "~/Library/Caches — a pasta de cache compartilhada pelos apps";
+"删掉后各应用首次启动会变慢，随后自行重建" = "Na primeira abertura os apps ficam mais lentos e depois recriam o que precisam";
+"无需恢复；应用启动后自动重建" = "Não há o que restaurar; os apps recriam ao abrir";
+"应用日志" = "Logs dos apps";
+"~/Library/Logs，应用写下的日志文件" = "~/Library/Logs — arquivos de log escritos pelos seus apps";
+"删掉后旧日志找不回来，不影响使用" = "Os logs antigos somem, mas nada quebra";
+"旧日志无法恢复；应用会继续写入新日志" = "Logs antigos não voltam; os apps seguem gravando novos";
+"废纸篓" = "Lixeira";
+"访达废纸篓里等你确认的东西" = "Coisas esperando sua decisão na Lixeira do Finder";
+"清空后才真正释放空间，清空后不可恢复" = "O espaço só é liberado ao esvaziar, e esvaziar não tem volta";
+"微信缓存" = "Cache do WeChat";
+"小程序、搜一搜等内嵌组件的运行包（按账号存放）" = "Pacotes de execução de componentes embutidos — mini programas, Busca e afins, guardados por conta";
+"不影响聊天记录和登录状态；下次打开对应小程序时微信会重新下载" = "O histórico de conversas e o login não são afetados; o WeChat baixa de novo ao abrir o mini programa";
+"无需恢复；微信按需重新下载" = "Não há o que restaurar; o WeChat baixa de novo conforme a necessidade";
+"微信小程序公共库" = "Bibliotecas compartilhadas dos mini programas do WeChat";
+"各小程序共用的基础运行库（一份带版本号的包）" = "Bibliotecas base compartilhadas por todos os mini programas, numa única cópia versionada";
+"不影响聊天记录；打开小程序时微信会重新下载" = "O histórico de conversas não é afetado; o WeChat baixa de novo quando um mini programa abre";
+"微信网页缓存" = "Cache web do WeChat";
+"微信内置浏览器（朋友圈、文章、网页）的 HTTP 缓存" = "Cache HTTP do navegador embutido do WeChat: Momentos, artigos, páginas web";
+"登录状态不在这一层目录里；网页重新打开时重新加载" = "O estado de login fica em outra pasta; as páginas recarregam os recursos ao abrir de novo";
+"无需恢复；微信会按需重建" = "Não há o que restaurar; o WeChat recria conforme a necessidade";
+"微信日志" = "Logs do WeChat";
+"微信自己记录的运行日志（按日期的 .xlog，用于排查问题）" = "Logs de execução do próprio WeChat, arquivos .xlog datados para investigar problemas";
+"不影响功能与聊天记录；只是之后回看不了这段日志" = "Funções e histórico de conversas não são afetados; só este trecho de log deixa de existir";
+"无需恢复；微信会继续新建日志" = "Não há o que restaurar; o WeChat segue gravando novos logs";
+"微信图片缓存" = "Cache de imagens do WeChat";
+"聊天与朋友圈浏览时留下的图片、表情缓存（同一张图的原件在 msg 目录下，这里是显示用的副本）" = "Imagens e figurinhas deixadas ao navegar por conversas e Momentos; os originais da mesma imagem ficam na pasta msg, aqui são cópias para exibição";
+"聊天记录与图片原件都不受影响；重新打开时这些副本会再建一次" = "Histórico de conversas e imagens originais não são afetados; as cópias se refazem ao abrir de novo";
+"无需恢复；微信按需重建" = "Não há o que restaurar; o WeChat recria conforme a necessidade";
+"微信临时文件" = "Arquivos temporários do WeChat";
+"收发过程中留下的临时文件（ImageTemp 等，按账号存放）" = "Temporários deixados pelo envio e recebimento, como ImageTemp, guardados por conta";
+"不影响已保存的聊天记录" = "O histórico de conversas salvo não é afetado";
+"无需恢复；微信会自动重建" = "Não há o que restaurar; o WeChat recria sozinho";
+"微信插件运行包" = "Pacotes de execução dos plugins do WeChat";
+"微信插件的运行包，内含通话、多媒体、传输等运行库；升级后可能同时留着多个版本，每个版本都是一份完整运行库" = "Pacotes de execução dos plugins do WeChat, com bibliotecas de chamadas, multimídia e transferências; uma atualização pode deixar várias versões, e cada uma é um conjunto completo";
+"正在使用的版本删掉后这些功能会异常，需要重启微信；被删的版本下次用到时重新下载" = "Apagar a versão em uso quebra essas funções até reiniciar o WeChat; as versões removidas baixam de novo quando precisar";
+"建议先退出微信再删；微信会在需要时重新下载" = "Saia do WeChat antes de apagar; ele baixa de novo quando precisar";
+"删掉不影响聊天记录和登录状态" = "O histórico de conversas e o login não são afetados";
+"QQ 缓存" = "Cache do QQ";
+"QQ 在电脑上的临时缓存" = "Cache temporário do QQ neste Mac";
+"无需恢复；QQ 会按需自动重建" = "Não há o que restaurar; o QQ recria conforme a necessidade";
+"QQ 聊天图片视频" = "Fotos e vídeos das conversas do QQ";
+"新版 QQ 的聊天图片、视频、文件数据（按账号存放）" = "Fotos, vídeos e arquivos das conversas do QQ novo, guardados por conta";
+"聊天记录文字还在；图片和视频重新点开需要重新下载" = "O texto do histórico fica; fotos e vídeos baixam de novo ao abrir";
+"无法本地恢复；在手机 QQ 的对应聊天里点开即可重新下载" = "Sem restauração local; abra a conversa correspondente no QQ do celular e ele baixa de novo";
+"钉钉缓存" = "Cache do DingTalk";
+"钉钉在电脑上的临时缓存" = "Cache temporário do DingTalk neste Mac";
+"无需恢复；钉钉会按需自动重建" = "Não há o que restaurar; o DingTalk recria conforme a necessidade";
+"钉钉日志" = "Logs do DingTalk";
+"钉钉写入的运行日志（本机实测常见几百 MB）" = "Logs de execução que o DingTalk grava (nesta máquina, costumam passar de centenas de MB)";
+"旧日志无法恢复；钉钉会继续写新日志" = "Logs antigos não voltam; o DingTalk segue gravando novos";
+"钉钉聊天数据" = "Dados de conversas do DingTalk";
+"钉钉按账号存放的聊天图片、视频与文件数据" = "Fotos, vídeos e arquivos das conversas do DingTalk, guardados por conta";
+"聊天记录文字还在；图片和视频重新点开需要重新下载，本地文件原件会没" = "O texto do histórico fica; fotos e vídeos baixam de novo, mas os arquivos originais locais somem";
+"无法本地恢复；在手机钉钉的对应聊天里重新下载（未过期部分）" = "Sem restauração local; baixe de novo na conversa correspondente no celular (enquanto não expirar)";
+"企业微信缓存" = "Cache do WeCom";
+"企业微信在电脑上的临时缓存" = "Cache temporário do WeCom neste Mac";
+"无需恢复；企业微信会按需自动重建" = "Não há o que restaurar; o WeCom recria conforme a necessidade";
+"企业微信聊天数据" = "Dados de conversas do WeCom";
+"企业微信按账号存放的聊天图片、视频与文件数据" = "Fotos, vídeos e arquivos das conversas do WeCom, guardados por conta";
+"无法本地恢复；在手机企业微信的对应聊天里重新下载" = "Sem restauração local; baixe de novo na conversa correspondente no WeCom do celular";
+
+// ── Entradas de caches de dev (0927: as que ficam com grp=dev no safety_db) ──
+"Android Studio 缓存" = "Cache do Android Studio";
+"Android Studio 的索引、编译缓存与日志" = "Índices, cache de compilação e logs do Android Studio";
+"Android 虚拟机镜像" = "Imagens de dispositivos virtuais Android";
+"Android 虚拟机（AVD）的系统镜像与里面存的数据" = "Imagens de sistema dos dispositivos virtuais Android (AVD) e os dados guardados dentro deles";
+"ChatGPT 桌面版崩溃转储" = "Dumps de falha do ChatGPT para desktop";
+"ChatGPT 桌面版崩溃时生成的 .dmp 报告，只用于上报诊断（目录叫 Codex 是因为这个 App 的包名就是 com.openai.codex）" = "Relatórios .dmp que o ChatGPT para desktop grava ao falhar, só para diagnóstico (a pasta se chama Codex porque o bundle id desse app é com.openai.codex)";
+"CocoaPods 缓存" = "Cache do CocoaPods";
+"CocoaPods 下载的 pod 源码压缩包" = "Os arquivos de código-fonte dos pods baixados pelo CocoaPods";
+"Codex CLI 运行时装机" = "Runtime do Codex CLI";
+"Codex CLI 自己下载的 Node 运行时与依赖" = "O runtime Node e as dependências que o Codex CLI baixou por conta própria";
+"Go 构建缓存" = "Cache de build do Go";
+"Go 模块缓存" = "Cache de módulos do Go";
+"Gradle 版本下载" = "Downloads de versões do Gradle";
+"gradlew 按项目声明的版本下载下来的 Gradle 发行包" = "As distribuições do Gradle que o gradlew baixou para as versões declaradas nos projetos";
+"Hugging Face 模型缓存" = "Cache de modelos do Hugging Face";
+"transformers / datasets 下载的模型与数据集，单个可达几十 GB" = "Modelos e conjuntos de dados baixados por transformers / datasets — um deles pode passar de dezenas de GB";
+"IntelliJ IDEA 缓存" = "Cache do IntelliJ IDEA";
+"IntelliJ IDEA 建的索引、本地历史与编译缓存" = "Índices, histórico local e cache de compilação que o IntelliJ IDEA mantém";
+"Maven 依赖仓库" = "Repositório de dependências do Maven";
+"Ollama 模型" = "Modelos do Ollama";
+"Ollama 拉取的大模型权重，单个模型常常几十 GB" = "Os pesos de modelos grandes baixados pelo Ollama — um único modelo costuma ter dezenas de GB";
+"PyCharm 缓存" = "Cache do PyCharm";
+"PyCharm 建的索引、本地历史与编译缓存" = "Índices, histórico local e cache de compilação que o PyCharm mantém";
+"SwiftPM 缓存" = "Cache do SwiftPM";
+"Swift Package Manager 克隆下来的依赖仓库副本" = "Cópias dos repositórios de dependências clonadas pelo Swift Package Manager";
+"Whisper 模型缓存" = "Cache de modelos do Whisper";
+"openai-whisper 下载的语言模型权重" = "Os pesos dos modelos de linguagem baixados pelo openai-whisper";
+"Xcode 模拟器设备" = "Dispositivos simuladores do Xcode";
+"每台 iOS 模拟器的整机镜像，连同里面已装的 App 数据与登录态" = "A imagem completa de cada simulador iOS, junto com os apps, os dados e os logins guardados dentro";
+"cargo 注册表" = "Registro do cargo";
+"cargo 拉取的 crates.io 索引与依赖源码" = "O índice do crates.io e os códigos-fonte das dependências baixados pelo cargo";
+"chrome-devtools-mcp 浏览器内核" = "Builds de navegador do chrome-devtools-mcp";
+"chrome-devtools-mcp 为驱动浏览器下载的 Chrome for Testing" = "Os builds do Chrome for Testing que o chrome-devtools-mcp baixa para controlar o navegador";
+"sdkmanager 装的 Android 平台、构建工具与系统镜像" = "Plataformas Android, ferramentas de build e imagens de sistema instaladas pelo sdkmanager";
+"uv 下载缓存" = "Cache de downloads do uv";
+"uv 为 Python 依赖下载的包与预编译轮子" = "Pacotes e wheels pré-compiladas que o uv baixou para as dependências Python";
+"go 下载的依赖模块源码" = "Código-fonte dos módulos de dependência baixados pelo go";
+"go 编译产生的中间产物" = "Artefatos intermediários gerados pela compilação do go";
+"npm 的整个缓存目录，含 _cacache 那份内容寻址下载缓存" = "Toda a pasta de cache do npm, incluindo o cache de downloads endereçado por conteúdo _cacache";
+"删掉后 codex 下次启动要重新拉一遍运行时" = "No próximo início, o codex baixa o runtime de novo";
+"删掉后下次 pod install 会重新下载" = "No próximo pod install, baixa de novo";
+"删掉后下次构建 Rust 项目要重新下载依赖" = "Na próxima build de um projeto Rust, as dependências baixam de novo";
+"删掉后下次构建会重新下载依赖" = "Na próxima build, as dependências baixam de novo";
+"删掉后下次构建会重新下载对应版本" = "Na próxima build, aquela versão baixa de novo";
+"删掉后下次装环境会重新下载，慢一次" = "Na próxima vez que montar o ambiente, baixa de novo e demora um pouco mais";
+"删掉后下次转写会重新下载模型" = "Na próxima transcrição, o modelo baixa de novo";
+"删掉后已装的全局包不受影响，下次安装会重新下载依赖" = "Os pacotes globais já instalados não são afetados; na próxima instalação as dependências baixam de novo";
+"删掉后所有安卓项目都构建不了，要重装整套 SDK" = "Nenhum projeto Android compila até reinstalar o SDK inteiro";
+"删掉后这个 MCP 下次启动会重新下载浏览器" = "Na próxima inicialização, este MCP baixa o navegador de novo";
+"删掉后首次打开项目要重建索引" = "Ao abrir o projeto pela primeira vez, os índices são reconstruídos";
+"删掉后首次打开项目要重建索引，工程配置不在这里" = "Ao abrir o projeto, os índices são reconstruídos; as configurações do projeto não ficam aqui";
+"删掉后首次构建慢一次" = "A primeira build fica mais lenta uma vez";
+"删掉后首次解析依赖要重新克隆" = "Ao resolver as dependências, elas são clonadas de novo na primeira vez";
+"删掉的模型要重新下载才能再用，受限模型还得再登录一次" = "Os modelos apagados precisam ser baixados de novo para usar; os de acesso restrito exigem login outra vez";
+"删掉的模型要重新联网下载才能再用" = "Os modelos apagados precisam ser baixados de novo para usar";
+"删掉的模拟器下次启动是台空机器，里面的 App 和数据一起没了" = "Na próxima abertura o simulador é um aparelho em branco — os apps e os dados dentro dele vão junto";
+"这些虚拟机连同已装的 App 数据一起没了" = "Esses dispositivos virtuais somem, junto com os apps e os dados dentro deles";
+"无法直接恢复；需在 Device Manager 重新创建" = "Não dá para restaurar direto; recrie o dispositivo no Device Manager";
+"无法直接恢复；需在 Xcode 里重新创建模拟器" = "Não dá para restaurar direto; recrie o simulador no Xcode";
+"无法直接恢复；需用 sdkmanager 重新安装" = "Não dá para restaurar direto; reinstale com o sdkmanager";
+"无需恢复；IDE 打开项目自动重建" = "Não há o que restaurar; a IDE reconstrói ao abrir o projeto";
+"无需恢复；IDE 自动重建" = "Não há o que restaurar; a IDE reconstrói sozinha";
+"无需恢复；Xcode 或 swift build 会自动重新获取" = "Não há o que restaurar; o Xcode ou o swift build baixa de novo";
+"无需恢复；cargo build 自动重建" = "Não há o que restaurar; o cargo build recria";
+"无需恢复；go build 自动重建" = "Não há o que restaurar; o go build recria";
+"无需恢复；go mod download 自动重建" = "Não há o que restaurar; o go mod download recria";
+"无需恢复；ollama pull 模型名 重新下载" = "Não há o que restaurar; ollama pull <modelo> baixa de novo";
+"无需恢复；pod install 自动重下" = "Não há o que restaurar; o pod install baixa de novo";
+"无需恢复；uv 下次运行自动重建" = "Não há o que restaurar; o uv recria na próxima execução";
+"无需恢复；下次启动自动重新下载" = "Não há o que restaurar; baixa de novo na próxima inicialização";
+"无需恢复；下次执行 ./gradlew 自动重下" = "Não há o que restaurar; o próximo ./gradlew baixa de novo";
+"无需恢复；再次调用 whisper 自动下载" = "Não há o que restaurar; chamar o whisper de novo baixa sozinho";
+"无需恢复；再次运行 codex 会自动装回" = "Não há o que restaurar; rodar o codex de novo reinstala tudo";
+"无需恢复；按模型仓库名重新下载" = "Não há o que restaurar; baixa de novo pelo nome do repositório do modelo";
+
+// ── Página de caches de dev (0927: a página de caches virou apps + dev) ─────
+"只看不删——各家容器的删法不一样，展开那一行看指路" = "Só leitura — cada runtime de contêiner apaga de um jeito; abra a linha para ver o caminho";
+"正在盘点 Docker 占用…" = "Contando o que os contêineres ocupam…";
+"开发工具" = "Ferramentas de dev";
+"装过的工具才出现在这一页，删了下次用到会自己重新下载" = "Só ferramentas que você instalou aparecem aqui; apague e, quando precisar, baixam de novo sozinhas";
+"没有检测到开发工具的缓存" = "Nenhum cache de ferramenta de dev encontrado";
+"装过 Xcode、npm、Gradle、Ollama 之后回到这里重新扫描" = "Instale Xcode, npm, Gradle ou Ollama e volte aqui para escanear de novo";
+
+"%d 处" = "%d locais";
+
+// ── Listas e cartão-herói na mesma régua (r04: anatomia da linha, mesma escala, conferência de números) ─
+// Estas linhas explicam como o número da página bate com o número do cabeçalho.
+"按个头排好队，大的在上面" = "Ordenado por tamanho, os maiores em cima";
+"扫到的 %1$@ 个里只列最大的 %2$d 个，剩下的比这一列最小那行还小。" = " Mostrando os %2$d maiores entre os %1$@ encontrados — o resto é menor que a menor linha desta coluna.";
+"这一页的行全在屏幕上，当场就能把这一列加到页头那句。" = " Todas as linhas desta página estão na tela: some esta coluna e chegue ao número do cabeçalho.";
+"每组日期最新的那份列在组里第一行，带锁、不给勾。" = "A cópia mais recente de cada grupo aparece primeiro, travada — essa linha não pode ser marcada.";
+"每组保留日期最新的那份，勾不上" = "Cada grupo mantém a cópia mais recente — essa linha não pode ser marcada";
+// Cópias que os próprios ambientes gerenciados instalam: entram fora da comparação, mas no topo há uma linha que dá para abrir e ver a lista.
+"另有 %1$@ 是各环境自己的副本，不参与比对" = "Mais %1$@ que pertencem aos próprios ambientes — fora da comparação";
+"不参与比对的组" = "Grupos fora da comparação";
+"%1$@ · 共 %2$@" = "%1$@ · %2$@ no total";
+"每份 %1$@ · 住在 %2$@" = "%1$@ cada · vive em %2$@";
+"住在哪个环境" = "Onde vive";
+"这些副本各自住在某个环境里。删一份，那个环境就缺一块；卸掉那个环境，整块一起回收。" = "Cada uma dessas cópias vive dentro de um ambiente. Apague uma e aquele ambiente fica sem uma peça; remova o ambiente e o bloco inteiro vai junto.";
+"关闭" = "Fechar";
+"「留意」那几项本来就不给全选" = "As linhas com «Atenção» nunca entraram em «Selecionar tudo»";
+"标「留意」的那几项不在全选范围内，得逐条自己判。" = " As linhas com «Atenção» ficam fora de «Selecionar tudo» — decida uma a uma.";
+"%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。" = " %1$d desses caminhos estão dentro de outras entradas, então «Selecionar tudo» leva %2$@ — não o que a soma desta coluna dá.";
+"%1$d 条路径套在别的条目底下，合计只数最外面那层" = "%1$d caminhos estão dentro de outros; o total conta só a camada externa";
+"合计按条目各自的大小相加" = "O total soma o tamanho de cada entrada";
+"页头那句「共 %@」跟这一列是同一个数——这一页的行全在屏幕上。" = " O «%@ no total» do cabeçalho é esta mesma coluna: todas as linhas desta página estão na tela.";
+"这一页动不了，所以整列一个灯色都不上。" = "Nada nesta página pode ser mexido, então nenhuma linha acende.";
+"下面 %d 行是引擎自己报的口径，和上面那一行量的是同一块磁盘，不单独加一次。" = " As %d linhas abaixo são os números do próprio motor para aquele mesmo disco — não são somadas de novo.";
+// O bloco «a conta desta página» (PageLedger): a frase de conferência virou um bloco com barras graduadas.
+"这一页量到" = "Esta página mediu";
+"其中动得了的" = "Dá para mexer";
+"动得了" = "Dá para mexer";
+"镜像明细 · 已经算在上面那一段「镜像 · 合计」里" = "Detalhe das imagens — já contabilizado no segmento «Imagens · Total» acima";
+"这一行的账" = "Como esta linha é contada";
+"这一行不进展式：它是引擎报的账，不是这块盘上另外的字节" = "Esta linha fica fora do total: é o número do motor para o mesmo disco, não bytes adicionais nele";
+"本次没往里移东西" = "nada foi movido nesta sessão";
+"这一列 %1$d 行相加 %2$@，就是上面「本次移入」那个数。" = "Estas %1$d linhas somam %2$@ — o número de «Movido nesta sessão» acima.";
+"把选中的 %@ 移进废纸篓" = "Mover os %@ selecionados para a Lixeira";
+"把选中的移进废纸篓" = "Mover a seleção para a Lixeira";
+
+// ── A vitrine em anel (variante A · faixa de luz da varredura) ──────────────
+"%@ 不在本工具动手的范围内（家目录与应用程序之外）。" = "%@ está fora do que esta ferramenta alcança — além da pasta pessoal e de «Aplicativos».";
+"%@：这一圈里的账，不是一个能整个搬走的位置。" = "%@: uma linha neste anel, não um local que dá para mover inteiro.";
+"去废纸篓页：这些字节还占着盘，在那里交给访达清空才真让位" = "Abra a página da Lixeira: esses bytes ainda estão no disco — o Finder esvazia, e só então o espaço volta";
+"各段之和 %1$@" = "Soma dos segmentos %1$@";
+"已把「%1$@」名下的 %2$@移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。" = "%2$@ de «%1$@» (%3$@) foi movido para a Lixeira. Esses bytes ainda estão no disco — esvazie a Lixeira no Finder e o espaço volta de verdade.";
+"另有 %1$d 处没搬动。" = "Outros %1$d não se moveram.";
+"另有 %1$d 处没搬动，第一处的原因是：%2$@。" = "Outros %1$d não se moveram; o primeiro, porque: %2$@.";
+"已选中这一圈里动得了的全部 %1$d 处、共 %2$@。再点一次按钮才移进废纸篓；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "Todos os pontos móveis deste anel estão marcados — %1$d, %2$@ no total. Toque no botão mais uma vez para ir à Lixeira; sem toque, cancela sozinho em 3 segundos. O que já está na Lixeira pode ser recuperado na página da Lixeira.";
+"已选中「%1$@」：%2$@。再点一次那一段确认；3 秒不点自动取消，移进去之后还能在废纸篓页找回。" = "«%1$@» marcado: %2$@. Toque nesse segmento mais uma vez para confirmar; sem toque, cancela sozinho em 3 segundos. O que já está na Lixeira pode ser recuperado na página da Lixeira.";
+"把它名下点名的 %1$@、共 %2$@ 移进废纸篓" = "movendo os %1$@ nomeados abaixo dele, %2$@ no total, para a Lixeira";
+"本次移入废纸篓" = "Na Lixeira";
+"确认移入废纸篓" = "Toque de novo para ir à Lixeira";
+"还没量到" = "Ainda não";
+// ── Cartão-herói: um anel = o disco inteiro (r02 A · faixa de luz da varredura) ─
+"可用" = "Livre";
+// Indicador de capacidade fixo no topo da janela (VolumeChip)
+"可用 %@" = "%@ livres";
+"这一圈里没有可回收的" = "Nada a recuperar neste anel";
+"这一圈里没有本工具动得了的东西" = "Nada neste anel pertence a esta ferramenta";
+"把可回收的 %1$@ 移进废纸篓" = "Mover os %1$@ recuperáveis para a Lixeira";
+"再点一次，把 %1$@ 移进废纸篓" = "Toque de novo para mover %1$@ para a Lixeira";
+"第一下只是选中，第二下才真的移进废纸篓" = "O primeiro toque só marca; o segundo manda para a Lixeira";
+"再点一次才移进废纸篓 · 3 秒不点自动取消" = "Mais um toque e vai para a Lixeira · cancela sozinho em 3 s";
+"点一段两次才收走那一段（防误删）；点动不了的段只会告诉你它为什么动不了。" = "Dois toques num segmento removem só aquele segmento — é a proteção contra apagar sem querer. Tocar num segmento imóvel apenas explica por que ele não se move.";
+"去清空" = "Esvaziar";
+"已量 %1$d/%2$d 处 · 这一圈还没量完" = "Medidos %1$d/%2$d · este anel ainda não terminou";
+"整块盘 %1$@ · 已用 %2$@" = "Disco %1$@ · %2$@ usados";
+"全部清空后可用 %1$@" = "%1$@ livres depois de limpar tudo";
+"%1$d 处 %2$@ 动得了；已量到的其余 %3$@ 先不动，没量到的 %4$@ 另算。" = "%2$@ dá para mexer, em %1$d dos pontos escaneados; os outros %3$@ que medimos ficam como estão, e os %4$@ que não medimos entram à parte.";
+"正在量这一圈：已量完 %1$d/%2$d 处，量完才谈得上能动多少。" = "Medindo este anel: %1$d de %2$d concluídos. Quanto dá para mover só faz sentido depois de medir.";
+"这一圈里没有本工具动得了的地方——下面每一段都点名说了为什么动不了。" = "Nada neste anel é nosso para mexer — cada segmento abaixo diz por quê.";
+"%1$@ 可回收" = "%1$@ recuperáveis";
+"%1$@ 可回收 · 这一条弧是第 4 名往后的那些位置" = "%1$@ recuperáveis · este arco são todos os pontos do 4º para baixo";
+"%1$@ 可回收 · 已搬走 %2$@" = "%1$@ recuperáveis · %2$@ já movidos";
+// Segunda linha da legenda no centro do anel. No furo interno, a linha de baixo
+// tem uma corda de apenas cerca de 180pt; uma frase cheia («…in this segment»)
+// quebra na terceira linha e invade a faixa, então mantemos a frase curta.
+"这一段没有可回收的东西" = "Nada a recuperar aqui";
+"还占着盘 · 去废纸篓页才让位" = "Ainda no disco · a página da Lixeira devolve";
+"密封系统卷等，任何清理工具都动不了" = "Volume de sistema selado e afins — nenhum limpador alcança";
+"系统随时自己腾，不用这个工具动手" = "O sistema libera isso sozinho, sem esta ferramenta";
+"已经空着的地方" = "Espaço que já está livre";
+
+// ── Visão geral: detalhes abertos no lugar (a linha abre a linha, sem uma segunda lista abaixo) ─
+"先看清，再下手——每一行点开，就是它名下具体是哪几个目录" = "Olhe primeiro, apague depois — abra qualquer linha e veja exatamente quais pastas ela cobre";
+"摊开 %@ 的明细" = "Mostrar o que há dentro de %@";
+"收起 %@ 的明细" = "Ocultar o que há dentro de %@";
+"点开摊开「%@」的明细" = "Clique para abrir os detalhes de «%@»";
+"点这一行摊开「%@」的明细；带着那道记号的数点两次才收走" = "Abra esta linha para ver os detalhes de «%@». O número com aquela marca sai com dois cliques.";
+"点两次把「%@」移进废纸篓" = "Dois cliques movem «%@» para a Lixeira";
+"收起明细，回到整圈" = "Fechar os detalhes e voltar ao anel inteiro";
+"点这一条去另一页看「%@」" = "Clique nesta fatia para ver «%@» em outra página";
+"正在量「%@」的下一级" = "Medindo o que há dentro de «%@»";
+"这一层的空间全在它自己的文件里，没有读得出的子目录。用行尾那颗「访达显示」去盘上看。" = "Tudo aqui são os próprios arquivos desta pasta — não há subpastas legíveis. Use «Mostrar no Finder» no fim da linha e olhe no disco.";
+"这里这 %1$d 处 %2$@" = "estes %1$d aqui, %2$@";
+"环形上「其他已统计」那条弧 %1$@，就是这几段相加：%2$@。" = "O arco «Outros contabilizados» no anel — %1$@ — é exatamente a soma destas partes: %2$@.";
+"第 4 名往后，点开这一行就是它们的名字" = "Do 4º lugar para baixo — abra a linha e veja os nomes";
+"不整体搬走 · 点开这一行看明细" = "Não sai inteiro · abra a linha para itemizar";
+"%@ 是受保护的位置，整个搬走会伤到系统或你自己的资料。里面的东西能清——去别的清理页挑。" = "%@ é um local protegido — remover tudo machucaria o sistema ou seus próprios arquivos. O que está dentro ainda dá para limpar: escolha em outras páginas de limpeza.";
+"其中 %1$d 处缺「完全磁盘访问权限」：点「没量到」那一行行尾的「去授权」，勾完要退出这个 App 再打开才生效，然后重扫一轮。" = "%1$d deles precisam de «Acesso Total ao Disco»: use «Dar acesso» no fim da linha «Não medido», depois saia do DiskWise e abra de novo — a autorização só vale num início novo — e rode outra varredura.";
+"打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 DiskWise 才生效" = "Abre «Ajustes do Sistema › Privacidade e Segurança › Acesso Total ao Disco»; depois de marcar, reinicie o DiskWise";
+"已用 %1$@。已用里这一轮量到 %2$@（%3$d%%），剩下的 %4$@ 点开「没量到」那一行逐块点名。" = "%1$@ usados. Nesta passagem medimos %2$@ deles (%3$d%%); os %4$@ restantes estão listados dentro da linha «Não medido».";
+"只扫 %@ 这一棵，去大文件页列它名下最大的那些文件" = "Escanear só %@ e listar seus maiores arquivos na página «Arquivos grandes»";
