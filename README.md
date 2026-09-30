@@ -272,7 +272,7 @@ how to get it back.
 
 **Does it send data anywhere?**
 No. No updater, no analytics, no account, no ads — the app has no network access at all, which
-is also why feedback goes through GitHub, email or the QQ group below.
+is also why feedback goes through GitHub or email below.
 
 **What about WeChat / DingTalk / WeCom caches?**
 They're in the cache knowledge base, because on a Chinese developer's Mac those are often the
@@ -312,12 +312,9 @@ The app has no network access, so there is no built-in "send feedback" button �
 | Channel | Where |
 |---|---|
 | Email | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
-| QQ group | **913022339** — scan to join |
 | GitHub | [Open an issue](https://github.com/DreamOfXM/diskwise/issues) — English or Chinese is fine |
 
-<img src="docs/contact/qq-group.png" width="240" alt="QQ group QR code">
-
-The same three channels live in-app: the **Feedback** page at the bottom of the sidebar, with
+The same two channels live in-app: the **Feedback** page at the bottom of the sidebar, with
 copy buttons for every address.
 
 ## Privacy
