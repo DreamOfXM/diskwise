@@ -9,6 +9,18 @@ public struct SafetyEntry: Decodable {
     public var rec: String
     public var path: String
     public var level: String          // safe | warn
+    /// 这一条**删了要付什么代价**。只在 `warn` 上写，`safe` 一律没有：
+    ///
+    /// - `redo`：原始数据不丢，重新下载或重装就能回来（模型权重、依赖仓库、模拟器运行镜像）
+    /// - `data`：删了就没了，重下也回不来（模拟器里的 App 数据、聊天里的图片、会话记录）
+    ///
+    /// 分这一刀，是因为 `warn` 底下混着这两种性质完全不同的东西：一个只要花时间重下，
+    /// 一个真要丢东西。两者共用一枚「留意」的时候，用户既不敢删那些其实能删的，
+    /// 也没意识到另一些更该先看一眼——两头都错。
+    ///
+    /// **漏写按 `data` 兜底**：宁可把「重下」说重，不能把「丢数据」说轻。缺了它的条目
+    /// 由自检顶出来，不会就这么混过去。
+    public var cost: String?
     public var grp: String?
     public var docs: String?
     /// 归属 App 的包名。只给「路径里查不出包名、但确实属于某个 App」的条目用
@@ -23,7 +35,7 @@ public struct SafetyEntry: Decodable {
     public var icon: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, what, whatif, rec, path, level, grp, docs, app, icon
+        case name, what, whatif, rec, path, level, cost, grp, docs, app, icon
     }
 
     public init(from decoder: Decoder) throws {
@@ -34,6 +46,7 @@ public struct SafetyEntry: Decodable {
         rec = try c.decode(String.self, forKey: .rec)
         path = (try? c.decode(String.self, forKey: .path)) ?? ""
         level = (try? c.decode(String.self, forKey: .level)) ?? "safe"
+        cost = try? c.decode(String.self, forKey: .cost)
         grp = try? c.decode(String.self, forKey: .grp)
         docs = try? c.decode(String.self, forKey: .docs)
         app = try? c.decode(String.self, forKey: .app)

@@ -78,6 +78,23 @@ struct ItemBadge {
     var tone: ThemeBadge.Tone
 }
 
+/// 知识库判词 → 徽章。缓存页、文件夹详情、总览三处共用这一份。
+///
+/// 共用不是为了省几行：同一句话在三个地方必须长得一模一样，各自 `switch` 一遍，
+/// 迟早有一处漏改，用户就会在总览看到「会丢数据」、点进去变成「留意」。
+///
+/// 徽章说的一律是**删了要付什么代价**，不说「能不能删」——那是另一枚徽章和灯色的事。
+/// 「不认识」不给徽章（返回 nil）：各页按自己的情况说它（详情页是页尾一句，
+/// 总览里够大才标），一屏九十行挂九十枚「不认识」，那就不是信息了。
+func verdictBadge(_ tier: VerdictTier) -> ItemBadge? {
+    switch tier {
+    case .safe:    return ItemBadge(text: L("安全"), tone: .safe)
+    case .redo:    return ItemBadge(text: L("能重下"), tone: .warn)
+    case .risky:   return ItemBadge(text: L("会丢数据"), tone: .danger)
+    case .unknown: return nil
+    }
+}
+
 /// 行首图形那一格的边长。
 ///
 /// 26 不是拍的：侧栏那些浅底图标块是 22，页头是 46，列表行的名字已经占到 12pt，
@@ -460,11 +477,13 @@ struct ListNote: View {
 
 /// 账上的一个分档：这一屏列出的行里，归这一档的那部分字节。
 ///
-/// 分档由**各页自己**给，不是一套三档模板：只有缓存页真的同时有
-/// 「动得了 / 留意 / 只能看」三堆；重复项、node_modules 整页都动得了；
-/// Docker 整页一个字节的决定都不替用户做。硬套三档就得编出「只能看 0 B」。
+/// 分档由**各页自己**给，不是一套模板：缓存页有「动得了 / 能重下 / 会丢数据」三堆，
+/// 重复项、node_modules 整页都动得了，Docker 整页一个字节的决定都不替用户做。
+/// 硬套一套固定档数就得编出「只能看 0 B」。
 struct LedgerTier {
-    enum Tone { case hot, warn, cold }
+    /// `risk` 与 `warn` 必须分得开：一个是「要重新下载」，一个是「东西没了」。
+    /// 两档同色就等于又把它们混回去了，那正是这一版要修的缺陷。
+    enum Tone { case hot, warn, risk, cold }
     var label: String
     var bytes: Int64
     var tone: Tone
@@ -595,13 +614,18 @@ struct PageLedger: View {
         }
     }
 
-    /// 一档一色，跟环形图那条规矩同一套：**彩色只给动得了的**，留意用徽章那支墨色，
-    /// 只能看不上色。灰那一档走 `inkTertiary` 而不是 `separator`：实拍过分隔线那个
+    /// 一档一色，跟环形图那条规矩同一套：**彩色只给动得了的**，其余三档都不上主色。
+    ///
+    /// 「能重下」和「会丢数据」各走行内徽章那支黄和那支红，一色对一色：
+    /// 页头这条账里的两档要和下面行里那两枚徽章对得上，否则同一屏上
+    /// 「会丢数据」这堆在条子里是黄、在行里是红，看着就成了两回事。
+    /// 灰那一档走 `inkTertiary` 而不是 `separator`：实拍过分隔线那个
     /// 灰在白卡上几乎看不见，整条读成一道分隔线而不是一段账。
     private func color(_ tone: LedgerTier.Tone) -> Color {
         switch tone {
         case .hot:  return theme.palette.tint
         case .warn: return theme.palette.warnFG
+        case .risk: return theme.palette.danger
         case .cold: return theme.palette.inkTertiary.opacity(0.75)
         }
     }

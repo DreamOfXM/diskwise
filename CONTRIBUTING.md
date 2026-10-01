@@ -57,6 +57,16 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
 - `path` supports `*` globs and must be written from `~` — never an absolute machine path.
 - `level` is `safe` or `warn`. When in doubt, `warn`: an entry that is too cautious still tells the
   user something; one that is too confident deletes their work.
+- `cost` splits `warn` in two, and **every `warn` entry needs it**. One question decides it: once
+  this is deleted, can the thing be fetched again?
+  - `redo` — yes. Model weights, dependency caches, simulator runtimes, toolchains. Deleting costs
+    time and bandwidth, not data.
+  - `data` — no. App data inside an emulator, photos in a chat, session records, a state snapshot.
+    There is no second copy anywhere to download.
+  The app shows these as two different badges (Re-downloadable / Data loss) and counts them as two
+  separate buckets, so getting this wrong tells the user to delete something that can't come back.
+  A missing `cost` falls back to `data` and fails `SelfTest`, so it can't slip through quietly.
+  `safe` entries carry no `cost` — no cost is not the same as an empty cost.
 - Overlapping paths are fine (they happen a lot), but the UI never sums them — keep it that way.
 - Entries are grouped by `grp`: `general` and `cn_app` render on App Caches, `dev` on Dev Caches.
 - `app` is the owning app's bundle id, `icon` the brand mark's file name under

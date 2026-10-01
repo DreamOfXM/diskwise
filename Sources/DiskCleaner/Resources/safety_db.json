@@ -1,5 +1,5 @@
 {
-  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
+  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/cost(只在 warn 上写：redo＝删了重新下载或重装就能回来 | data＝删了就真没了，重下也回不来)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
   "updated": "2026-10-01",
   "entries": [
@@ -133,6 +133,7 @@
       "rec": "无需恢复；构建时 Maven 按需重新下载，离线机器需先配置好镜像仓库",
       "path": "~/.m2/repository",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "docs": "https://maven.apache.org/",
       "icon": "apachemaven"
@@ -188,6 +189,7 @@
       "rec": "无法直接恢复；如有上架/留存需求请先备份，或用同一代码提交重新打包",
       "path": "~/Library/Developer/Xcode/Archives",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
@@ -199,6 +201,7 @@
       "rec": "无需恢复；连接对应系统的真机时 Xcode 会自动重新生成",
       "path": "~/Library/Developer/Xcode/iOS DeviceSupport",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/"
@@ -210,6 +213,7 @@
       "rec": "无法直接恢复；需在 Xcode 里重新创建模拟器",
       "path": "~/Library/Developer/CoreSimulator/Devices",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "app": "com.apple.dt.Xcode",
       "docs": "https://developer.apple.com/xcode/",
@@ -222,6 +226,7 @@
       "rec": "已删的备份无法恢复；重新用数据线连接设备可再做一次全新备份",
       "path": "~/Library/Application Support/MobileSync/Backup",
       "level": "warn",
+      "cost": "data",
       "grp": "dev"
     },
     {
@@ -231,6 +236,7 @@
       "rec": "无法逐项恢复；重新打开 Docker Desktop 后可重新拉取镜像、重建容器。更稳妥的做法是在 Docker Desktop 里清理",
       "path": "~/Library/Containers/com.docker.docker",
       "level": "warn",
+      "cost": "data",
       "grp": "general",
       "docs": "https://www.docker.com/"
     },
@@ -241,6 +247,7 @@
       "rec": "无需恢复；应用启动后自动重建",
       "path": "~/Library/Caches",
       "level": "warn",
+      "cost": "redo",
       "grp": "general"
     },
     {
@@ -259,6 +266,7 @@
       "rec": "清空前随时可在访达里把文件拖回原位置",
       "path": "~/.Trash",
       "level": "warn",
+      "cost": "data",
       "grp": "general"
     },
     {
@@ -322,6 +330,7 @@
       "rec": "建议先退出微信再删；微信会在需要时重新下载",
       "path": "~/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/xplugin/plugins/Magicdy/*",
       "level": "warn",
+      "cost": "redo",
       "grp": "cn_app"
     },
     {
@@ -340,6 +349,7 @@
       "rec": "无法本地恢复；在手机 QQ 的对应聊天里点开即可重新下载",
       "path": "~/Library/Containers/com.tencent.qq/Data/Library/Application Support/QQ/nt_qq_*/nt_data",
       "level": "warn",
+      "cost": "data",
       "grp": "cn_app"
     },
     {
@@ -367,6 +377,7 @@
       "rec": "无法本地恢复；在手机钉钉的对应聊天里重新下载（未过期部分）",
       "path": "~/Library/Application Support/*[Dd]ing[Tt]alk*/*_v[0-9]*",
       "level": "warn",
+      "cost": "data",
       "grp": "cn_app"
     },
     {
@@ -385,6 +396,7 @@
       "rec": "无法本地恢复；在手机企业微信的对应聊天里重新下载",
       "path": "~/Library/Containers/com.tencent.WeWork/Data/Library/Application Support/WXWork/*/Cache",
       "level": "warn",
+      "cost": "data",
       "grp": "cn_app"
     },
     {
@@ -394,6 +406,7 @@
       "rec": "无需恢复；ollama pull 模型名 重新下载",
       "path": "~/.ollama/models",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "icon": "ollama",
       "docs": "https://docs.ollama.com/"
@@ -416,6 +429,7 @@
       "rec": "无需恢复；再次运行 codex 会自动装回",
       "path": "~/.cache/codex-runtimes",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "icon": "openai",
       "docs": "https://developers.openai.com/codex/cli"
@@ -449,6 +463,7 @@
       "rec": "无需恢复；按模型仓库名重新下载",
       "path": "~/.cache/huggingface",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "icon": "huggingface",
       "docs": "https://huggingface.co/docs/huggingface_hub/guides/manage-cache"
@@ -515,6 +530,7 @@
       "rec": "无法直接恢复；需在 Device Manager 重新创建",
       "path": "~/.android/avd",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "icon": "androidstudio",
       "docs": "https://developer.android.com/studio/run/emulator-commandline"
@@ -526,6 +542,7 @@
       "rec": "无法直接恢复；需用 sdkmanager 重新安装",
       "path": "~/Library/Android/sdk",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "icon": "androidstudio",
       "docs": "https://developer.android.com/tools"
@@ -581,6 +598,7 @@
       "rec": "无需恢复；要用时 oMLX 会重新下载这十几 GB",
       "path": "~/.omlx/models",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "app": "app.omlx"
     },
@@ -591,6 +609,7 @@
       "rec": "无法恢复；只能重建虚拟机并把环境重装一遍",
       "path": "~/Library/Group Containers/*.dev.orbstack",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "app": "dev.kdrag0n.MacVirt"
     },
@@ -601,6 +620,7 @@
       "rec": "无需恢复；需要时在 Xcode 里重新下一次，几十 GB 起",
       "path": "/System/Volumes/Data/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime",
       "level": "warn",
+      "cost": "redo",
       "grp": "dev",
       "app": "com.apple.dt.Xcode"
     },
@@ -621,6 +641,7 @@
       "rec": "无法恢复；历史对话只此一份",
       "path": "~/.qoder/projects",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "app": "com.qoder.app"
     },
@@ -631,6 +652,7 @@
       "rec": "无法恢复；只想腾地方的话，先删它下面的 log 和 image-cache",
       "path": "~/.zcode/cli",
       "level": "warn",
+      "cost": "data",
       "grp": "dev",
       "app": "dev.zcode.app"
     },
@@ -641,6 +663,7 @@
       "rec": "无法恢复；确认新版跑得没问题之后，这一份就没用了",
       "path": "~/.hermes/state-snapshots",
       "level": "warn",
+      "cost": "data",
       "grp": "dev"
     }
   ]

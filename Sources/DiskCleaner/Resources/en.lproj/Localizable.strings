@@ -177,6 +177,8 @@
 "国产 App" = "Chinese apps";
 "留意" = "Careful";
 "安全" = "Safe";
+"能重下" = "Re-downloadable";
+"会丢数据" = "Data loss";
 
 // ── 卸载残留 ────────────────────────────────────────────────────────────────
 "App 卸载了，数据没带走——按已装应用逐一对过" = "Uninstalled apps left data behind — checked against every app still installed";
@@ -702,8 +704,9 @@
 "进入 %@ 往下看" = "Enter %@ to look inside";
 "查看所在文件夹" = "Open containing folder";
 
-// ── 判词：这一处的知识库结论（安全 / 留意 / 不认识）────────────────────────────
-"%1$@要先看一眼" = "%1$@ need a closer look";
+// ── 判词：这一处的知识库结论（安全 / 能重下 / 会丢数据 / 不认识）────────────────────────────
+"%1$@删了要重下" = "%1$@ need re-downloading";
+"%1$@删了会丢数据" = "%1$@ would lose data if deleted";
 "删了会怎样：%@；怎么恢复：%@" = "If deleted: %@; to get it back: %@";
 "另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "Another %1$@ aren't in the knowledge base: not listed doesn't mean safe to delete, so check the path before ticking it";
 "本工具不认得" = "Not in the knowledge base";

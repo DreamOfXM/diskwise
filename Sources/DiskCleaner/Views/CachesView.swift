@@ -66,9 +66,11 @@ private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
 }
 
 /// 这一行亮不亮「动得了」那一档。体积还没量出来的不亮（那是「还不知道」，
-/// 不是「能删」）；标「留意」的也不亮——全选不碰它，就不该给批量带走的暗示。
+/// 不是「能删」）；要重下和会丢数据的那两档也不亮——全选不碰它们，
+/// 就不该给批量带走的暗示。判据走 `tier` 而不是 `level` 的字符串：
+/// 页头那三档账也是从 `tier` 加出来的，两处同源才不会出现「行里不亮、账里算进动得了」。
 private func cacheLit(_ it: CacheItem) -> Bool {
-    (it.size ?? 0) > 0 && it.entry.level != "warn"
+    (it.size ?? 0) > 0 && it.entry.tier == .safe
 }
 
 /// 一组条目名下所有解析路径各自的字节（父目录那个数本来就含着它下面的子目录）。
@@ -292,8 +294,7 @@ struct CachesView: View {
                             sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
                             sizeText: item.size == nil ? L("统计中…") : (shown[item.id] ?? human(item.size ?? 0)),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
-                            badge: ItemBadge(text: item.entry.level == "warn" ? L("留意") : L("安全"),
-                                             tone: item.entry.level == "warn" ? .warn : .safe),
+                            badge: verdictBadge(item.entry.tier),
                             selectable: (item.size ?? 0) > 0,
                             lit: cacheLit(item),
                             showRule: model.items.first?.id != item.id,
@@ -336,10 +337,13 @@ struct CachesView: View {
 
     /// 量出体积的那些行——「合计」和「这一列」说的是同一批行，没量出来的不算进去。
     /// 算进去会怎样：那一格印的是「统计中…」，加不出数，合计却把它当成 0。
-    private var measured: [(id: UUID, bytes: Int64, lit: Bool)] {
+    ///
+    /// 带上 `tier` 而不是一个 `lit` 布尔：页头那笔账要按三档分开记，
+    /// 一个布尔只够分成两堆——而「能重下」和「会丢数据」合成一堆，正是这一版要修的。
+    private var measured: [(id: UUID, bytes: Int64, tier: VerdictTier)] {
         model.items.compactMap { it in
             guard let sz = it.size, sz > 0 else { return nil }
-            return (id: it.id, bytes: sz, lit: cacheLit(it))
+            return (id: it.id, bytes: sz, tier: it.entry.tier)
         }
     }
 
@@ -349,12 +353,28 @@ struct CachesView: View {
         sizeColumn(measured.map { (key: $0.id, bytes: $0.bytes) })
     }
 
-    /// 两档：亮着的（动得了）和标「留意」的。`listedSplitOf` 里那堆"不亮"的在这一页
-    /// 全是「留意」——体积没量出来的行根本进不了 `measured`，所以不会有第三档。
+    /// 三档：动得了 / 能重下 / 会丢数据。
+    ///
+    /// 三档都从**同一批行**里加出来（就是上面那本 `measured`），所以三档相加正好等于
+    /// 「这一页量到」那个合计；哪一档是空的就不画，`PageLedger` 自己会滤掉 0 字节的档。
+    ///
+    /// 原先只有两档（动得了 / 留意），而「留意」把两件对着干的事记在了同一个数里：
+    /// 一边是花点流量重下，一边是东西真没了。合成一个数，用户既不敢删那些其实能删的，
+    /// 也看不出剩下那些里哪个更该躲着走——两头都错。
     private var tiers: [LedgerTier] {
-        let sp = listedSplitOf(measured, bytes: { $0.bytes }, lit: { $0.lit })
-        return [LedgerTier(label: L("动得了"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("留意"), bytes: sp.viewOnly, tone: .warn)]
+        var hot = Int64(0), redo = Int64(0), risk = Int64(0)
+        for row in measured {
+            switch row.tier {
+            // 缓存页的行都来自知识库条目，`.unknown` 理论上到不了这里；
+            // 真到了就按不亮处理，跟 `cacheLit` 同一口径。
+            case .safe, .unknown: hot += row.bytes
+            case .redo:           redo += row.bytes
+            case .risky:          risk += row.bytes
+            }
+        }
+        return [LedgerTier(label: L("动得了"), bytes: hot, tone: .hot),
+                LedgerTier(label: L("能重下"), bytes: redo, tone: .warn),
+                LedgerTier(label: L("会丢数据"), bytes: risk, tone: .risk)]
     }
 
     private var ledgerNote: String? {

@@ -186,6 +186,8 @@
 "国产 App" = "Apps chinoises";
 "留意" = "Prudence";
 "安全" = "Sûr";
+"能重下" = "Re-téléchargeable";
+"会丢数据" = "Perte de données";
 
 // ── Résidus de désinstallation ──────────────────────────────────────────────
 "App 卸载了，数据没带走——按已装应用逐一对过" = "Des apps désinstallées ont laissé des données : vérifié face à chaque app installée";
@@ -711,8 +713,9 @@
 
 // ── Fin de la table ─────────────────────────────────────────────────────────
 
-// ── 判词：这一处的知识库结论（安全 / 留意 / 不认识）────────────────────────────
-"%1$@要先看一眼" = "%1$@ méritent un coup d'œil";
+// ── 判词：这一处的知识库结论（安全 / 能重下 / 会丢数据 / 不认识）────────────────────────────
+"%1$@删了要重下" = "%1$@ sont à re-télécharger";
+"%1$@删了会丢数据" = "%1$@ perdraient des données";
 "删了会怎样：%@；怎么恢复：%@" = "Si supprimé : %@ ; pour le restaurer : %@";
 "另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "%1$@ de plus ne figurent pas dans la base de connaissances : absent ne veut pas dire supprimable, vérifiez le chemin avant de cocher";
 "本工具不认得" = "Inconnu de la base de connaissances";

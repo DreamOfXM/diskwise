@@ -15,19 +15,38 @@ import Darwin
 // 截出来是 `~/Library/Application Support`，那会把整个 Application Support
 // 判成「安全」，而那一层住着几十个 App 的真实数据。
 //
-// 三档：安全（有可靠的再生成路径）/ 留意（能删，但要知道代价）/ 不认识。
+// 四档：安全（有可靠的再生成路径）/ 能重下（认得，删了要重新下载）/
+// 会丢数据（认得，删了就没了）/ 不认识。
 //
-// **第三档必须存在。** 没命中不等于安全：`~/Library` 本身就不是知识库里的任何一处，
+// **后两档必须分开。** 原先它们共用一档「留意」，界面上就是同一个徽章；可这两件事
+// 对着干：一边是「花点流量的事」，一边是「东西没了」。混在一起的结果是用户两头都错——
+// 不敢删那些其实删了会自己回来的，也没意识到另一些真的不该碰。
+//
+// **最后一档也必须存在。** 没命中不等于安全：`~/Library` 本身就不是知识库里的任何一处，
 // 而它显然不是「可以删」的。界面上明说「不认识」比默认说「安全」诚实。
 
-/// 一个路径落在知识库里的三档之一。
+/// 一个路径落在知识库里的四档之一。
 public enum VerdictTier: String {
     /// 知识库认得它，而且有可靠的再生成路径。
     case safe
-    /// 知识库认得它，但删了有代价——重下几十 G、环境要重建、或者只有用户知道里面是什么。
-    case caution
+    /// 知识库认得它，删了要把东西重新下回来——几十 G 流量、重建一次环境那种。
+    case redo
+    /// 知识库认得它，删了就真没了：用户自己的数据、只此一份的记录。
+    case risky
     /// 知识库里没有它。**不是**「安全」的同义词。
     case unknown
+}
+
+public extension SafetyEntry {
+    /// 这一条对界面而言属于哪一档。
+    ///
+    /// 判据是 `level` 加 `cost` 两个字段，不是去猜 `rec` 的措辞——那半句是给人读的散文，
+    /// 改一个标点就会让判词换档，这种依赖没人守得住。
+    var tier: VerdictTier {
+        guard level == "warn" else { return .safe }
+        // 没写 `cost` 的按最重那档算：漏标只会让界面偏保守，不会让人以为能随手删。
+        return cost == "redo" ? .redo : .risky
+    }
 }
 
 public struct Verdict {
@@ -91,7 +110,7 @@ public struct VerdictIndex {
         guard let h = best else {
             return Verdict(tier: .unknown, entry: nil, exact: false, knownBelow: below)
         }
-        return Verdict(tier: h.entry.level == "warn" ? .caution : .safe,
+        return Verdict(tier: h.entry.tier,
                        entry: h.entry,
                        exact: h.segs.count == ps.count,
                        knownBelow: below)

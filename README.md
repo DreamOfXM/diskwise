@@ -134,7 +134,7 @@ It is built for machines that have been used by a developer for a few years — 
 
 - **App Caches** — a curated knowledge base (system caches, crash dumps, WeChat / DingTalk / WeCom /
   QQ …). Every entry explains *what it is*, *what happens if you delete it*, and *how to get it
-  back*, with a Safe / Careful badge.
+  back*, with a badge saying what deleting costs — Safe, re-downloadable, or data loss.
 - **Dev Caches** — the same knowledge base, the tools half of these machines actually fill the disk
   with: Homebrew, npm / pnpm / yarn, Maven, Gradle, conda, uv, cargo, Ollama models, Xcode archives,
   DerivedData and every simulator device listed one by one.

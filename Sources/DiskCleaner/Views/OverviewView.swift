@@ -1973,12 +1973,14 @@ private struct DrillRow: View {
                               height: 3, trackWidth: 232)
             }
             Spacer(minLength: 10)
-            // 判词徽章跟右边那两样是**三条轴**：这一枚说「知识库认不认得它、删了有没有代价」，
+            // 判词徽章跟右边那两样是**三条轴**：这一枚说「知识库认不认得它、删了要付什么代价」，
             // 下一句说「删不删得动」，最后那个数说「有多大」。挤在一起就只能留一条，
             // 而「删得动、知识库却不认识」恰恰是最需要被说出来的那一类。
-            if let v = VerdictIndex.shared.verdict(for: path).entry {
-                ThemeBadge(text: v.level == "warn" ? L("留意") : L("安全"),
-                           tone: v.level == "warn" ? .warn : .safe)
+            //
+            // 徽章从 `verdictBadge` 来，跟缓存页、文件夹详情共用一份：同一句话在这三处
+            // 必须长得一样，各自 `switch` 一遍，迟早有一处漏改。
+            if let b = verdictBadge(VerdictIndex.shared.verdict(for: path).tier) {
+                ThemeBadge(text: b.text, tone: b.tone)
             }
             // 动不了的必须当场说「只能看」。一列全是数、没有这一句，
             // 人就只剩「按下去大概能删」这一种预期，而那正是错的那种。

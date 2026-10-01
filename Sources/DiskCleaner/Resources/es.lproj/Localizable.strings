@@ -185,6 +185,8 @@
 "国产 App" = "Apps chinas";
 "留意" = "Cuidado";
 "安全" = "Seguro";
+"能重下" = "Re-descargable";
+"会丢数据" = "Pérdida de datos";
 
 // ── Restos de desinstalación ────────────────────────────────────────────────
 "App 卸载了，数据没带走——按已装应用逐一对过" = "Apps desinstaladas dejaron datos: comprobado contra cada app instalada";
@@ -703,8 +705,9 @@
 "进入 %@ 往下看" = "Entrar en %@ para ver dentro";
 "查看所在文件夹" = "Abrir su carpeta";
 
-// ── 判词：这一处的知识库结论（安全 / 留意 / 不认识）────────────────────────────
-"%1$@要先看一眼" = "%1$@ conviene mirarlos antes";
+// ── 判词：这一处的知识库结论（安全 / 能重下 / 会丢数据 / 不认识）────────────────────────────
+"%1$@删了要重下" = "%1$@ habría que re-descargar";
+"%1$@删了会丢数据" = "%1$@ perderían datos";
 "删了会怎样：%@；怎么恢复：%@" = "Si se borra: %@; para recuperarlo: %@";
 "另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "Otro %1$@ no está en la base de conocimiento: no aparecer no significa que se pueda borrar; mira la ruta antes de marcarlo";
 "本工具不认得" = "No está en la base de conocimiento";

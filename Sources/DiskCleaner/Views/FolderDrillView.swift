@@ -207,7 +207,7 @@ struct FolderDrillView: View {
                         sizeText: sizeCell(r),
                         fraction: Double(r.size) / Double(maxSize),
                         badge: isDeletable(r.url) ? nil : ItemBadge(text: L("只能看"), tone: .neutral),
-                        badge2: verdictBadge(r),
+                        badge2: rowBadge(r),
                         selectable: isDeletable(r.url),
                         lit: isDeletable(r.url),
                         lockedHint: isDeletable(r.url) ? nil : outsideScopeHint,
@@ -229,12 +229,11 @@ struct FolderDrillView: View {
     /// 这一行的判词。命不中就不给徽章——**不在这一行上说「不认识」**：
     /// 一屏九十多行里九十行都会挂上那三个字，那就不是信息，是背景噪音了，
     /// 而且真正要说的话（「不在这本知识库里」）本来就是一整层的事，见 `verdictNote`。
-    private func verdictBadge(_ r: ChildEntry) -> ItemBadge? {
-        switch VerdictIndex.shared.verdict(for: r.path).tier {
-        case .safe:    return ItemBadge(text: L("安全"), tone: .safe)
-        case .caution: return ItemBadge(text: L("留意"), tone: .warn)
-        case .unknown: return nil
-        }
+    ///
+    /// 徽章本身在 `SharedViews.verdictBadge`，跟缓存页、总览共用一份：
+    /// 这页只说「哪些行不挂」。
+    private func rowBadge(_ r: ChildEntry) -> ItemBadge? {
+        verdictBadge(VerdictIndex.shared.verdict(for: r.path).tier)
     }
 
     /// 判词的后半段：「删了会怎样 · 怎么恢复」。这是「放心删」这三个字背后的依据，
@@ -248,26 +247,36 @@ struct FolderDrillView: View {
     ///
     /// 这是「哪些放心删」在这页上的正面回答；剩下那些不在知识库里的必须一起说出来，
     /// 而且要说清「不在 ≠ 能删」——只报认得的那几项，等于把不认识的默认洗成安全。
+    ///
+    /// 「能重下」和「会丢数据」分开数、分开说。原先它们合在「要先看一眼」一句里，
+    /// 于是 40 GB 的模型权重和 3 台模拟器的数据在页尾是同一句话，用户没法据此决定
+    /// 先动哪个——而这页唯一的作用就是帮他做这个决定。
     private var verdictNote: String? {
         guard !model.rows.isEmpty else { return nil }
-        let known = model.rows.compactMap { r -> Verdict? in
-            let v = VerdictIndex.shared.verdict(for: r.path)
-            return v.known ? v : nil
+        var safe = 0, redo = 0, risky = 0, unknown = 0
+        var safeBytes = Int64(0)
+        for r in model.rows {
+            switch VerdictIndex.shared.verdict(for: r.path).tier {
+            case .safe:    safe += 1; safeBytes += r.size
+            case .redo:    redo += 1
+            case .risky:   risky += 1
+            case .unknown: unknown += 1
+            }
         }
-        let safe = model.rows.filter { VerdictIndex.shared.verdict(for: $0.path).tier == .safe }
-        let safeBytes = safe.reduce(Int64(0)) { $0 + $1.size }
-        let rest = model.rows.count - known.count
         var parts: [String] = []
-        if !safe.isEmpty {
+        if safe > 0 {
             parts.append(LF("知识库认得、能放心删的 %1$@合计 %2$@",
-                            cnt(safe.count, "项"), human(safeBytes, inRulerOf: model.level?.total ?? 0)))
+                            cnt(safe, "项"), human(safeBytes, inRulerOf: model.level?.total ?? 0)))
         }
-        if !known.isEmpty && safe.count != known.count {
-            parts.append(LF("%1$@要先看一眼", cnt(known.count - safe.count, "项")))
+        if redo > 0 {
+            parts.append(LF("%1$@删了要重下", cnt(redo, "项")))
         }
-        if rest > 0 {
+        if risky > 0 {
+            parts.append(LF("%1$@删了会丢数据", cnt(risky, "项")))
+        }
+        if unknown > 0 {
             parts.append(LF("另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径",
-                            cnt(rest, "项")))
+                            cnt(unknown, "项")))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ") + "。"
     }

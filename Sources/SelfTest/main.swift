@@ -958,16 +958,25 @@ check(crumbChain(for: home) == ["/", home], "就在家目录本身时，`~` 是�
 //     反查「这一处是什么、能不能放心删」，走的是逐段比对，不是「截到第一个通配为止」的
 //     前缀——后者会把 `~/Library/Application Support/*[Dd]ing[Tt]alk*/log` 截成
 //     `~/Library/Application Support`，那一层住着几十个 App 的真实数据，却会被判成「安全」。
+//
+//     `warn` 那一档还要再分两刀：「能重下」和「会丢数据」是两件对着干的事，
+//     界面上共用一枚「留意」的时候，用户既不敢删该删的，也看不出哪个更该躲着走。
 let vix = VerdictIndex(entries: entries)
 
 let vNpm = vix.verdict(for: home + "/.npm")
 check(vNpm.tier == .safe && vNpm.exact && vNpm.entry?.name == "npm 缓存目录",
       "精确命中一条 safe 条目（得 \(vNpm.tier.rawValue) / \(vNpm.entry?.name ?? "-")）")
-check(vix.verdict(for: home + "/.ollama/models").tier == .caution,
-      "知识库里标 warn 的条目判成「留意」，不是「安全」")
+check(vix.verdict(for: home + "/.ollama/models").tier == .redo,
+      "标 warn + cost=redo 的条目判成「能重下」，不是「安全」，也不是「会丢数据」")
+check(vix.verdict(for: home + "/Library/Developer/CoreSimulator/Devices").tier == .risky,
+      "标 warn + cost=data 的条目判成「会丢数据」——模拟器里装着已装 App 的数据与登录态")
+// 同一批 warn 里两档必须真的分得开：这两条都是 warn，但代价一个天一个地。
+check(vix.verdict(for: home + "/.ollama/models").tier
+        != vix.verdict(for: home + "/Library/Developer/CoreSimulator/Devices").tier,
+      "「重下几十 G」和「丢数据」不许落进同一档")
 // 最长命中优先，两条要在同一棵树上对照：~/Library/Caches 自己是 warn，
 // 它底下的 pip 是 safe——深的先命中，浅的那条不能把深的拉下水。
-check(vix.verdict(for: home + "/Library/Caches").tier == .caution,
+check(vix.verdict(for: home + "/Library/Caches").tier == .redo,
       "父目录照它自己那条 warn 判")
 let vPip = vix.verdict(for: home + "/Library/Caches/pip")
 check(vPip.tier == .safe && vPip.exact,
@@ -984,15 +993,41 @@ check(vix.verdict(for: home + "/Library/Application Support/DingTalkMac/log").ti
 check(vix.verdict(for: home + "/Library/Application Support/DingTalkMac/别的").tier == .unknown,
       "同一层里对不上的子目录不跟着命中")
 // Group Container 那一级带团队 ID，每条机器不一样，条目里写的是通配。
-check(vix.verdict(for: home + "/Library/Group Containers/HUAQ24HBR6.dev.orbstack").tier == .caution,
+check(vix.verdict(for: home + "/Library/Group Containers/HUAQ24HBR6.dev.orbstack").tier == .risky,
       "Group Container 用通配匹团队 ID")
-check(vix.verdict(for: "/System/Volumes/Data/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime").tier == .caution,
+check(vix.verdict(for: "/System/Volumes/Data/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime").tier == .redo,
       "家目录外的系统资产也认得出")
 // 最后一档必须存在：没命中 ≠ 可以删。
 check(vix.verdict(for: "/tmp/没这条-\(UUID().uuidString)").tier == .unknown,
       "知识库里没有的路径报「不认识」，不默认成安全")
 check(vix.verdict(for: "相对路径/不该认").tier == .unknown,
       "相对路径一律不认——认了会把判词挂到想不到的地方去")
+
+// 12. 知识库的 `cost` 字段：`warn` 的每一条都要标，`safe` 的一条都不该有。
+//     漏标一件「会丢数据」的，界面就会把它说成「能重下」——那不是文案问题，是让人
+//     把不该删的东西删掉。所以这一层由自检从 JSON 里逐条盯，不靠写的人自觉。
+let noCost = entries.filter { $0.level == "warn" && $0.cost == nil }.map(\.name)
+check(noCost.isEmpty, "每条 warn 都标了 cost（缺：\(noCost.joined(separator: "、"))）")
+let strayCost = entries.filter { $0.level != "warn" && $0.cost != nil }.map(\.name)
+check(strayCost.isEmpty, "safe 条目不带 cost——那是「不用付代价」，不是「代价是空的」（多：\(strayCost.joined(separator: "、"))）")
+let badCost = entries.filter { $0.cost != nil && $0.cost != "redo" && $0.cost != "data" }.map(\.name)
+check(badCost.isEmpty, "cost 只认 redo / data（越界：\(badCost.joined(separator: "、"))）")
+let tOllama = entries.first { $0.name == "Ollama 模型" }?.tier
+let tSim = entries.first { $0.name == "Xcode 模拟器设备" }?.tier
+let tNpm = entries.first { $0.name == "npm 缓存目录" }?.tier
+check(tOllama == .redo && tSim == .risky && tNpm == .safe,
+      "三档映射：warn+redo→能重下，warn+data→会丢数据，safe→安全（得 \(tOllama?.rawValue ?? "-") / \(tSim?.rawValue ?? "-") / \(tNpm?.rawValue ?? "-")）")
+let danglingWarn = entries.filter { $0.level == "warn" && $0.cost == nil }
+check(danglingWarn.count == 0,
+      "没有一条 warn 漏在 cost 之外")
+// 兜底方向也要钉住：真漏了一条，它得往「更重」那档掉。
+// 说轻了会让人把不该删的删掉；说重了只是白紧张一下——两种错代价不对等。
+let rawNoCost = #"{"name":"x","what":"w","whatif":"i","rec":"r","path":"/tmp/x","level":"warn"}"#
+if let e = try? JSONDecoder().decode(SafetyEntry.self, from: Data(rawNoCost.utf8)) {
+    check(e.tier == .risky, "漏标 cost 的 warn 按「会丢数据」算，不许悄悄退回「能重下」（得 \(e.tier.rawValue)）")
+} else {
+    check(false, "缺 cost 字段的条目要能解得出来，不能整条解不动")
+}
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
