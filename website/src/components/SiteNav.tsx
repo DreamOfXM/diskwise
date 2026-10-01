@@ -1,11 +1,79 @@
-import { useEffect, useState } from "react";
-import { Github, HardDrive } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Github, Globe, HardDrive } from "lucide-react";
 import { APP_STORE, READMES, REPO, RELEASES } from "@/data/site";
 import { useContent, localeHref } from "@/locale";
 import { LOCALES } from "@/data/content";
 
-export function SiteNav() {
+function LangSwitcher() {
   const { locale, t } = useContent();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={t.footer.langLabel}
+        title={t.footer.langLabel}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-card/60 px-2.5 text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
+      >
+        <Globe className="h-4 w-4" />
+        <span className="text-xs font-medium">{LOCALES.find((l) => l.code === locale)?.label}</span>
+        <ChevronDown
+          className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute right-0 top-full z-50 mt-2 min-w-40 overflow-hidden rounded-xl border border-border/70 bg-popover/95 p-1 shadow-xl shadow-black/40 backdrop-blur-xl"
+        >
+          {LOCALES.map((l) => (
+            <a
+              key={l.code}
+              role="option"
+              aria-selected={l.code === locale}
+              href={localeHref(l.path)}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                l.code === locale
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-card hover:text-foreground"
+              }`}
+            >
+              <span className="w-4 shrink-0">
+                {l.code === locale && <Check className="h-3.5 w-3.5 text-sky-400" />}
+              </span>
+              {l.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SiteNav() {
+  const { t } = useContent();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -41,28 +109,18 @@ export function SiteNav() {
             </a>
           ))}
         </nav>
-        {/* 语言切换：与 README 的四语同源 */}
-        <div className="ml-auto flex items-center gap-1 md:ml-3" aria-label={t.footer.langLabel}>
-          {LOCALES.filter((l) => l.code !== locale).map((l) => (
-            <a
-              key={l.code}
-              href={localeHref(l.path)}
-              className="rounded-md px-1.5 py-1 text-xs text-muted-foreground/80 transition hover:bg-card hover:text-foreground"
-              title={l.label}
-            >
-              {l.short}
-            </a>
-          ))}
+        <div className="ml-auto flex items-center gap-2 md:ml-3">
+          <LangSwitcher />
+          <a
+            href={REPO}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 py-2 text-xs font-semibold transition hover:border-foreground/30"
+          >
+            <Github className="h-4 w-4" />
+            {t.navStar}
+          </a>
         </div>
-        <a
-          href={REPO}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 py-2 text-xs font-semibold transition hover:border-foreground/30"
-        >
-          <Github className="h-4 w-4" />
-          {t.navStar}
-        </a>
       </div>
     </header>
   );
