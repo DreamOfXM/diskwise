@@ -139,48 +139,12 @@ public func pathStat(_ url: URL, progress: ScanProgress? = nil) async -> DirScan
     return DirScan(bytes: fileSize(url), files: 1, newest: mt)
 }
 
-/// 一个目录的下一级，按占盘从大到小取前 `limit` 个。环形上「其他已统计」那一块
-/// 要能一路摊到名字，靠的就是这个：点开一格才量它的一级子目录，不预先递归整棵树，
-/// 也不跨卷。符号链接不进名单（跟 `dirSizeReport` 同一条规矩，不然共享的字节会被数两遍）。
-///
-/// 并发掐在 6：~/Library 一级就有四十多个目录，全塞进一个 TaskGroup 会跟主扫描
-/// 抢同一批工作线程，结果是两边一起变慢。
-public func childDirSizes(_ url: URL, limit: Int = 12) async -> [(name: String, path: String, size: Int64)] {
-    let fm = FileManager.default
-    guard let items = try? fm.contentsOfDirectory(atPath: url.path) else { return [] }
-    let rootDev = deviceOf(url)
-    var dirs: [(name: String, url: URL)] = []
-    for name in items where name != ".Trash" {
-        let p = (url.path as NSString).appendingPathComponent(name)
-        var st = stat()
-        guard lstat(p, &st) == 0 else { continue }
-        guard (st.st_mode & S_IFMT) == S_IFDIR else { continue }
-        if let d = rootDev, st.st_dev != d { continue }
-        dirs.append((name, URL(fileURLWithPath: p)))
-    }
-    var out: [(name: String, path: String, size: Int64)] = []
-    var i = 0
-    while i < dirs.count {
-        if Task.isCancelled { break }
-        let wave = Array(dirs[i..<min(i + 6, dirs.count)])
-        i += wave.count
-        await withTaskGroup(of: (String, String, Int64).self) { group in
-            for d in wave {
-                group.addTask { (d.name, d.url.path, await dirSizeReport(d.url).bytes) }
-            }
-            for await (name, path, size) in group where size > 0 {
-                out.append((name, path, size))
-            }
-        }
-    }
-    out.sort { $0.size > $1.size }
-    return Array(out.prefix(max(1, limit)))
-}
-
 /// 某一层的**完整拆分**：子目录 + 文件混排，按占盘降序。
 ///
-/// 跟 `childDirSizes` 是两种用途：那个给总览页列「下一级目录」，只收目录；这一版给
-/// 「文件夹下钻」页，目录和文件都要——用户钻进来恰恰是要看「这个文件夹底下的具体文件」。
+/// 总览页「摊开下一级」与「文件夹详情」页共用这一份，只差 `includeFiles` 那一档——
+/// 总览只摊目录，详情页目录和文件都要（用户钻进来恰恰是要看「这个文件夹底下的具体文件」）。
+/// 同一层在两页上必须列同一批东西：两份实现只要有一处分歧，就会出现
+/// 「总览里怎么点都看不见、详情页里躺着」的目录。
 ///
 /// 文件不跑 `dirSizeReport`（那是遍历整棵子树），`lstat` 一次读 `st_blocks * 512` 就够，
 /// 与 `fileSize` 同一口径。目录仍按子树递归量、并发压 6（同 `childDirSizes` 的理由：

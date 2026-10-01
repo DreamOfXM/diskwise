@@ -92,7 +92,6 @@
 "只能看" = "Solo ver";
 "在访达里打开 %@" = "Abrir %@ en el Finder";
 "这一层没有读得出的子目录。" = "En este nivel no hay subcarpetas legibles.";
-"这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。" = "%2$@ está repartido entre los archivos propios de esta carpeta y las subcarpetas a partir del puesto %1$d, y no se detalla uno a uno.";
 "%1$d 处不到 %2$@ 的小目录 %3$@" = "carpetas pequeñas por debajo de %2$@ (%1$d): %3$@";
 
 // ── Archivos grandes / Sin tocar mucho tiempo ───────────────────────────────

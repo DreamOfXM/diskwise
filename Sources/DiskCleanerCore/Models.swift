@@ -461,8 +461,9 @@ public struct ChildEntry: Identifiable, Hashable {
 /// **全部**子项的合计。两者之差就是尾巴那句「另有 N 项，合计 X」——所以列表里那几行
 /// 加上尾巴那句，正好等于 `total`，这一屏的账加得起来。
 ///
-/// 为什么要跟 `childDirSizes` 分开：那个是总览页专用的口径（只列子目录、只给名字和字节），
-/// 这一版要文件、要个数、还要那个「没列出来的尾巴」，硬塞进同一个签名会两边都不好用。
+/// 全应用只此一份「下一级」的实现：总览页摊开一行、文件夹详情页列一层，都走同一个
+/// `dirLevel`（后者多要文件那一档）。两套之间只要差一格，同一台机器上点开同一层
+/// 就会看见两份不一样的名单。
 public struct DirLevel {
     public var entries: [ChildEntry]
     public var total: Int64

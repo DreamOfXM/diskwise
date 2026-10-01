@@ -92,7 +92,6 @@
 "只能看" = "Só visualizar";
 "在访达里打开 %@" = "Abrir %@ no Finder";
 "这一层没有读得出的子目录。" = "Nenhuma subpasta legível neste nível.";
-"这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。" = "%2$@ está nos próprios arquivos desta pasta e em subpastas além das %1$d principais, por isso não aparece linha a linha.";
 "%1$d 处不到 %2$@ 的小目录 %3$@" = "%1$d pastas pequenas abaixo de %2$@: %3$@";
 
 // ── Arquivos grandes / Sem tocar há tempo ───────────────────────────────────

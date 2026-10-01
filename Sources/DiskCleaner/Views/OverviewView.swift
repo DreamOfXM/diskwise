@@ -49,8 +49,6 @@ final class OverviewModel: ObservableObject {
     static let sizeFloor: Int64 = 100 * MB
     /// 列表封顶。再长就没人逐行扫了，多出来的体积并进环形的「其他已统计」。
     static let listCap = 20
-    /// 单行摊开后最多列几格下级。再往下就没人在读了，剩下的报一个合并数。
-    static let childCap = 12
 
     // MARK: 环上的「本次移入废纸篓」账
 

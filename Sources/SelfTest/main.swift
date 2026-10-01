@@ -765,28 +765,35 @@ check(envOf("/Users/x/Library/Developer/Xcode/DerivedData/App-abc/Build/b") == "
 check(envOf("/Users/x/node_modules") == nil, "环境名字本身不能算一份副本")
 check(envOf("/relative/venv/lib/python3.12/site-packages/b") == "/relative/venv", "相对路径也照规则走")
 
-// 8. 总览行内摊开下一级：点开一行报的是这一层的子目录，界面上还要拿
-//    「父行那一格 − 摊出来的这几格」报剩下的量，所以子层之和不能超过父行，
-//    而且同一份字节不能因为一个符号链接就被数第二遍。
+// 8. 总览行内摊开下一级：走的是 `dirLevel` 的「只要目录」那一档（`includeFiles: false`），
+//    与文件夹详情页同一份实现。两页必须列同一批目录——只要差一处，同一台机器上点开
+//    同一层就会看见两份不一样的名单。子层之和也不能超过父行，而且同一份字节
+//    不能因为一个符号链接就被数第二遍。
 let cbase = fm.temporaryDirectory.appendingPathComponent("kidtest-\(UUID().uuidString)")
 for (n, mb) in [("small", 1), ("mid", 2), ("big", 3)] {
     let d = cbase.appendingPathComponent(n)
     try! fm.createDirectory(at: d, withIntermediateDirectories: true)
     try! Data(count: mb * 1024 * 1024).write(to: d.appendingPathComponent("f.bin"))
 }
+// 一个比所有子目录都大的文件：只列目录那一档必须把它挡在外面。
+try! Data(count: 5 * 1024 * 1024).write(to: cbase.appendingPathComponent("big.bin"))
 try! fm.createSymbolicLink(atPath: cbase.appendingPathComponent("linkdir").path,
                            withDestinationPath: cbase.appendingPathComponent("big").path)
 let sem3 = DispatchSemaphore(value: 0)
 Task {
-    let kids = await childDirSizes(cbase, limit: 2)
-    check(kids.map(\.name) == ["big", "mid"], "下一级按占盘从大到小排并掐到上限（得 \(kids.map(\.name))）")
+    let kids = await dirLevel(cbase, includeFiles: false, fileLimit: 0).entries
+    check(kids.map(\.name) == ["big", "mid", "small"],
+          "下一级按占盘从大到小排（得 \(kids.map(\.name))）")
+    check(kids.allSatisfy(\.isDir),
+          "总览那一档只摊目录：那个 5 MB 的文件比任何子目录都大，也不占一列")
     check(kids.allSatisfy { $0.size > 0 }, "摊出来的每一格都得有自己的数")
     check(!kids.contains { $0.name == "linkdir" },
           "指向目录的符号链接不摊成第二格")
     let parent = await dirSize(cbase)
     let sum = kids.reduce(Int64(0)) { $0 + $1.size }
     check(sum <= parent, "摊出来的格子加起来不超过父行那一格（\(sum) ≤ \(parent)）")
-    check(await childDirSizes(cbase.appendingPathComponent("big")).isEmpty,
+    check(await dirLevel(cbase.appendingPathComponent("big"),
+                         includeFiles: false, fileLimit: 0).entries.isEmpty,
           "一层里没子目录时摊不出东西，不编一行 0 出来")
     try? fm.removeItem(at: cbase)
     sem3.signal()

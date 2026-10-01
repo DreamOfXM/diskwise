@@ -93,7 +93,6 @@
 "只能看" = "Lecture seule";
 "在访达里打开 %@" = "Ouvrir %@ dans le Finder";
 "这一层没有读得出的子目录。" = "À ce niveau, aucun sous-dossier lisible.";
-"这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。" = "%2$@ se répartissent entre les fichiers propres de ce dossier et les sous-dossiers à partir du rang %1$d, sans détail ligne par ligne.";
 "%1$d 处不到 %2$@ 的小目录 %3$@" = "petits dossiers sous %2$@ (%1$d) : %3$@";
 
 // ── Gros fichiers / Non touchés depuis longtemps ────────────────────────────
