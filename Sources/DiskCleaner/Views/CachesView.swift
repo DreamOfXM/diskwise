@@ -8,15 +8,9 @@ import DiskCleanerCore
 //
 // safety_db.json 里的 name/what/whatif/rec 是中文原文，也就是本地化 key——
 // 英文译文全在 en.lproj 那张表里，构建时用 l10n_tool 逐条核对覆盖率。
-
-/// 知识库位置：打包版在 Contents/Resources，`swift run` 时在包根目录的源码树里。
-/// 刻意不用 Bundle.module——它的生成代码找不到 .bundle 就 fatalError，
-/// 且回退路径是构建机的绝对路径，等于只有开发者自己的机器能打开这一页。
-private func safetyDBURL() -> URL? {
-    if let u = Bundle.main.url(forResource: "safety_db", withExtension: "json") { return u }
-    let dev = "Sources/DiskCleaner/Resources/safety_db.json"
-    return FileManager.default.fileExists(atPath: dev) ? URL(fileURLWithPath: dev) : nil
-}
+//
+// 文件位置由 Core 的 `safetyDBFileURL()` 一处定义：总览与文件夹详情要拿同一个索引
+// 去反查判词，两处各自找路径迟早会一处找到、一处找不到。
 
 /// 分组标识 → 显示名。排序认 key，界面才查词表。
 func cacheGroupLabel(_ key: String) -> String {
@@ -198,7 +192,7 @@ final class CachesModel: ObservableObject {
         scanning = true
         progress = ScanProgress()
         task = Task {
-            let entries = loadSafetyEntries(from: safetyDBURL())
+            let entries = loadSafetyEntries(from: safetyDBFileURL())
                 .filter { groupKeys.contains($0.grp ?? "general") }
             var list: [CacheItem] = []
             for e in entries {

@@ -203,9 +203,11 @@ struct FolderDrillView: View {
                         icon: .path(r.url),
                         name: r.name,
                         sub: subLine(r),
+                        hint: verdictHint(r),
                         sizeText: sizeCell(r),
                         fraction: Double(r.size) / Double(maxSize),
                         badge: isDeletable(r.url) ? nil : ItemBadge(text: L("只能看"), tone: .neutral),
+                        badge2: verdictBadge(r),
                         selectable: isDeletable(r.url),
                         lit: isDeletable(r.url),
                         lockedHint: isDeletable(r.url) ? nil : outsideScopeHint,
@@ -216,7 +218,58 @@ struct FolderDrillView: View {
             }
             .ledgerCard()
             ListNote(text: tailNote)
+            if let vn = verdictNote {
+                ListNote(text: vn)
+            }
         }
+    }
+
+    // MARK: 判词（知识库）
+
+    /// 这一行的判词。命不中就不给徽章——**不在这一行上说「不认识」**：
+    /// 一屏九十多行里九十行都会挂上那三个字，那就不是信息，是背景噪音了，
+    /// 而且真正要说的话（「不在这本知识库里」）本来就是一整层的事，见 `verdictNote`。
+    private func verdictBadge(_ r: ChildEntry) -> ItemBadge? {
+        switch VerdictIndex.shared.verdict(for: r.path).tier {
+        case .safe:    return ItemBadge(text: L("安全"), tone: .safe)
+        case .caution: return ItemBadge(text: L("留意"), tone: .warn)
+        case .unknown: return nil
+        }
+    }
+
+    /// 判词的后半段：「删了会怎样 · 怎么恢复」。这是「放心删」这三个字背后的依据，
+    /// 没有它，徽章就只是一句本工具的判断，用户没法自己核。
+    private func verdictHint(_ r: ChildEntry) -> String? {
+        guard let e = VerdictIndex.shared.verdict(for: r.path).entry else { return nil }
+        return LF("删了会怎样：%@；怎么恢复：%@", L(e.whatif), L(e.rec))
+    }
+
+    /// 这一层的判词总账：知识库认得的那几处里，有多少是**指得出再生成路径**的。
+    ///
+    /// 这是「哪些放心删」在这页上的正面回答；剩下那些不在知识库里的必须一起说出来，
+    /// 而且要说清「不在 ≠ 能删」——只报认得的那几项，等于把不认识的默认洗成安全。
+    private var verdictNote: String? {
+        guard !model.rows.isEmpty else { return nil }
+        let known = model.rows.compactMap { r -> Verdict? in
+            let v = VerdictIndex.shared.verdict(for: r.path)
+            return v.known ? v : nil
+        }
+        let safe = model.rows.filter { VerdictIndex.shared.verdict(for: $0.path).tier == .safe }
+        let safeBytes = safe.reduce(Int64(0)) { $0 + $1.size }
+        let rest = model.rows.count - known.count
+        var parts: [String] = []
+        if !safe.isEmpty {
+            parts.append(LF("知识库认得、能放心删的 %1$@合计 %2$@",
+                            cnt(safe.count, "项"), human(safeBytes, inRulerOf: model.level?.total ?? 0)))
+        }
+        if !known.isEmpty && safe.count != known.count {
+            parts.append(LF("%1$@要先看一眼", cnt(known.count - safe.count, "项")))
+        }
+        if rest > 0 {
+            parts.append(LF("另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径",
+                            cnt(rest, "项")))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ") + "。"
     }
 
     private var crumbsBar: some View {

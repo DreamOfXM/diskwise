@@ -711,3 +711,41 @@
 "进入这个文件夹" = "Abrir esta pasta";
 "进入 %@ 往下看" = "Entrar em %@ para ver dentro";
 "查看所在文件夹" = "Abrir a pasta dela";
+
+// ── 判词：这一处的知识库结论（安全 / 留意 / 不认识）────────────────────────────
+"%1$@要先看一眼" = "%1$@ precisam ser conferidos antes";
+"删了会怎样：%@；怎么恢复：%@" = "Se apagar: %@; para recuperar: %@";
+"另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "Outro %1$@ não está na base de conhecimento: não constar não significa que pode apagar; confira o caminho antes de marcar";
+"本工具不认得" = "Fora da base de conhecimento";
+"知识库认得、能放心删的 %1$@合计 %2$@" = "%1$@ que a base de conhecimento reconhece e dá para apagar sem risco, %2$@ no total";
+"这一层自己的文件合计 %@，没逐行列出。" = "Os arquivos deste nível somam %@ e não aparecem linha a linha.";
+
+// ── 知识库补录：模型、虚拟机、AI 编辑器的运行时数据（2026-10-01）───────────────
+"oMLX 本地模型" = "Modelos locais do oMLX";
+"oMLX 拉下来的 MLX 格式模型权重，一个模型仓库一整份" = "Pesos de modelos no formato MLX baixados pelo oMLX, uma cópia inteira por repositório";
+"删掉后这些模型不能再跑，已装好的 oMLX 本身不受影响" = "Esses modelos param de rodar; o próprio oMLX não é afetado";
+"无需恢复；要用时 oMLX 会重新下载这十几 GB" = "Não precisa recuperar; o oMLX baixa essas dezenas de GB de novo quando for usar";
+"OrbStack 虚拟机磁盘" = "Disco da máquina virtual do OrbStack";
+"OrbStack 的 Linux 虚拟机磁盘镜像与交换文件，里面的容器、镜像、代码全装在这一个文件里（镜像看着有 460 GB，稀疏文件实占小得多）" = "Imagem de disco e arquivo de swap da máquina virtual Linux do OrbStack: contêineres, imagens e código ficam todos neste único arquivo (ele parece ter 460 GB, mas é esparso e ocupa bem menos)";
+"删掉后这台虚拟机连同里面的容器、镜像、代码全部消失" = "A máquina virtual some junto com todos os contêineres, imagens e códigos dentro dela";
+"无法恢复；只能重建虚拟机并把环境重装一遍" = "Não dá para recuperar; só recriando a máquina virtual e reinstalando o ambiente";
+"iOS 模拟器运行时" = "Runtime do Simulador iOS";
+"从 App Store 下载的 iOS 模拟器系统运行镜像（dmg），Xcode 靠它把模拟器跑起来" = "Imagem de sistema (dmg) do Simulador iOS baixada da App Store; o Xcode a usa para rodar o simulador";
+"删掉后对应版本的模拟器跑不起来，Xcode 会要求重新下载" = "Simuladores dessa versão param de iniciar e o Xcode pede para baixar de novo";
+"无需恢复；需要时在 Xcode 里重新下一次，几十 GB 起" = "Não precisa recuperar; baixe de novo pelo Xcode quando precisar, são dezenas de GB";
+"Qoder 运行日志" = "Logs de execução do Qoder";
+"Qoder 每次会话与后台任务的运行日志，用得越久堆得越大" = "Logs de cada sessão e tarefa em segundo plano do Qoder; crescem quanto mais você usa";
+"删掉只影响事后翻日志排查问题，编辑器本身不受影响" = "Afeta só a consulta aos logs depois; o editor em si não é afetado";
+"无需恢复；下次启动自动重建" = "Não precisa recuperar; é recriado automaticamente na próxima inicialização";
+"Qoder 会话记录" = "Registros de sessão do Qoder";
+"Qoder 按项目保存的对话与任务记录（一个项目一个目录，单个 jsonl 能到几百 MB）" = "Conversas e tarefas que o Qoder guarda por projeto (uma pasta por projeto; um jsonl pode chegar a centenas de MB)";
+"删掉后这些项目里 Agent 的历史对话不可再查" = "As conversas anteriores com o Agent nesses projetos não poderão mais ser consultadas";
+"无法恢复；历史对话只此一份" = "Não dá para recuperar; o histórico de conversas só existe aqui";
+"ZCode 运行时数据" = "Dados de execução do ZCode";
+"ZCode 命令行留下的运行时数据：会话数据库、模型调用记录、生成产物、图片缓存" = "Dados de execução deixados pela linha de comando do ZCode: banco de sessões, registros de chamadas ao modelo, artefatos gerados, cache de imagens";
+"删掉会丢掉 ZCode 的会话历史与已生成的产物；日志和图片缓存能重建，数据库不能" = "Você perde o histórico de sessões e os artefatos gerados do ZCode; logs e cache de imagens podem ser recriados, o banco de dados não";
+"无法恢复；只想腾地方的话，先删它下面的 log 和 image-cache" = "Não dá para recuperar; se quiser só espaço, apague apenas log e image-cache dentro dele";
+"Hermes 升级前快照" = "Instantâneo do Hermes antes da atualização";
+"Hermes 升级前自动留下的状态快照，用来在新版出问题时回滚" = "Instantâneo de estado que o Hermes cria antes de atualizar, para reverter se a nova versão der problema";
+"删掉后就没法退回升级前那一版状态" = "Não dá mais para voltar ao estado anterior à atualização";
+"无法恢复；确认新版跑得没问题之后，这一份就没用了" = "Não dá para recuperar; depois de confirmar que a nova versão está ok, isso não serve mais";

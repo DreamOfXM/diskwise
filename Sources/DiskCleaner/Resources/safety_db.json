@@ -1,7 +1,7 @@
 {
   "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-09-30",
+  "updated": "2026-10-01",
   "entries": [
     {
       "name": "ChatGPT 桌面版崩溃转储",
@@ -573,6 +573,75 @@
       "grp": "dev",
       "icon": "swift",
       "docs": "https://www.swift.org/documentation/package-manager/"
+    },
+    {
+      "name": "oMLX 本地模型",
+      "what": "oMLX 拉下来的 MLX 格式模型权重，一个模型仓库一整份",
+      "whatif": "删掉后这些模型不能再跑，已装好的 oMLX 本身不受影响",
+      "rec": "无需恢复；要用时 oMLX 会重新下载这十几 GB",
+      "path": "~/.omlx/models",
+      "level": "warn",
+      "grp": "dev",
+      "app": "app.omlx"
+    },
+    {
+      "name": "OrbStack 虚拟机磁盘",
+      "what": "OrbStack 的 Linux 虚拟机磁盘镜像与交换文件，里面的容器、镜像、代码全装在这一个文件里（镜像看着有 460 GB，稀疏文件实占小得多）",
+      "whatif": "删掉后这台虚拟机连同里面的容器、镜像、代码全部消失",
+      "rec": "无法恢复；只能重建虚拟机并把环境重装一遍",
+      "path": "~/Library/Group Containers/*.dev.orbstack",
+      "level": "warn",
+      "grp": "dev",
+      "app": "dev.kdrag0n.MacVirt"
+    },
+    {
+      "name": "iOS 模拟器运行时",
+      "what": "从 App Store 下载的 iOS 模拟器系统运行镜像（dmg），Xcode 靠它把模拟器跑起来",
+      "whatif": "删掉后对应版本的模拟器跑不起来，Xcode 会要求重新下载",
+      "rec": "无需恢复；需要时在 Xcode 里重新下一次，几十 GB 起",
+      "path": "/System/Volumes/Data/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime",
+      "level": "warn",
+      "grp": "dev",
+      "app": "com.apple.dt.Xcode"
+    },
+    {
+      "name": "Qoder 运行日志",
+      "what": "Qoder 每次会话与后台任务的运行日志，用得越久堆得越大",
+      "whatif": "删掉只影响事后翻日志排查问题，编辑器本身不受影响",
+      "rec": "无需恢复；下次启动自动重建",
+      "path": "~/.qoder/logs",
+      "level": "safe",
+      "grp": "dev",
+      "app": "com.qoder.app"
+    },
+    {
+      "name": "Qoder 会话记录",
+      "what": "Qoder 按项目保存的对话与任务记录（一个项目一个目录，单个 jsonl 能到几百 MB）",
+      "whatif": "删掉后这些项目里 Agent 的历史对话不可再查",
+      "rec": "无法恢复；历史对话只此一份",
+      "path": "~/.qoder/projects",
+      "level": "warn",
+      "grp": "dev",
+      "app": "com.qoder.app"
+    },
+    {
+      "name": "ZCode 运行时数据",
+      "what": "ZCode 命令行留下的运行时数据：会话数据库、模型调用记录、生成产物、图片缓存",
+      "whatif": "删掉会丢掉 ZCode 的会话历史与已生成的产物；日志和图片缓存能重建，数据库不能",
+      "rec": "无法恢复；只想腾地方的话，先删它下面的 log 和 image-cache",
+      "path": "~/.zcode/cli",
+      "level": "warn",
+      "grp": "dev",
+      "app": "dev.zcode.app"
+    },
+    {
+      "name": "Hermes 升级前快照",
+      "what": "Hermes 升级前自动留下的状态快照，用来在新版出问题时回滚",
+      "whatif": "删掉后就没法退回升级前那一版状态",
+      "rec": "无法恢复；确认新版跑得没问题之后，这一份就没用了",
+      "path": "~/.hermes/state-snapshots",
+      "level": "warn",
+      "grp": "dev"
     }
   ]
 }

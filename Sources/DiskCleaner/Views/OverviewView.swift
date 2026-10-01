@@ -40,7 +40,7 @@ final class OverviewModel: ObservableObject {
     @Published private(set) var started = false
     /// 行内摊开的下一级，按父路径缓存。行视图会随滚动和导航重建，不缓存的话
     /// 每次滚回来都要重走一遍几十 G 的子树——那看着就像 App 卡死了。
-    @Published private(set) var childRows: [String: [(name: String, path: String, size: Int64)]] = [:]
+    @Published private(set) var childRows: [String: [ChildEntry]] = [:]
     @Published private(set) var childBusy: Set<String> = []
     private var childTasks: [String: Task<Void, Never>] = [:]
     private var task: Task<Void, Never>? = nil
@@ -389,11 +389,15 @@ final class OverviewModel: ObservableObject {
     // MARK: 量下一级
 
     /// 量某一行的下一级。量过就直接回缓存，反复点不会重走子树。
+    ///
+    /// 走 `dirLevel` 的「只要目录」那一档，和文件夹详情页同一份实现。别在这里另写一份
+    /// 「只列子目录、掐掉 0」的简化版：量到 0 在这些位置上几乎都是「读不动」，
+    /// 一掐就会出现「总览里怎么点都看不见、详情页里却躺着」的目录。
     func measureChildren(of path: String) {
         guard childRows[path] == nil, childBusy.insert(path).inserted else { return }
         childTasks[path] = Task { [weak self] in
-            let rows = await childDirSizes(URL(fileURLWithPath: path),
-                                           limit: OverviewModel.childCap)
+            let rows = await dirLevel(URL(fileURLWithPath: path),
+                                      includeFiles: false, fileLimit: 0).entries
             // 中途重扫过：这趟是被掐断的，只量到几格，不能当成完整答案挂上去。
             guard !Task.isCancelled, let self else { return }
             self.childRows[path] = rows
@@ -1260,7 +1264,9 @@ struct OverviewView: View {
             }
             ForEach(Array(rows.enumerated()), id: \.element.path) { i, c in
                 DrillRow(icon: .path(URL(fileURLWithPath: c.path)),
-                         name: c.name, path: c.path, sizeText: texts[i],
+                         name: c.name, path: c.path,
+                         size: c.size,
+                         sizeText: c.unreadable && c.size == 0 ? "—" : texts[i],
                          reclaim: min(c.size, model.reclaimableUnder(c.path)),
                          ruler: whole,
                          fraction: Double(c.size) / Double(max(1, rows.first?.size ?? 1)))
@@ -1271,8 +1277,7 @@ struct OverviewView: View {
                         ? L("这一层的空间全在它自己的文件里，没有读得出的子目录。用行尾那颗「访达显示」去盘上看。")
                         : L("这一层没有读得出的子目录。"))
                 } else if rest > MB {
-                    tailLine(LF("这一层自己的文件、加上排在 %1$d 名之后的子目录，合计 %2$@，没逐行列出。",
-                                OverviewModel.childCap, texts[rows.count]))
+                    tailLine(LF("这一层自己的文件合计 %@，没逐行列出。", texts[rows.count]))
                 }
             }
         }
@@ -1310,7 +1315,8 @@ struct OverviewView: View {
         return VStack(alignment: .leading, spacing: 5) {
             ForEach(Array(rows.enumerated()), id: \.element.path) { i, r in
                 DrillRow(icon: .path(URL(fileURLWithPath: r.path)),
-                         name: r.name, path: r.path, sizeText: texts[i],
+                         name: r.name, path: r.path, size: r.size,
+                         sizeText: texts[i],
                          reclaim: model.reclaimable(of: r.path),
                          ruler: total,
                          fraction: Double(nets[i]) / Double(max(1, nets.first ?? 1)))
@@ -1898,6 +1904,8 @@ private struct DrillRow: View {
     var icon: RowIcon
     var name: String
     var path: String
+    /// 原始字节数。右边那句判词要不要说话由它决定（见 `verdictCell`）。
+    var size: Int64
     var sizeText: String
     /// 这一格名下真能搬走的。判据跟环形、账目列同一个口径（知识库白名单），
     /// 不是「整处搬不搬得走」——后者会让明细说「只能看」而同一列写着「3.1 GB 可回收」。
@@ -1911,6 +1919,20 @@ private struct DrillRow: View {
     var fraction: Double
 
     @State private var hovering = false
+
+    /// 右边那句话。三件事按硬事实排序：系统挡着的说「只能看」；知识库点名要搬的报数；
+    /// **知识库不认识的，够大才说**。
+    ///
+    /// 最后那条的阈值不是抠门：这一列本来就属于「一眼扫过去」的账目，
+    /// 一屏九十行里八十几行挂同一句「不认得」，那句话就不再是信息了。
+    /// 而这一页也没有任何按行删除的动作——真正需要「不认识 ≠ 能删」这句话的场景
+    /// 是勾选那一栏，那在文件夹详情页，那儿由页尾那句一次说清。
+    private var verdictCell: String {
+        if !isDeletable(URL(fileURLWithPath: path)) { return L("只能看") }
+        if reclaim > 0 { return LF("%1$@ 可回收", human(reclaim, inRulerOf: ruler)) }
+        guard size >= GB else { return "" }
+        return VerdictIndex.shared.verdict(for: path).known ? "" : L("本工具不认得")
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -1953,9 +1975,21 @@ private struct DrillRow: View {
                               height: 3, trackWidth: 232)
             }
             Spacer(minLength: 10)
+            // 判词徽章跟右边那两样是**三条轴**：这一枚说「知识库认不认得它、删了有没有代价」，
+            // 下一句说「删不删得动」，最后那个数说「有多大」。挤在一起就只能留一条，
+            // 而「删得动、知识库却不认识」恰恰是最需要被说出来的那一类。
+            if let v = VerdictIndex.shared.verdict(for: path).entry {
+                ThemeBadge(text: v.level == "warn" ? L("留意") : L("安全"),
+                           tone: v.level == "warn" ? .warn : .safe)
+            }
             // 动不了的必须当场说「只能看」。一列全是数、没有这一句，
             // 人就只剩「按下去大概能删」这一种预期，而那正是错的那种。
-            Text(reclaim > 0 ? LF("%1$@ 可回收", human(reclaim, inRulerOf: ruler)) : L("只能看"))
+            //
+            // 但这三个字只管**系统在挡**这件事，不能拿它顶替「知识库不认得」：
+            // `~/Library/Group Containers` 里躺着几十 G 的虚拟机磁盘，删得动，
+            // 只是这本知识库里没有它。两件事挤成同一句话，读的人会把
+            // 「我不认识」当成「你不能删」——而这两个结论要求的下一步动作正好相反。
+            Text(verdictCell)
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(reclaim > 0 ? SweepRing.lamp(theme.palette.tint)
                                              : theme.palette.inkTertiary)

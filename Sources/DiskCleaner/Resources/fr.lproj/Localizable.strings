@@ -711,3 +711,41 @@
 "查看所在文件夹" = "Ouvrir son dossier";
 
 // ── Fin de la table ─────────────────────────────────────────────────────────
+
+// ── 判词：这一处的知识库结论（安全 / 留意 / 不认识）────────────────────────────
+"%1$@要先看一眼" = "%1$@ méritent un coup d'œil";
+"删了会怎样：%@；怎么恢复：%@" = "Si supprimé : %@ ; pour le restaurer : %@";
+"另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "%1$@ de plus ne figurent pas dans la base de connaissances : absent ne veut pas dire supprimable, vérifiez le chemin avant de cocher";
+"本工具不认得" = "Inconnu de la base de connaissances";
+"知识库认得、能放心删的 %1$@合计 %2$@" = "%1$@ connus de la base de connaissances et supprimables sans risque, %2$@ au total";
+"这一层自己的文件合计 %@，没逐行列出。" = "Les fichiers propres à ce niveau totalisent %@ et ne sont pas listés un par un.";
+
+// ── 知识库补录：模型、虚拟机、AI 编辑器的运行时数据（2026-10-01）───────────────
+"oMLX 本地模型" = "Modèles locaux oMLX";
+"oMLX 拉下来的 MLX 格式模型权重，一个模型仓库一整份" = "Poids de modèles au format MLX téléchargés par oMLX, une copie complète par dépôt";
+"删掉后这些模型不能再跑，已装好的 oMLX 本身不受影响" = "Ces modèles ne pourront plus être exécutés ; oMLX lui-même n'est pas affecté";
+"无需恢复；要用时 oMLX 会重新下载这十几 GB" = "Aucune restauration nécessaire ; oMLX retéléchargera ces dizaines de Go au besoin";
+"OrbStack 虚拟机磁盘" = "Disque de machine virtuelle OrbStack";
+"OrbStack 的 Linux 虚拟机磁盘镜像与交换文件，里面的容器、镜像、代码全装在这一个文件里（镜像看着有 460 GB，稀疏文件实占小得多）" = "Image disque et fichier d'échange de la machine virtuelle Linux d'OrbStack : conteneurs, images et code tiennent dans ce seul fichier (il affiche 460 Go, mais il est creux et occupe bien moins)";
+"删掉后这台虚拟机连同里面的容器、镜像、代码全部消失" = "La machine virtuelle disparaît avec tous ses conteneurs, images et code";
+"无法恢复；只能重建虚拟机并把环境重装一遍" = "Aucune restauration possible ; il faut recréer la VM et réinstaller l'environnement";
+"iOS 模拟器运行时" = "Runtime du simulateur iOS";
+"从 App Store 下载的 iOS 模拟器系统运行镜像（dmg），Xcode 靠它把模拟器跑起来" = "Image système (dmg) du simulateur iOS téléchargée depuis l'App Store ; Xcode s'en sert pour le faire tourner";
+"删掉后对应版本的模拟器跑不起来，Xcode 会要求重新下载" = "Les simulateurs de cette version ne démarreront plus et Xcode demandera à la retélécharger";
+"无需恢复；需要时在 Xcode 里重新下一次，几十 GB 起" = "Aucune restauration nécessaire ; retéléchargez-la depuis Xcode au besoin, des dizaines de Go";
+"Qoder 运行日志" = "Journaux d'exécution de Qoder";
+"Qoder 每次会话与后台任务的运行日志，用得越久堆得越大" = "Journaux de chaque session et tâche d'arrière-plan de Qoder ; ils grossissent à l'usage";
+"删掉只影响事后翻日志排查问题，编辑器本身不受影响" = "Cela empêche seulement de fouiller les journaux après coup ; l'éditeur n'est pas affecté";
+"无需恢复；下次启动自动重建" = "Aucune restauration nécessaire ; recréés automatiquement au prochain lancement";
+"Qoder 会话记录" = "Historique de sessions Qoder";
+"Qoder 按项目保存的对话与任务记录（一个项目一个目录，单个 jsonl 能到几百 MB）" = "Conversations et tâches enregistrées par projet par Qoder (un dossier par projet ; un fichier jsonl peut atteindre plusieurs centaines de Mo)";
+"删掉后这些项目里 Agent 的历史对话不可再查" = "Les conversations passées avec l'Agent dans ces projets ne seront plus consultables";
+"无法恢复；历史对话只此一份" = "Aucune restauration possible ; l'historique des conversations n'existe qu'ici";
+"ZCode 运行时数据" = "Données d'exécution de ZCode";
+"ZCode 命令行留下的运行时数据：会话数据库、模型调用记录、生成产物、图片缓存" = "Données d'exécution laissées par la ligne de commande ZCode : base de sessions, appels au modèle, artefacts générés, cache d'images";
+"删掉会丢掉 ZCode 的会话历史与已生成的产物；日志和图片缓存能重建，数据库不能" = "Vous perdez l'historique des sessions et les artefacts générés par ZCode ; journaux et cache d'images sont reconstructibles, la base non";
+"无法恢复；只想腾地方的话，先删它下面的 log 和 image-cache" = "Aucune restauration possible ; pour gagner de la place, ne supprimez que log et image-cache à l'intérieur";
+"Hermes 升级前快照" = "Instantané Hermes d'avant mise à jour";
+"Hermes 升级前自动留下的状态快照，用来在新版出问题时回滚" = "Instantané d'état que Hermes prend automatiquement avant une mise à jour, pour revenir en arrière si la nouvelle version pose problème";
+"删掉后就没法退回升级前那一版状态" = "Impossible de revenir à l'état d'avant la mise à jour";
+"无法恢复；确认新版跑得没问题之后，这一份就没用了" = "Aucune restauration possible ; une fois la nouvelle version validée, cette copie ne sert plus";

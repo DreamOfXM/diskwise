@@ -218,12 +218,21 @@ struct ItemRow<Detail: View>: View {
     var brand: String? = nil
     var name: String
     var sub: String? = nil
+    /// 第三行：知识库对**这一行**的判词后半段（「删了会怎样 · 怎么恢复」）。
+    ///
+    /// 单开一行而不是塞进 `sub`：`sub` 说的是这一行**有多大**（文件数、最近改动），
+    /// 这一行说的是**动它有什么代价**，两件事挤在一行里，先被截掉的永远是后者。
+    var hint: String? = nil
     /// 这一行的展示级数字。整列由页面过一次 `addableHumanColumn`（或 `unifiedHuman`）
     /// 再传进来，不在这里 `human()`：各行独立四舍五入会各自往上飘，那一列就加不起来了。
     var sizeText: String
     /// 0...1，相对本页最大项的比例——磁盘工具不画比例就等于没画
     var fraction: Double = 1
     var badge: ItemBadge? = nil
+    /// 第二枚徽章。跟 `badge` 是**两条轴**：那一枚说「这一行你删不删得动」，
+    /// 这一枚说「知识库认不认得它、删了有没有代价」。挤进同一格就只能二选一，
+    /// 于是「删得动但知识库不认识」的行会一个字都不说——那正是最需要说的那一类。
+    var badge2: ItemBadge? = nil
     var selectable: Bool = true
     /// 「动得了」这一档：灯色、21pt、条子只给它。默认跟着 `selectable`；
     /// 缓存页和残留页要再收紧一层——标「留意」的行得用户自己判，不给它灯的暗示。
@@ -297,6 +306,13 @@ struct ItemRow<Detail: View>: View {
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
+                            if let hint {
+                                Text(hint)
+                                    .font(theme.bodyFont(.caption2))
+                                    .foregroundStyle(theme.palette.inkSecondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -309,6 +325,10 @@ struct ItemRow<Detail: View>: View {
 
                 if let badge {
                     ThemeBadge(text: badge.text, tone: badge.tone)
+                }
+
+                if let badge2 {
+                    ThemeBadge(text: badge2.text, tone: badge2.tone)
                 }
 
                 if let onReveal {

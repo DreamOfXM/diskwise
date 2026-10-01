@@ -63,6 +63,9 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
   `Sources/DiskCleaner/Resources/BrandIcons/`. The leading tile resolves in one order across every
   page: real app icon → brand mark → SF Symbol (rows with no path) → one generic fallback. Only ship
   an `icon` whose official vector exists there, and keep `SelfTest`'s slug check green.
+- `name`, `what`, `whatif` and `rec` are Chinese source text too, and go through the same coverage
+  gate as the UI: every new entry adds **four** strings to translate into all nine tables. Mention
+  it in the PR description so a reviewer knows to expect them.
 
 ## Skins
 

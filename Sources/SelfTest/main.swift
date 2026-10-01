@@ -947,5 +947,45 @@ check(crumbChain(for: "/Users/别人/Documents") == ["/", "/Users", "/Users/别�
       "别人的家目录不折叠：那里没有 `~` 可写")
 check(crumbChain(for: home) == ["/", home], "就在家目录本身时，`~` 是最后一格")
 
+// 11. 知识库判词（`VerdictIndex`）：总览与文件夹详情是从一个**已经量出来的目录**
+//     反查「这一处是什么、能不能放心删」，走的是逐段比对，不是「截到第一个通配为止」的
+//     前缀——后者会把 `~/Library/Application Support/*[Dd]ing[Tt]alk*/log` 截成
+//     `~/Library/Application Support`，那一层住着几十个 App 的真实数据，却会被判成「安全」。
+let vix = VerdictIndex(entries: entries)
+
+let vNpm = vix.verdict(for: home + "/.npm")
+check(vNpm.tier == .safe && vNpm.exact && vNpm.entry?.name == "npm 缓存目录",
+      "精确命中一条 safe 条目（得 \(vNpm.tier.rawValue) / \(vNpm.entry?.name ?? "-")）")
+check(vix.verdict(for: home + "/.ollama/models").tier == .caution,
+      "知识库里标 warn 的条目判成「留意」，不是「安全」")
+// 最长命中优先，两条要在同一棵树上对照：~/Library/Caches 自己是 warn，
+// 它底下的 pip 是 safe——深的先命中，浅的那条不能把深的拉下水。
+check(vix.verdict(for: home + "/Library/Caches").tier == .caution,
+      "父目录照它自己那条 warn 判")
+let vPip = vix.verdict(for: home + "/Library/Caches/pip")
+check(vPip.tier == .safe && vPip.exact,
+      "更深的条目先命中：pip 是 safe，不被父目录那条 warn 盖住（得 \(vPip.tier.rawValue)）")
+// 落在条目**上面**的那层不算命中。这一条正是第一版实现错掉的地方。
+let vAppSup = vix.verdict(for: home + "/Library/Application Support")
+check(vAppSup.tier == .unknown && vAppSup.entry == nil,
+      "住在它下面的条目不许把这一层判成安全——那一层是几十个 App 的真实数据")
+check(vAppSup.knownBelow >= 3,
+      "但「底下有几处认得」要数得出来，否则「不认识」就是一句死话（得 \(vAppSup.knownBelow)）")
+// 通配段：同一层里对得上的命中、对不上的不跟着命中。
+check(vix.verdict(for: home + "/Library/Application Support/DingTalkMac/log").tier == .safe,
+      "含通配的那一段走 fnmatch，正对得上的命中")
+check(vix.verdict(for: home + "/Library/Application Support/DingTalkMac/别的").tier == .unknown,
+      "同一层里对不上的子目录不跟着命中")
+// Group Container 那一级带团队 ID，每条机器不一样，条目里写的是通配。
+check(vix.verdict(for: home + "/Library/Group Containers/HUAQ24HBR6.dev.orbstack").tier == .caution,
+      "Group Container 用通配匹团队 ID")
+check(vix.verdict(for: "/System/Volumes/Data/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime").tier == .caution,
+      "家目录外的系统资产也认得出")
+// 最后一档必须存在：没命中 ≠ 可以删。
+check(vix.verdict(for: "/tmp/没这条-\(UUID().uuidString)").tier == .unknown,
+      "知识库里没有的路径报「不认识」，不默认成安全")
+check(vix.verdict(for: "相对路径/不该认").tier == .unknown,
+      "相对路径一律不认——认了会把判词挂到想不到的地方去")
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
