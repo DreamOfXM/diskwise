@@ -29,7 +29,7 @@ Apple Silicon 和 Intel 两个切片。
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-或从 **Mac App Store** 获取（macOS 13+，免费，新版本由商店自动跟上）：
+或从 **Mac App Store** 获取（macOS 13+，免费，之后由商店自动推送更新）：
 [DiskWise: 空间清理](https://apps.apple.com/app/id6813265402)
 
 想直接下载文件？[最新的 GitHub Release](https://github.com/DreamOfXM/diskwise/releases/latest)——
@@ -173,6 +173,9 @@ DiskWise 走相反的路子：
 
 [DiskWise: 空间清理](https://apps.apple.com/app/id6813265402) — macOS 13+｜免费｜直接获取即可开始用，
 之后的新版本由商店自动接手。
+
+商店接手的每一版都要先过苹果审核，所以商店里能拿到的版本会比 GitHub Release 慢一些。想要刚发出来的
+那一版，用下面的 Homebrew 或直接下载 DMG。
 
 ### Homebrew（一条命令）
 

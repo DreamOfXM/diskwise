@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy, Download, Apple, Terminal } from "lucide-react";
+import { Check, Copy, Download, Apple, Info, Terminal } from "lucide-react";
 import { APP_STORE, BREW_CMD, RELEASES } from "@/data/site";
 import { useContent } from "@/locale";
 
@@ -39,7 +39,7 @@ export function Install() {
           return (
             <div
               key={c.name}
-              className="flex flex-col rounded-2xl border border-border/60 bg-card/50 p-6 transition hover:border-sky-400/40 hover:bg-card/80"
+              className="flex min-w-0 flex-col rounded-2xl border border-border/60 bg-card/50 p-6 transition hover:border-sky-400/40 hover:bg-card/80"
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-400/12 text-sky-400">
@@ -62,7 +62,7 @@ export function Install() {
                 <button
                   type="button"
                   onClick={copyBrew}
-                  className="mt-5 flex items-center gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5 font-mono text-xs transition hover:border-sky-400/50"
+                  className="mt-5 flex min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5 font-mono text-xs transition hover:border-sky-400/50"
                 >
                   <span className="truncate">{c.action}</span>
                   <span className="ml-auto shrink-0 text-muted-foreground">
@@ -78,6 +78,11 @@ export function Install() {
           );
         })}
       </div>
+
+      <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{t.install.note}</span>
+      </p>
     </section>
   );
 }

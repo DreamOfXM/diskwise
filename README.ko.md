@@ -33,7 +33,7 @@
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-또는 **Mac App Store** 에서(macOS 13+, 무료, 이후 버전은 스토어가 알아서 챙겨 줍니다):
+또는 **Mac App Store** 에서(macOS 13+, 무료, 이후 버전은 스토어가 자동으로 업데이트합니다):
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
 
 파일을 직접 받는 편이 낫다면 [최신 GitHub 릴리스](https://github.com/DreamOfXM/diskwise/releases/latest)
@@ -189,6 +189,9 @@ Português(브라질) —— 이고 스킨 페이지의 언어 메뉴에서 바�
 
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402) —— macOS 13+, 무료. 설치하면 바로
 쓸 수 있고, 이후 버전은 스토어가 이어서 처리합니다.
+
+스토어가 이어받는 각 버전은 먼저 Apple 심사를 통과해야 하므로 GitHub Release보다 조금 늦게
+찾아옵니다. 방금 나온 버전을 바로 쓰고 싶다면 아래 Homebrew나 DMG를 사용해 주세요.
 
 ### Homebrew(명령 하나)
 

@@ -29,7 +29,7 @@ English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Or from the **Mac App Store** (macOS 13+, free, and the store keeps you on the latest version):
+Or from the **Mac App Store** (macOS 13+, free, auto-updated by the store):
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
 
 Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
@@ -192,6 +192,9 @@ singular/plural, and Japanese and Korean use the measure word those languages ac
 
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402) — macOS 13+, free, install it and
 start using it; the store takes care of every version after that.
+
+Each of those versions has to clear Apple's review first, so the store can trail a GitHub release. If
+you want the newest build the moment it ships, use Homebrew or the DMG below.
 
 ### Homebrew (one command)
 

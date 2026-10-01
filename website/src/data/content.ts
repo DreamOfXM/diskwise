@@ -43,7 +43,7 @@ export interface SiteContent {
   };
   positioning: { claim: string; logic: [string, string][] };
   features: { eyebrow: string; title: string; intro: string; items: { title: string; desc: string }[] };
-  install: { eyebrow: string; title: string; sub: string; channels: { name: string; desc: string; action: string }[] };
+  install: { eyebrow: string; title: string; sub: string; channels: { name: string; desc: string; action: string }[]; note: string };
   cta: {
     eyebrow: string;
     title: string;
@@ -189,8 +189,9 @@ const zh: SiteContent = {
     channels: [
       { name: "Homebrew", desc: "一行命令装好，后续 brew upgrade --cask 更新。", action: "brew install --cask dreamofxm/diskwise/diskwise" },
       { name: "GitHub Release", desc: "直接下载 DMG，每个 release 附 SHA-256 校验值。", action: "下载最新 DMG" },
-      { name: "Mac App Store", desc: "经 App Store 审核上架，自动保持最新，商店内完全免费。", action: "在 App Store 获取" },
+      { name: "Mac App Store", desc: "经 App Store 审核上架，更新由商店自动推送，完全免费。", action: "在 App Store 获取" },
     ],
+    note: "App Store 的每一版都要先过苹果审核，所以商店里的版本可能比 GitHub Release 慢一些。只想要最新那一版，用上面的 Homebrew 或直接下载 DMG。",
   },
   cta: {
     eyebrow: "Star & Feedback",
@@ -352,8 +353,9 @@ const en: SiteContent = {
     channels: [
       { name: "Homebrew", desc: "One command, then brew upgrade --cask keeps it fresh.", action: "brew install --cask dreamofxm/diskwise/diskwise" },
       { name: "GitHub Release", desc: "Download the DMG directly; every release ships its SHA-256.", action: "Download the latest DMG" },
-      { name: "Mac App Store", desc: "Apple-reviewed, stays up to date automatically, completely free in the store.", action: "Get it on the Mac App Store" },
+      { name: "Mac App Store", desc: "Apple-reviewed, auto-updating from the store, completely free.", action: "Get it on the Mac App Store" },
     ],
+    note: "Every App Store release has to clear Apple's review first, so the store build can sit behind GitHub Releases for a while. For the newest version, use Homebrew or the DMG above.",
   },
   cta: {
     eyebrow: "Star & Feedback",
@@ -517,6 +519,7 @@ const ja: SiteContent = {
       { name: "GitHub Release", desc: "DMG を直接ダウンロード。各リリースに SHA-256 を同梱。", action: "最新 DMG をダウンロード" },
       { name: "Mac App Store", desc: "Apple 審査を経て配信、自動更新、ストア内は完全無料。", action: "App Store で入手" },
     ],
+    note: "App Store 版はリリースごとに Apple の審査が必要なため、ストア版は GitHub Release より少し遅れて届きます。いちばん新しい版が必要なら Homebrew か DMG を使ってください。",
   },
   cta: {
     eyebrow: "Star & Feedback",
@@ -680,6 +683,7 @@ const ko: SiteContent = {
       { name: "GitHub Release", desc: "DMG를 직접 다운로드. 모든 릴리스에 SHA-256이 함께 제공됩니다.", action: "최신 DMG 다운로드" },
       { name: "Mac App Store", desc: "Apple 심사를 통과해 출시, 자동 업데이트, 스토어에서 완전 무료.", action: "App Store에서 받기" },
     ],
+    note: "App Store 버전은 릴리스마다 Apple 심사를 통과해야 해서, 한동안 GitHub Release보다 뒤처진 버전으로 표시됩니다. 가장 최신 버전이 필요하면 Homebrew나 DMG를 사용해 주세요.",
   },
   cta: {
     eyebrow: "Star & Feedback",

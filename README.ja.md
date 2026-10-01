@@ -33,7 +33,7 @@ DMG は約 5 MB で、Apple Silicon と Intel の両方を 1 ファイルに収�
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-または **Mac App Store** から（macOS 13+、無料、以降のバージョンはストアが面倒を見てくれます）：
+または **Mac App Store** から（macOS 13+、無料、以降のバージョンはストアが自動で更新）：
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
 
 ファイルを直接ダウンロードしたい場合は [最新の GitHub リリース](https://github.com/DreamOfXM/diskwise/releases/latest)
@@ -190,6 +190,9 @@ Português（ブラジル）—— で、スキンのページにある言語メ
 
 [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402) —— macOS 13+、無料。入れてすぐ
 使い始められ、以降のバージョンはストアが引き継ぎます。
+
+ストアが引き継ぐ各バージョンは先に Apple の審査を通過する必要があるため、GitHub Release より少し
+遅れて届きます。出たてのバージョンをすぐ使いたい場合は、下の Homebrew か DMG を使ってください。
 
 ### Homebrew（コマンド 1 つ）
 
