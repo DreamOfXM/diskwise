@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  四个语言页各一条 URL，互相声明 alternate，与页面里的 hreflang 一致。
+  发现途径：GitHub Pages 项目站的 robots.txt 只在主机根生效（dreamofxm.github.io/robots.txt，
+  不归本项目管），所以这份 sitemap 需要手动提交给 Search Console。
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://dreamofxm.github.io/diskwise/ja/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://dreamofxm.github.io/diskwise/ko/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/en/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://dreamofxm.github.io/diskwise/ja/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://dreamofxm.github.io/diskwise/ko/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/ja/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://dreamofxm.github.io/diskwise/ja/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://dreamofxm.github.io/diskwise/ko/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/ko/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://dreamofxm.github.io/diskwise/ja/" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://dreamofxm.github.io/diskwise/ko/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/" />
+  </url>
+</urlset>
