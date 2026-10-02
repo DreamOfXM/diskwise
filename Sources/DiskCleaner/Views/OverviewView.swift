@@ -41,6 +41,16 @@ final class OverviewModel: ObservableObject {
     /// 行内摊开的下一级，按父路径缓存。行视图会随滚动和导航重建，不缓存的话
     /// 每次滚回来都要重走一遍几十 G 的子树——那看着就像 App 卡死了。
     @Published private(set) var childRows: [String: [ChildEntry]] = [:]
+    /// 此刻摊开在哪一段账上（值是 `GaugeSegment.armKey`）。nil = 没下钻，环画满幅。
+    ///
+    /// **放在模型里，不放视图的 `@State`。** 侧栏是 `switch` 切分支，页面视图随导航销毁：
+    /// 摊开状态要是住在 `@State` 里，切走再回来它就没了，人看到的是「刚摊开的那一行
+    /// 自己收起来了，得重新点一遍」——而下一级的账明明还在 `childRows` 里躺着。
+    /// 白量一趟的错觉就是这么来的，代价是每次切页都要把那几下重新点回去。
+    ///
+    /// 跟 `armedPath` 同一条纪律：跨页要留的状态一律不放 `@State`（那边记着理由）。
+    /// 一次性的是**量**这件事（`childRows` 认缓存），不是「摊开着」这个状态。
+    @Published var drillKey: String? = nil
     @Published private(set) var childBusy: Set<String> = []
     private var childTasks: [String: Task<Void, Never>] = [:]
     private var task: Task<Void, Never>? = nil
@@ -480,13 +490,13 @@ struct OverviewView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: OverviewModel
 
-    /// 此刻摊开在哪一段账上（值是 `GaugeSegment.armKey`）。nil = 没下钻，环画满幅。
-    ///
     /// 这一页原本三段：环旁边这本账、下面「没量到的地方」、再下面「最占地方的文件夹」。
     /// 同一批目录在三个地方各说一遍，而下面那两段讲的其实就是这本账里两段的下一级——
     /// 于是把那两段搬进它们各自对应的那一行，整页只剩一段，下钻就地完成。
-    /// 键取 `armKey` 不取路径：「其他已统计」「没量到」这两条弧没有路径。
-    @State private var drillKey: String? = nil
+    ///
+    /// 摊开在哪一段读 `OverviewModel.drillKey`，不是这里的 `@State`：键取 `armKey`
+    /// 不取路径（「其他已统计」「没量到」这两条弧没有路径，拿路径当键它们永远摊不开），
+    /// 而**它要跨页留着**——切走再回来还摊在原处，理由见那个属性的注释。
     /// 鼠标停在面包屑那两个字上（决定那支 `←` 显不显形）。跟 `hovKey` 同一条纪律：
     /// 值真变了才写，AppKit 的 enter 不保证只来一次。
     @State private var crumbHover = false
@@ -504,6 +514,16 @@ struct OverviewView: View {
         if hovKey != key { hovKey = key }
     }
 
+    /// 英雄卡那个命名坐标系。环心与废纸篓那一格都量在它里面，飞行才对得上——
+    /// 量在两个坐标系里（一个局部一个全局），窗口一挪起点终点就分家。
+    static let heroSpace = "overview.hero"
+
+    /// 此刻在空中飞的那些字节筹码。见 `TrashFlight`。
+    @State private var flights: [TrashFlight] = []
+    /// 英雄卡里两个锚点（环心、废纸篓那一格）此刻在 `heroSpace` 里的位置。
+    /// 由 `heroAnchor(_:in:)` 报上来：触发那一刻去现量，量到的可能还是上一帧的框。
+    @State private var anchors: [String: CGPoint] = [:]
+
     /// 「本次移入废纸篓」那条虚线弧。它不落在这屏里——那些字节已经在废纸篓，
     /// 要真让位得去废纸篓页交给访达，所以点它跳的是**另一页**。
     private static let trashAnchor = "overview.gotoTrash"
@@ -516,15 +536,15 @@ struct OverviewView: View {
     /// 「现在看的是谁」，而这一屏刚撤掉下面那两段列表，靠的就是这一段一段地摊。
     private func setDrill(_ key: String?) {
         withAnimation(reduceMotion ? nil : theme.animation) {
-            drillKey = (drillKey == key) ? nil : key
+            model.drillKey = (model.drillKey == key) ? nil : key
         }
     }
 
     /// 只摊开、不来回翻：截图钩子（`DISKWISE_DRILL` / `DISKWISE_JUMP`）要的是「这一处摊开的样子」，
     /// 拿 toggle 去点它会随上一次的落点翻成收起，拍出来就是一张没有明细的图。
     private func openDrill(_ key: String) {
-        guard drillKey != key else { return }
-        withAnimation(reduceMotion ? nil : theme.animation) { drillKey = key }
+        guard model.drillKey != key else { return }
+        withAnimation(reduceMotion ? nil : theme.animation) { model.drillKey = key }
     }
 
     /// 一个具体目录该摊在哪一行上。前三名各自是一条弧，键就是路径；
@@ -541,7 +561,7 @@ struct OverviewView: View {
     /// 行首那个 `▸`。摊开某一段的下一级时顺手把量这趟派出去——`measureChildren`
     /// 自己认缓存，反复点不会重走子树。
     private func toggleDrill(_ seg: GaugeSegment) {
-        if case .children(let path)? = seg.drill, drillKey != seg.armKey {
+        if case .children(let path)? = seg.drill, model.drillKey != seg.armKey {
             model.measureChildren(of: path)
         }
         setDrill(seg.armKey)
@@ -609,7 +629,7 @@ struct OverviewView: View {
     }
     /// 环上只有一处按直径等比的东西撑不住小盘：弧上那六枚数。带厚 19 pt、那段弧的
     /// 弧长十几 px，11 pt 的数会叠成一片字。参照盘不承担读数，数全在右边那一列。
-    private var ringIsReference: Bool { drillKey != nil }
+    private var ringIsReference: Bool { model.drillKey != nil }
     /// 环上「其他已统计」那块弧的数，用列表这一头的段复述时要用同一个数。
     /// nil = 还没量完或分段算术不成立，那时不画分界线也不写对账。
     /// 扣减必须跟 `ringAccount` 同源：两处各算一遍，分界线上那个数就跟弧对不上了。
@@ -633,7 +653,7 @@ struct OverviewView: View {
         // 「其他已统计」那条弧没有路径，拿路径当键的话它永远上不了膛。
         if let armed = model.armedPath, armed == seg.armKey, seg.reclaim > 0 {
             model.disarm()
-            take(seg)
+            flyToTrash(take(seg))
             return
         }
         // 上膛期间点别的弧：先解除，再按那条弧自己的规矩办事。
@@ -694,7 +714,11 @@ struct OverviewView: View {
     /// 一键按钮于是会把用户的备份目录整段拖走，所以整条拿掉。
     /// 不一次性标记：任何一处失败都得当场看见是哪一处、为什么，
     /// 不然人就只剩「软件把我东西弄丢了」这一种解释。
-    private func take(_ seg: GaugeSegment) {
+    ///
+    /// 返回**真搬走的字节**，不是应该搬走的：这一趟有几处没搬动是常态（沙箱里的
+    /// 诊断报告、别的 App 正在用的目录），拿去飞那一枚筹码的必须是到手的那个数。
+    @discardableResult
+    private func take(_ seg: GaugeSegment) -> Int64 {
         takeTargets(seg)
     }
 
@@ -702,7 +726,8 @@ struct OverviewView: View {
     ///
     /// 「已移入废纸篓 12 处（8.4 GB），另有 3 处没搬动」这种句子必须是**真数**：
     /// 那句「还能腾出 22 GB」是按钮许的愿，搬完对不上而原因没说，这一屏就再没人信了。
-    private func takeTargets(_ seg: GaugeSegment) {
+    @discardableResult
+    private func takeTargets(_ seg: GaugeSegment) -> Int64 {
         var ok = 0, bytes: Int64 = 0, failed = 0
         var why = ""
         for t in seg.targets {
@@ -727,6 +752,41 @@ struct OverviewView: View {
                                 : LF("另有 %1$d 处没搬动，第一处的原因是：%2$@。", failed, cause)
         }
         store.notice = line
+        return bytes
+    }
+
+    /// 搬完这一趟，让那一笔字节从环心飞到废纸篓那一格。见 `TrashFlight`。
+    ///
+    /// 三条不发的情形：
+    /// - 一处都没搬动（0 字节）——一枚写着「0 B」的筹码飞过去，比不飞更让人怀疑账错了；
+    /// - 两个锚点还没量到（第一次进页面、布局还没落定）——这时候只能从一个猜出来的点起飞；
+    /// - 已经有三枚在空中——第四枚起不再有信息量，只剩噪声。真数在那句通知里，一个都没少。
+    private func flyToTrash(_ moved: Int64) {
+        guard moved > 0, flights.count < 3 else { return }
+        guard let from = anchors["ring"], let to = anchors["tray"] else { return }
+        flights.append(TrashFlight(text: human(moved), from: from, to: to,
+                                   delay: Double(flights.count) * 0.08,
+                                   // 连拍那一趟的进度按连拍时钟算，起飞时刻得当场记下来。
+                                   bornClock: SnapshotMode.filmMotion ? SnapshotMode.filmClock : nil))
+    }
+
+    /// 一枚落地，把它摘掉。
+    private func flightLanded(_ id: UUID) {
+        flights.removeAll { $0.id == id }
+    }
+
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时补一枚钉在指定行程上的筹码。
+    ///
+    /// 只在**这一屏量完、两个锚点也到手**之后发：起点终点都是量出来的，不是猜的。
+    /// 这一趟不写真账（不发筹码就不会有真的 `trashItem`），筹码上写的数是环上此刻
+    /// 真能回收的那个量，跟按一下会看到的一致。
+    private func fireSnapshotFlightIfAsked() {
+        guard SnapshotMode.flightPhase != nil, flights.isEmpty else { return }
+        guard let u = model.usage, !model.scanning else { return }
+        guard let from = anchors["ring"], let to = anchors["tray"] else { return }
+        let can = ringAccount(u).reclaimable
+        guard can > 0 else { return }
+        flights.append(TrashFlight(text: human(can), from: from, to: to))
     }
 
     /// 把 store 那本废纸篓账推给模型：环形每一帧都要读它，模型自己摸不到 store。
@@ -776,7 +836,12 @@ struct OverviewView: View {
                        subtitle: L("先看清，再下手——每一行点开，就是它名下具体是哪几个目录"),
                        variant: .display) {
                 ScanControl(scanning: model.scanning, kind: .primary,
-                            rescan: { model.refresh(scope: store.scope) },
+                            rescan: {
+                                // 发脉冲在前：`refresh` 会当场把 `scanning` 置真，
+                                // 别的页要在这同一轮里把各自的旧账作废掉。
+                                store.rescanPulse += 1
+                                model.refresh(scope: store.scope)
+                            },
                             stop: { model.stop() })
             }
             .pagePadding()
@@ -812,7 +877,13 @@ struct OverviewView: View {
         .onChange(of: store.trashHistory) { _ in syncMovedLedger() }
         // 重扫一轮就把下钻收回：模型的 `dropChildren()` 同时作废了摊开出来的下级账，
         // 键还留着的话那一格会空摊着，看着像「扫到一半把东西弄丢了」。
-        .onChange(of: model.scanning) { go in if go { setDrill(nil) } }
+        .onChange(of: model.scanning) { go in
+            if go { setDrill(nil); return }
+            fireSnapshotFlightIfAsked()
+        }
+        // 锚点是布局落定之后才报上来的，而「量完」和「锚点到齐」谁先谁后不定。
+        // 两个都盯着，谁后到就由谁把那枚筹码发出来。
+        .onChange(of: anchors) { _ in fireSnapshotFlightIfAsked() }
         // 切走这一页就解除上膛：弧都不在眼前了，还留着「等你确认」那道白边，
         // 回来时人会以为自己上一刀点到了一半。悬停指针与那句「为什么动不了」同理，
         // 都是当前这一屏的事，带不进下一页。
@@ -934,6 +1005,10 @@ struct OverviewView: View {
                                                   ? nil : hov.map(centerNowLine))
                                 }
                             }
+                            // 环心就是飞行的起点。取盘心不取弧：一段弧被点两下之后
+                            // 它自己就要缩、还要挪，而「这一笔字节离开这块盘」这件事
+                            // 在整个圆里只有一个地方说得清——圆心那个数。
+                            .heroAnchor("ring", in: Self.heroSpace)
                         // 环上刚点出来的那句话，钉在环的正下方。上膛那一版跟着 `armedPath`
                         // 走而不是跟着 @State：3.2 秒到点自己解除，这句也得跟着消失，
                         // 不然弧都暗下去了话还挂着。
@@ -980,12 +1055,20 @@ struct OverviewView: View {
                 coverageLine(u)
             }
         }
+        // 飞行的坐标基准钉在整张卡上，不钉在环或某一列上：起点在环里、终点在右边那一列
+        // 底下的废纸篓格子里，两个点分属两棵子树。量在各自的局部坐标里就对不上了。
+        .coordinateSpace(name: Self.heroSpace)
+        .onPreferenceChange(HeroAnchorKey.self) { anchors = $0 }
+        // 铺在最上层、不接鼠标（`TrashFlightLayer` 自己关掉了命中测试）。
+        .overlay {
+            TrashFlightLayer(flights: flights, onLanded: flightLanded)
+        }
     }
 
     /// 此刻摊开着的那一段账（nil = 没摊开）。按 `armKey` 现查，不留下指针：
     /// 段每帧都是新构造的，攥着上一帧那份就是拿旧账做今天的决定。
     private func drilledSegment(_ acct: RingAccount) -> GaugeSegment? {
-        guard let key = drillKey else { return nil }
+        guard let key = model.drillKey else { return nil }
         return acct.segs.first { $0.armKey == key }
     }
 
@@ -1044,7 +1127,7 @@ struct OverviewView: View {
                 // 上一版靠 3pt 的行距把六行分开：没有线的时候那六行是六片浮着的字，
                 // 有了线才读得出「这是一本账的六笔」。
                 ForEach(Array(acct.segs.enumerated()), id: \.offset) { idx, seg in
-                    let open = drillKey == seg.armKey
+                    let open = model.drillKey == seg.armKey
                     RingLedgerRow(seg: seg,
                                   fraction: Double(seg.value) / Double(max(1, acct.total)),
                                   armed: model.armedPath != nil
@@ -1058,12 +1141,16 @@ struct OverviewView: View {
                                   onExpand: seg.drill == nil ? nil : { toggleDrill(seg) },
                                   onGrant: (seg.drill == .gapRows && canGrantFDA)
                                     ? { openFullDiskAccessPane() } : nil,
+                                  // 两个出口只在摊开时给：这一行是「还没进去的那一层」。
+                                  // 收起时露出口会把它撑宽——`ledgerFloor` 那条注释记着代价
+                                  // （列宽给到 336 时行尾那个数就顶出窗口 14 pt）——
+                                  // 而且抢在「先摊开看看里面是什么」这一步前面。
+                                  // 整条规则写在 `DrillRow` 那段注释里。
                                   onReveal: (open && seg.path != nil)
                                     ? { NSWorkspace.shared.activateFileViewerSelecting(
                                         [URL(fileURLWithPath: seg.path!)]) } : nil,
                                   onDeepDive: (open && seg.path != nil)
-                                    ? { store.bigScanDir = URL(fileURLWithPath: seg.path!)
-                                        store.jumpTo = .big } : nil,
+                                    ? { store.deepDive(into: seg.path!) } : nil,
                                   grantCompact: column < Self.ledgerGrantWidest)
                     if open {
                         drillPanel(seg)
@@ -1157,7 +1244,7 @@ struct OverviewView: View {
         ) {
             if armedAll {
                 model.disarm()
-                takeAll(acct)
+                flyToTrash(takeAll(acct))
             } else {
                 arcNote = nil
                 model.arm(SweepRing.armAll)
@@ -1183,10 +1270,13 @@ struct OverviewView: View {
                     // 斜纹填充，不是实心条：样稿写的是 `repeating-linear-gradient(115deg, …)`。
                     // 实心进度条在说「已经完成」，而这 4 px 说的是「收进来的还占着盘、
                     // 只是换了个格子住」——纹就是这两态的区别，抹平了就只剩颜色在说。
+                    //
+                    // **满幅画纹、再拿宽度当遮罩裁**，不把宽度写进绘制循环里：后者一变
+                    // 就是一次重绘，而 `Canvas` 不参与插值——那一格永远是**跳**满的，
+                    // 点完看不出东西在往里走。改成遮罩之后动的是那个宽度，宽度是可插值的。
                     Canvas { ctx, size in
-                        let w = size.width * frac
                         var x: CGFloat = -size.height
-                        while x < w {
+                        while x < size.width {
                             var p = Path()
                             p.move(to: CGPoint(x: x, y: size.height))
                             p.addLine(to: CGPoint(x: x + size.height * 0.6, y: 0))
@@ -1194,8 +1284,13 @@ struct OverviewView: View {
                             x += 6
                         }
                     }
-                    .clipShape(Capsule())
+                    .mask(alignment: .leading) {
+                        Rectangle().frame(width: geo.size.width * frac)
+                    }
                 }
+                .clipShape(Capsule())
+                // 走的是和那枚筹码同一个时长：一边飞、一边涨，两件事才算一件。
+                .animation(.easeInOut(duration: TrashFlight.travel), value: frac)
             }
             .frame(height: 4)
             Text(LF("%1$@ / %2$@", human(acct.inBin),
@@ -1218,6 +1313,9 @@ struct OverviewView: View {
             .disabled(!has)
             .opacity(has ? 1 : 0.32)
         }
+        // 这一格就是飞行的落点。整行报中心而不是那根条：筹码要落在「废纸篓」这三个字、
+        // 那根纹条、那个数和「去清空」组成的那一格上，落在那根 4pt 的条上偏得看不出来。
+        .heroAnchor("tray", in: Self.heroSpace)
     }
 
     private func fraction(_ v: Int64, of total: Int64) -> CGFloat {
@@ -1228,8 +1326,10 @@ struct OverviewView: View {
     ///
     /// 一条一条走 `trashItem`，不是「一次性标记」：任何一处失败都得当场看见是
     /// 哪一处、为什么，不然人就只剩「软件把我东西弄丢了」这一种解释。
-    private func takeAll(_ acct: RingAccount) {
-        for seg in acct.hot { take(seg) }
+    /// 返回这一趟真搬走的合计——飞出去的那一枚筹码按它写数，不按按钮许的那个愿。
+    @discardableResult
+    private func takeAll(_ acct: RingAccount) -> Int64 {
+        acct.hot.reduce(Int64(0)) { $0 + take($1) }
     }
 
     // MARK: 就地摊开的明细：这一页唯一的下一级
@@ -2000,6 +2100,18 @@ private struct DrillRow: View {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
             .help(LF("在访达里打开 %@", path))
+            // 这一行**不再挂**「深挖」。
+            //
+            // 从前这一行上并排住着两个「往下走」的动作：点名字进「文件夹详情」（看这一层），
+            // 点「深挖」去「大文件」页（扫这一棵子树里最大的那些文件）。能力不同，界面上却
+            // 没有一个字说得出差别——用户看到的只是同一行上两颗都能往里走的按钮。
+            //
+            // 现在这条路只留一步：点名字进去看这一层。「在这一棵里找大文件」挪到文件夹详情页
+            // 页头（那颗按钮管的就是同一件事），于是「一层层看」和「找大文件」成了同一条路上的
+            // 两步，而不是同一行上的两个入口。
+            //
+            // 账目行那颗「深挖」留着不动：那一行点下去是摊明细，它进不去任何地方，
+            // 「深挖」是它唯一往下的出口——一颗按钮该不该在，看的是这一行还有没有别的路。
         }
         .padding(.vertical, 3)
         // 图形落在名字左边那一格，缩进要让出图形位（26 + 间距 10）：

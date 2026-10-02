@@ -21,7 +21,9 @@ import DiskCleanerCore
 final class FolderDrillModel: ObservableObject {
     /// 当前这一层的路径。
     @Published private(set) var path: String = ""
-    /// 面包屑：**盘顶 → 当前**，一路都能点。最后一条就是 `path`。
+    /// 面包屑里属于这条路径的那几格，一路都能点。最后一条就是 `path`。
+    ///
+    /// **不含最左那格「空间总览」**：那一格固定由视图摆在最前面（规则见 `crumbChain`）。
     @Published private(set) var crumbs: [String] = []
     @Published private(set) var level: DirLevel? = nil
     @Published private(set) var busy = false
@@ -37,26 +39,25 @@ final class FolderDrillModel: ObservableObject {
     private var cache: [String: DirLevel] = [:]
     private var task: Task<Void, Never>? = nil
     /// 只给截图链路用（`DISKWISE_DRILL_INTO=1`）：第一层量完自动钻一次，
-    /// 好把「面包屑 ＋ 深一层」这一屏拍进图里。走的是同一颗箭头调的那个 `into`。
+    /// 好把「面包屑 ＋ 深一层」这一屏拍进图里。
     private var autoDescended = false
+    /// 自动钻那一趟交给外面走。钻进一层也是一次跳转，得记进导航历史——
+    /// 在模型里直接 `open` 的话，拍出来的那一屏按返回是回不去的，图就成了假证词。
+    var onAutoDescend: ((String) -> Void)?
 
     var rows: [ChildEntry] { level?.entries ?? [] }
     var selectedEntries: [ChildEntry] { rows.filter { selected.contains($0.path) } }
     var selectedBytes: Int64 { selectedEntries.reduce(Int64(0)) { $0 + $1.size } }
 
-    /// 还能不能往上退一层。盘顶那一层没有上一级。
-    var canGoUp: Bool {
-        !path.isEmpty && (path as NSString).deletingLastPathComponent != path
-    }
-
-    /// 退到上一层。面包屑之外还得有一颗常驻的：深到十几层时，「往上退一层」是
-    /// 这一页里唯一一个不用先看清自己在哪儿就能按的动作。
-    func upOneLevel() {
-        guard canGoUp else { return }
-        open((path as NSString).deletingLastPathComponent)
-    }
+    /// 还能不能往上退。**问的不是「还有没有父目录」**：`/Applications`、`/Library`
+    /// 这类顶层上面就是空间总览，盘顶 `/` 不算一站（理由见 `drillParent`）。
+    /// 也就是说只要进来过目录，这颗按钮就有地方可去，落点由 `drillParent` 现算。
+    var canGoUp: Bool { !path.isEmpty }
 
     /// 进一个目录。同一处再点一次不重量（缓存直接回填）。
+    ///
+    /// 整页停在哪一层由 `store.folderDrillPath` 说了算，所以只有视图的 `start()`
+    /// 该调它——行的点击、面包屑、「上一级」全都先落到那个字段上。
     func open(_ target: String) {
         guard !target.isEmpty else { return }
         if target == path, level != nil, !busy { return }
@@ -64,19 +65,6 @@ final class FolderDrillModel: ObservableObject {
         rebuildCrumbs()
         selected.removeAll()
         load(target)
-    }
-
-    /// 面包屑点第 `index` 格回退。
-    func up(to index: Int) {
-        guard crumbs.indices.contains(index) else { return }
-        open(crumbs[index])
-    }
-
-    /// 点行：目录才往里走，文件不动（文件在这一页只能勾选）。双保险——行上那颗
-    /// 「进入」本来就不给文件画，但键盘/无障碍那一路仍可能调到这里。
-    func into(_ child: ChildEntry) {
-        guard child.isDir else { return }
-        open(child.path)
     }
 
     /// 重扫一轮就把整本缓存作废：盘的账会走样，隔着一轮还挂着旧数字，
@@ -114,14 +102,14 @@ final class FolderDrillModel: ObservableObject {
             if SnapshotMode.drillAutoDescend, !self.autoDescended,
                let first = lv.entries.first(where: { $0.isDir }) {
                 self.autoDescended = true
-                self.open(first.path)
+                self.onAutoDescend?(first.path)
             }
         }
     }
 
-    /// 面包屑从**盘顶**长下来（规则见 `crumbChain`），不从上一条扫描根长——
-    /// 以扫描根为起点的话，`/Library`、`/Applications` 这类本身就是根的地方只剩
-    /// 孤零零一格，上面全不见，而人恰恰是在「进太深了、想退出去」时看这一条。
+    /// 这一条从头到尾都是 `crumbChain` 定的（它在 Core 里，也归自检管），这里只管
+    /// 「还没进任何目录时不摆一条空的」。规则本身见那边的说明：每一格都是这一级自己，
+    /// 家目录折叠成 `~`，最左那格「空间总览」不在这个数组里。
     private func rebuildCrumbs() {
         crumbs = path.isEmpty ? [] : crumbChain(for: path)
     }
@@ -140,12 +128,27 @@ struct FolderDrillView: View {
                 PageHeader(symbol: "folder", title: L("文件夹详情"),
                            subtitle: L("一层层往里走，看清每个文件夹和文件占了多少"),
                            variant: .display) {
+                    // 「在这一棵里找大文件」从这里走：总览那一页不再并排摆两颗「往下走」的
+                    // 按钮（点名字进这一层 ＋ 深挖去大文件页），路上只留一步——先进来看这一层，
+                    // 想找大文件再按这一颗。两个动作分两层，各自的位置就都说得清了。
+                    ThemeButton(kind: .compact, symbol: "scope",
+                                title: L("深挖"),
+                                isDisabled: model.path.isEmpty) {
+                        store.deepDive(into: model.path)
+                    }
+                    .help(LF("只扫 %@ 这一棵，去大文件页列它名下最大的那些文件", model.path))
+                    // 面包屑之外还得有一颗常驻的：深到十几层时，「往上退一层」是
+                    // 这一页里唯一一个不用先看清自己在哪儿就能按的动作。
+                    //
+                    // 「上一级」和面包屑一样是一次**跳转**，得记进外面那本导航历史，
+                    // 所以落点在 store 里算（`goUpFromDrill`），不在这里直接 `open`
+                    // 绕开那一本账——绕开的话按返回会退到「进这一页之前」，而不是上一层文件夹。
                     ThemeButton(kind: .compact, symbol: "arrow.up",
                                 title: L("上一级"),
                                 isDisabled: !model.canGoUp) {
-                        model.upOneLevel()
+                        store.goUpFromDrill()
                     }
-                    .help(L("退到上一层文件夹"))
+                    .help(goUpHint)
                 }
                 crumbsBar
                 ControlStrip {
@@ -168,13 +171,26 @@ struct FolderDrillView: View {
 
             content
 
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
+
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.level?.total ?? 0),
                      errorText: err, selection: selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
-        .onAppear { start() }
+        .onAppear {
+            // 截图链路自动钻的那一趟也交给外面走：同一本历史才认得出它。
+            model.onAutoDescend = { store.drill(into: $0) }
+            start()
+        }
         .onChange(of: store.folderDrillPath) { _ in start() }
+        // 后退时落点可能和来处**恰好是同一个值**（中间那一段被截掉了），
+        // 值没变上面那条就不响，界面会停在原来的子目录上不动，所以每一步都再对一次账。
+        .onChange(of: store.navPulse) { _ in start() }
+        // 总览按了「重新扫描」：这一页进过的每一层都成了上一轮的账，整本作废。
+        // 不接这一条会怎样：退回来还是旧数字，而这个工具的全部立身之本就是数是真的。
+        // 反过来说，**除了这一下**，进过的层就一直留着——那不叫漏扫，叫缓存。
+        .onChange(of: store.rescanPulse) { _ in model.invalidate() }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(model.selected.count, "项"),
@@ -184,6 +200,15 @@ struct FolderDrillView: View {
     }
 
     // MARK: 主体
+
+    /// 「上一级」那颗按钮的说明文字。顶层目录的上一格是空间总览而不是某个文件夹，
+    /// 说明里就得写空间总览——不然鼠标一停，说的和按下去的落点是两回事。
+    /// 用的是既有的「回到「%@」」那一句（全局返回按钮也读它），不另造一条文案。
+    private var goUpHint: String {
+        drillParent(of: model.path) == nil
+            ? LF("回到「%@」", L("空间总览"))
+            : L("退到上一层文件夹")
+    }
 
     @ViewBuilder private var content: some View {
         if model.path.isEmpty {
@@ -280,13 +305,13 @@ struct FolderDrillView: View {
     private var crumbsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
-                crumb(L("空间总览"), active: false) { store.jumpTo = .overview }
+                crumb(L("空间总览"), active: false) { store.resetNav(to: .overview) }
                 ForEach(Array(model.crumbs.enumerated()), id: \.element) { i, p in
                     Text("›")
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
                     crumb(shortLabel(p), active: i == model.crumbs.count - 1) {
-                        model.up(to: i)
+                        store.drill(into: p)
                     }
                 }
             }
@@ -407,6 +432,9 @@ struct FolderDrillView: View {
 
     private func start() {
         guard let p = store.folderDrillPath else { return }
+        // 正在量的就是这一层就别打断它：`open` 会取消在跑的任务、重开一趟，
+        // 而上面两条 onChange 有可能落在同一层上各响一次。
+        if p == model.path && model.busy { return }
         model.open(p)
     }
 
@@ -432,14 +460,11 @@ struct FolderDrillView: View {
     }
 }
 
-/// 面包屑/状态行里那一小截名字：盘顶换成宗卷名（跟访达路径栏同一个词），
-/// 家目录缩成 `~`，其余取尾段。
+/// 面包屑/状态行里那一小截名字：家目录缩成 `~`，其余取尾段。
+/// **盘顶不特别处理**：`/` 不再是面包屑的一格，它也只会出现在「正在量」那行里，
+/// 那时尾段本来就是 `/`。
 private func shortLabel(_ path: String) -> String {
     if path.isEmpty { return "" }
-    if path == "/" {
-        let name = FileManager.default.displayName(atPath: "/")
-        return name.isEmpty ? "/" : name
-    }
     if path == homePath() { return "~" }
     let last = (path as NSString).lastPathComponent
     return last.isEmpty ? path : last

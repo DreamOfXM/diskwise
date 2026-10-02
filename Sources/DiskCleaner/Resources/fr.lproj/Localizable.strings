@@ -24,7 +24,7 @@
 "看清空间" = "Voir le stockage";
 "开发机专项" = "Mac de développement";
 "清理" = "Nettoyer";
-"关于" = "À propos";
+"设置" = "Réglages";
 "依赖能重装，空间先拿回" = "Les dépendances se réinstallent : récupérez d'abord l'espace";
 "空间总览" = "Vue d'ensemble";
 "大文件" = "Gros fichiers";
@@ -37,6 +37,16 @@
 "废纸篓" = "Corbeille";
 "外观皮肤" = "Apparences";
 "问题反馈" = "Commentaires";
+"菜单栏与启动" = "Barre des menus et démarrage";
+"App 没开窗的时候，你从哪里找到它" = "Où trouver DiskWise quand aucune fenêtre n’est ouverte";
+"在菜单栏显示可用容量" = "Afficher l’espace libre dans la barre des menus";
+"只看卷的剩余空间，不扫盘、不读你的文件 · 默认开着" = "Demande seulement l’espace libre du volume — sans scanner le disque, sans lire vos fichiers · activé par défaut";
+"开机时启动 DiskWise" = "Ouvrir à la connexion";
+"不随机启动时，菜单栏只在 App 开着时出现 · 系统设置里允许后才生效" = "Sinon le chiffre n’apparaît que quand l’app est ouverte · effectif une fois autorisé dans Réglages Système";
+"打开系统设置" = "Ouvrir Réglages Système";
+"这一屏只有上面两行。扫描范围、单位口径、语言这些等有真实需要再进来。" = "Ces deux réglages sont tout ce que contient cette page. Portée d’analyse, base des unités et langue viendront quand ce sera utile.";
+"返回" = "Retour";
+"回到「%@」" = "Retour à « %@ »";
 
 // ── Vue d'ensemble ──────────────────────────────────────────────────────────
 "停止" = "Arrêter";
@@ -89,6 +99,7 @@
 "范围「%@」，要把每个目录走一遍才出列表。" = "Périmètre « %@ » : il faut parcourir chaque dossier avant que la liste apparaisse.";
 "磁盘占用环形图：%@" = "Anneau d'occupation du disque : %@";
 "访达显示" = "Afficher dans le Finder";
+"拷贝路径" = "Copier le chemin";
 "深挖" = "Approfondir";
 "在访达里打开 %@" = "Ouvrir %@ dans le Finder";
 "这一层没有读得出的子目录。" = "À ce niveau, aucun sous-dossier lisible.";

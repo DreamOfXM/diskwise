@@ -953,40 +953,75 @@ Task {
 }
 sem5.wait()
 
-// 10b. 面包屑：盘顶 → 当前，每一格都得是一个能点回去的真实祖先。
-//      不从扫描根起头：`/Library` 本身就是一条扫描根，以根起头那一屏就只剩一格，
+// 10b. 面包屑：**该路径自己的每一级**，每一格都是一个能点回去的真实祖先。
+//      **不含盘顶 `/`**：界面上最左那一格固定是「空间总览」——那是这一页的来处，
+//      而整盘的账本来就是空间总览那一页在做，再单列一格 `/` 等于把同一件事说第二遍；
+//      更要紧的是它把「上一级」引到一页没什么可干的空账上（那页全是「本工具不碰」）。
+//      也不从扫描根起头：`/Library` 本身就是一条扫描根，以根起头那一屏就只剩一格，
 //      上面全不见——而人是在「进太深了、想退出去」的时候才看这一条。
-check(crumbChain(for: "/") == ["/"], "盘顶就一格")
-check(crumbChain(for: "/Library") == ["/", "/Library"],
-      "本身就是扫描根的地方，上面那层照样在（得 \(crumbChain(for: "/Library"))）")
-check(crumbChain(for: "/Applications/Xcode.app") == ["/", "/Applications", "/Applications/Xcode.app"],
+check(crumbChain(for: "/") == [], "盘顶自己不占一格——它上面就是「空间总览」")
+check(crumbChain(for: "/Library") == ["/Library"],
+      "本身就是扫描根的地方，照样只有它自己这一格（得 \(crumbChain(for: "/Library"))）")
+check(crumbChain(for: "/Applications/Xcode.app") == ["/Applications", "/Applications/Xcode.app"],
       "两格都在，一路能点回去")
 let deep = home + "/Library/Developer/CoreSimulator"
-check(crumbChain(for: deep) == ["/", home, home + "/Library",
+check(crumbChain(for: deep) == [home, home + "/Library",
                                 home + "/Library/Developer", deep],
       "家目录那两段并成一格 `~`，中间每一级都不落（得 \(crumbChain(for: deep))）")
-check(crumbChain(for: deep).allSatisfy { $0 == "/" || deep.hasPrefix($0) },
+check(crumbChain(for: deep).allSatisfy { deep.hasPrefix($0) },
       "每一格都是当前路径的祖先，没有一格是编出来的")
-check(crumbChain(for: "/Users/别人/Documents") == ["/", "/Users", "/Users/别人", "/Users/别人/Documents"],
+check(crumbChain(for: "/Users/别人/Documents") == ["/Users", "/Users/别人", "/Users/别人/Documents"],
       "别人的家目录不折叠：那里没有 `~` 可写")
-check(crumbChain(for: home) == ["/", home], "就在家目录本身时，`~` 是最后一格")
+check(crumbChain(for: home) == [home], "就在家目录本身时，`~` 是最后一格")
+check(crumbChain(for: deep).first != "/" && crumbChain(for: "/Library").first != "/",
+      "哪一格都不是盘顶 `/`——最左那格由界面固定摆成「空间总览」")
+
+// 10c. 「上一级」的落点：`/Applications`、`/Library` 这类顶层目录再往上是**空间总览**，
+//      不是盘顶那一站。两者同一口径，否则面包屑说着「空间总览 › Applications」，
+//      按下去却落在一页只有「本工具不碰」、一个字节也清不动的空账上。
+check(drillParent(of: "/Applications") == nil, "顶层的上一级是空间总览，不经过盘顶")
+check(drillParent(of: "/") == nil, "盘顶自己没有上一级")
+check(drillParent(of: "") == nil, "还没进任何目录时没有落点")
+check(drillParent(of: "单个名字") == nil, "非绝对路径退出来是空的，同样当到顶")
+check(drillParent(of: home + "/Library/Caches") == home + "/Library",
+      "普通目录退到它的父目录")
+check(drillParent(of: home) == (home as NSString).deletingLastPathComponent,
+      "家目录自己也还有上一级（`/Users`），只有盘顶那两档才折回总览")
+check(drillParent(of: "/Applications/Xcode.app") == "/Applications",
+      "顶层下面一层照常退到父目录——折叠只发生在顶层那一跳")
 
 // 11. 知识库判词（`VerdictIndex`）：总览与文件夹详情是从一个**已经量出来的目录**
 //     反查「这一处是什么、能不能放心删」，走的是逐段比对，不是「截到第一个通配为止」的
 //     前缀——后者会把 `~/Library/Application Support/*[Dd]ing[Tt]alk*/log` 截成
-//     `~/Library/Application Support`，那一层住着几十个 App 的真实数据，却会被判成「安全」。
+//     `~/Library/Application Support`，那一层住着几十个 App 的真实数据，却会被判成「删了没影响」。
 //
-//     `warn` 那一档还要再分两刀：「能重下」和「会丢数据」是两件对着干的事，
-//     界面上共用一枚「留意」的时候，用户既不敢删该删的，也看不出哪个更该躲着走。
+//     `warn` 那一档还要再分两刀：「删了要重新下载」和「删了会丢数据」是两件对着干的事，
+//     混进同一枚徽章，用户既不敢删该删的，也看不出哪个更该躲着走。
 let vix = VerdictIndex(entries: entries)
 
 let vNpm = vix.verdict(for: home + "/.npm")
 check(vNpm.tier == .safe && vNpm.exact && vNpm.entry?.name == "npm 缓存目录",
       "精确命中一条 safe 条目（得 \(vNpm.tier.rawValue) / \(vNpm.entry?.name ?? "-")）")
 check(vix.verdict(for: home + "/.ollama/models").tier == .redo,
-      "标 warn + cost=redo 的条目判成「能重下」，不是「安全」，也不是「会丢数据」")
+      "标 warn + cost=redo 的条目判成「删了要重新下载」，不是「删了没影响」，也不是「删了会丢数据」")
 check(vix.verdict(for: home + "/Library/Developer/CoreSimulator/Devices").tier == .risky,
-      "标 warn + cost=data 的条目判成「会丢数据」——模拟器里装着已装 App 的数据与登录态")
+      "标 warn + cost=data 的条目判成「删了会丢数据」——模拟器里装着已装 App 的数据与登录态")
+// 大文件 / 很久没动那两页列出来的是**文件**，比条目深好几层，命中靠的是它上面的那一格。
+// 这条钉的就是这个机制：exact 为 false，档位照祖先走。截图里那些
+// `…/Devices/<UDID>/data/private/var/MobileAsset/…/UC_SIRL_….dmg` 正是这种路径——
+// 修那条「大文件页对它们一个字都不说」的缺陷，靠的就是它。
+let vSimFile = vix.verdict(for: home
+    + "/Library/Developer/CoreSimulator/Devices/5BF3AD51-2DC2-4716-9526-F1D347F294E0"
+    + "/data/private/var/MobileAsset/AssetsV2/com_apple_MobileAsset_UAF_Siri_Understanding/x.dmg")
+check(vSimFile.tier == .redo && !vSimFile.exact
+        && vSimFile.entry?.name == "模拟器内的系统资产",
+      "模拟器里按需下载的资产落到更细的那一条上，判「删了要重新下载」——"
+      + "不再被整条 Devices 的 warn=data 盖成「会丢数据」"
+      + "（得 \(vSimFile.tier.rawValue) / \(vSimFile.entry?.name ?? "-") / exact=\(vSimFile.exact)）")
+check(vix.verdict(for: home
+        + "/Library/Developer/CoreSimulator/Devices/5BF3AD51-2DC2-4716-9526-F1D347F294E0"
+        + "/data/var/db/uuidtext/dsc/x").tier == .redo,
+      "模拟器内的共享缓存同样可重建，也不落进「会丢数据」")
 // 同一批 warn 里两档必须真的分得开：这两条都是 warn，但代价一个天一个地。
 check(vix.verdict(for: home + "/.ollama/models").tier
         != vix.verdict(for: home + "/Library/Developer/CoreSimulator/Devices").tier,
@@ -1001,7 +1036,7 @@ check(vPip.tier == .safe && vPip.exact,
 // 落在条目**上面**的那层不算命中。这一条正是第一版实现错掉的地方。
 let vAppSup = vix.verdict(for: home + "/Library/Application Support")
 check(vAppSup.tier == .unknown && vAppSup.entry == nil,
-      "住在它下面的条目不许把这一层判成安全——那一层是几十个 App 的真实数据")
+      "住在它下面的条目不许把这一层判成「删了没影响」——那一层是几十个 App 的真实数据")
 check(vAppSup.knownBelow >= 3,
       "但「底下有几处认得」要数得出来，否则「不认识」就是一句死话（得 \(vAppSup.knownBelow)）")
 // 通配段：同一层里对得上的命中、对不上的不跟着命中。
@@ -1016,12 +1051,12 @@ check(vix.verdict(for: "/System/Volumes/Data/System/Library/AssetsV2/com_apple_M
       "家目录外的系统资产也认得出")
 // 最后一档必须存在：没命中 ≠ 可以删。
 check(vix.verdict(for: "/tmp/没这条-\(UUID().uuidString)").tier == .unknown,
-      "知识库里没有的路径报「不认识」，不默认成安全")
+      "知识库里没有的路径报「不认识」，不默认成「删了没影响」")
 check(vix.verdict(for: "相对路径/不该认").tier == .unknown,
       "相对路径一律不认——认了会把判词挂到想不到的地方去")
 
 // 12. 知识库的 `cost` 字段：`warn` 的每一条都要标，`safe` 的一条都不该有。
-//     漏标一件「会丢数据」的，界面就会把它说成「能重下」——那不是文案问题，是让人
+//     漏标一件「删了会丢数据」的，界面就会把它说成「删了要重新下载」——那不是文案问题，是让人
 //     把不该删的东西删掉。所以这一层由自检从 JSON 里逐条盯，不靠写的人自觉。
 let noCost = entries.filter { $0.level == "warn" && $0.cost == nil }.map(\.name)
 check(noCost.isEmpty, "每条 warn 都标了 cost（缺：\(noCost.joined(separator: "、"))）")
@@ -1033,7 +1068,7 @@ let tOllama = entries.first { $0.name == "Ollama 模型" }?.tier
 let tSim = entries.first { $0.name == "Xcode 模拟器设备" }?.tier
 let tNpm = entries.first { $0.name == "npm 缓存目录" }?.tier
 check(tOllama == .redo && tSim == .risky && tNpm == .safe,
-      "三档映射：warn+redo→能重下，warn+data→会丢数据，safe→安全（得 \(tOllama?.rawValue ?? "-") / \(tSim?.rawValue ?? "-") / \(tNpm?.rawValue ?? "-")）")
+      "三档映射：warn+redo→删了要重新下载，warn+data→删了会丢数据，safe→删了没影响（得 \(tOllama?.rawValue ?? "-") / \(tSim?.rawValue ?? "-") / \(tNpm?.rawValue ?? "-")）")
 let danglingWarn = entries.filter { $0.level == "warn" && $0.cost == nil }
 check(danglingWarn.count == 0,
       "没有一条 warn 漏在 cost 之外")
@@ -1041,10 +1076,44 @@ check(danglingWarn.count == 0,
 // 说轻了会让人把不该删的删掉；说重了只是白紧张一下——两种错代价不对等。
 let rawNoCost = #"{"name":"x","what":"w","whatif":"i","rec":"r","path":"/tmp/x","level":"warn"}"#
 if let e = try? JSONDecoder().decode(SafetyEntry.self, from: Data(rawNoCost.utf8)) {
-    check(e.tier == .risky, "漏标 cost 的 warn 按「会丢数据」算，不许悄悄退回「能重下」（得 \(e.tier.rawValue)）")
+    check(e.tier == .risky, "漏标 cost 的 warn 按「删了会丢数据」算，不许悄悄退回「删了要重新下载」（得 \(e.tier.rawValue)）")
 } else {
     check(false, "缺 cost 字段的条目要能解得出来，不能整条解不动")
 }
+
+// 13. 导航历史：去重那一条是这套「返回」里唯一会算错的地方。
+//     「上一级」往回走时父目录本来就在栈里，当成新的一站追加的话，
+//     历史会变成「…父、子、父」，按返回又跳回子目录，来回打转出不去。
+var nav = NavStack<String>(first: "总览")
+check(!nav.canGoBack, "只有一站时不能返回")
+check(nav.current == "总览", "栈顶就是此刻这一屏")
+check(nav.arrive("大文件"), "落一站算真的动了地方")
+check(nav.canGoBack, "两站之后能返回")
+check(nav.previous == "总览", "上一站就是出发的那一站")
+check(nav.pop() == "总览", "退一步回到出发那一站")
+check(!nav.canGoBack, "退到底之后返回失效")
+check(nav.pop() == nil, "只剩一站时退不动，也不许把栈退空")
+
+var drill = NavStack<String>(first: "总览")
+drill.arrive("/A"); drill.arrive("/A/B"); drill.arrive("/A/B/C")
+check(drill.stops == ["总览", "/A", "/A/B", "/A/B/C"],
+      "三层都记下来了（得 \(drill.stops)）")
+check(drill.arrive("/A/B"), "「上一级」也是一次落站")
+check(drill.stops == ["总览", "/A", "/A/B"],
+      "回到去过的那一站，把它后面的整段丢掉（得 \(drill.stops)）")
+check(drill.pop() == "/A", "再退一步到上一层——不是又跳回 /A/B/C")
+check(drill.pop() == "总览", "继续退到最外面")
+check(!drill.canGoBack, "退到栈底就停住")
+
+var same = NavStack<String>(first: "总览")
+check(!same.arrive("总览"), "落在同一站上不算动地方——视图据此不做多余的重量")
+check(same.stops == ["总览"], "同一站不会把自己叠两层")
+
+var root = NavStack<String>(first: "总览")
+root.arrive("大文件"); root.arrive("缓存")
+root.reset(to: "缓存")
+check(root.stops == ["缓存"] && !root.canGoBack,
+      "点侧栏是重新挑目的地，返回随即失效（得 \(root.stops)）")
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

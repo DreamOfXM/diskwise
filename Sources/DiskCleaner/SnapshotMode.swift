@@ -33,8 +33,15 @@ import SwiftUI
 // 环形那道绕环的反光在静止帧里默认钉在正上方；要取证「它在走」：
 //   DISKWISE_RING_GLINT=110 / 230 各跑一趟，三张并排看亮斑落点。
 // 要取证余晖「在呼吸」：DISKWISE_RING_BREATH=0 与 =1 各一张，两档求差。
+// 要取证「搬进废纸篓那一枚筹码画在哪」：DISKWISE_FLIGHT=<0~1>，0 = 刚离开环心、
+//   0.5 = 抛到最高、1 = 已落进废纸篓那一格。它整个 0.62 秒都在动，静帧判定等不到它停。
 // 要拍「从总览深挖进某目录后的大文件页」（带返回入口那一屏）：
 //   DISKWISE_ONLY=big DISKWISE_BIGDRILL='<某个目录>' → 02-big-files-drilled.png。
+// 要拍「顶上那颗全局返回」：在同一趟上再加 DISKWISE_BACK=1，
+//   先按「从总览深挖过来」把历史铺成两站（那颗按钮才会出现），拍完再真按一次，
+//   补一张 02-big-files-back.png —— 按下去之后退回总览的那一屏。
+// 要验下钻页那颗「上一级」按下去落到哪儿（顶层目录该回空间总览，不是盘顶）：
+//   在同一趟上加 DISKWISE_UP=1，拍完 14-folder-drill 再真按一次，补一张 -up。
 // 要拍「总览某一格摊开之后长什么样」：再加 DISKWISE_JUMP=rest|gap|<某行完整路径>，rest 摊开
 // 「其他已统计」那一格（它名下的那些行，加上尾巴那句逐段对账），gap 摊开「没量到」那一格（卷账逐块点名），
 // 给完整路径就摊开那个目录的下一级，补 01-overview-jump.png。`restnote` 是 rest 的旧名，仍然认。
@@ -48,6 +55,8 @@ import SwiftUI
 // 拼图在外面的 ffmpeg 里做，剧本逐拍见 `runFilm`。
 // 连拍这一趟环上那两道光**会走**：反光与余晖由逐帧推进的连拍时钟驱动（见 `filmClock`），
 // 节拍与真机一致；静图那一趟仍然钉住，否则 `waitSettled` 永远等不到静帧。
+// ⑥ 那一拍搬进废纸篓的那枚筹码同理：它的进度也读这个连拍时钟（见 `TrashFlight.bornClock`），
+// 因为墙钟在这一趟里是拍片器一格一格手动推的，`withAnimation` 那套根本不动。
 
 enum SnapshotMode {
     static var requestedDir: String? {
@@ -158,6 +167,17 @@ enum SnapshotMode {
         return min(1, max(0, v))
     }
 
+    /// DISKWISE_FLIGHT=<0~1>：把「正飞往废纸篓」那枚筹码钉在行程的指定档上拍一张
+    /// （0 = 刚离开环心，0.5 = 抛到最高处，1 = 已落进废纸篓那一格）。
+    /// 同 `ringGlintPhase`：它整个 0.62 秒都在动，静帧判定永远等不到它停下来，
+    /// 而这条轨迹恰恰是「它在动」本身——那就只能钉住相位再拍。
+    static var flightPhase: CGFloat? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_FLIGHT"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let v = Double(raw) else { return nil }
+        return CGFloat(min(1, max(0, v)))
+    }
+
     /// DISKWISE_HOVER=<第几段>：把「鼠标停在某条弧上」这件事钉住拍照（序号对着环旁边
     /// 那列账目从上往下数，0 起）。悬停响应是这一屏最容易「代码写了、图上看不见」的一处，
     /// 没有旋钮就只能靠嘴说它存在。
@@ -186,9 +206,30 @@ enum SnapshotMode {
     }
 
     /// DISKWISE_DRILL_INTO=1：下钻页第一层量完自动钻第一个子目录一次，
-    /// 好让出的图里能看见面包屑和「深一层」长什么样。走的是行上那颗箭头调的同一条 `into`。
+    /// 好让出的图里能看见面包屑和「深一层」长什么样。
+    /// 这一趟交给 `FolderDrillModel.onAutoDescend` 转出去走，路数是行上那颗箭头同一条。
     static var drillAutoDescend: Bool {
         (ProcessInfo.processInfo.environment["DISKWISE_DRILL_INTO"] ?? "") == "1"
+    }
+
+    /// DISKWISE_BACK=1：拍大文件页时先按「从总览深挖过来」走一遍真的两步，
+    /// 好让顶上那颗全局「返回」出现在图里，再多拍一张按下去之后的。
+    ///
+    /// 不这么做的话，逐页挑图这一路是一次一次直接置 `jumpTo` 的，历史里始终只有
+    /// 当前这一站，那颗按钮永远不画出来——README 里就少了一张「退路长什么样」。
+    /// 走的是 `resetNav` + `arrive` 两个同一条链路上的方法，不是另塞一颗假按钮。
+    static var backProbe: Bool {
+        (ProcessInfo.processInfo.environment["DISKWISE_BACK"] ?? "") == "1"
+    }
+
+    /// DISKWISE_UP=1：拍完下钻页那一张，再真按一次「上一级」，补一张按下去之后的。
+    ///
+    /// 顶层目录的这一按是**这里唯一能看出来的一处**：`/Applications` 的上一格是空间总览，
+    /// 不是盘顶那一站。静图只照得出面包屑，照不出按下去落到哪儿——而「按了落哪儿」
+    /// 正是这一按要证的事。走的是按钮自己的那条路（`store.goUpFromDrill`），
+    /// 不是另算一遍落点。
+    static var upProbe: Bool {
+        (ProcessInfo.processInfo.environment["DISKWISE_UP"] ?? "") == "1"
     }
 
     /// DISKWISE_EXPAND=1：进列表页时把**第一行**的明细摊开。
@@ -279,6 +320,7 @@ enum SnapshotMode {
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),
         (.folderDrill, "14-folder-drill", 6, 60),
+        (.menuLaunch, "15-menu-launch", 2, 8),
     ]
 
     /// DISKWISE_PICK=dup,caches：这些页各补两张——按一次底部清理条的「全选」，再按一次
@@ -301,6 +343,9 @@ enum SnapshotMode {
     /// DISKWISE_MIDSCAN=nm,caches：这些页在「刚换过去、一行都还没回填」的那一刻先拍一张
     /// （`<页名>-midscan.png`）。列表是扫完才一次性回来的，`waitSettled` 会一直等到数据落地
     /// 才收工，所以加载那几分钟画的是什么，没有这一钩子就只能靠嘴说它存在。
+    ///
+    /// 口令与页名**两边都转小写**再比，理由同 `DISKWISE_ONLY`：页名里有 `folderDrill`
+    /// 这种带大写的，不折一次的话这一趟会静默地一张都不出，拍图的人只会以为自己敲错了。
     private static var midscanPanels: Set<String> {
         Set((ProcessInfo.processInfo.environment["DISKWISE_MIDSCAN"] ?? "")
             .split(separator: ",").map { $0.lowercased() })
@@ -456,13 +501,30 @@ enum SnapshotMode {
         }
         for (panel, name, minWait, maxWait) in pages
         where only.isEmpty || only.contains(String(describing: panel).lowercased()) {
+            // 大文件页这一张本来就是「从总览深挖过来」的，所以历史先按真的两步铺好，
+            // 顶上那颗「返回」才会画出来；等它拍完再真按一次，多出一张退回总览的。
+            let shootBack = SnapshotMode.backProbe && panel == .big && bigDrillDir != nil
+            if shootBack {
+                store.resetNav(to: .overview)
+                store.arrive(NavStop(panel: .big))
+            }
             store.jumpTo = panel
-            if midscanPanels.contains(String(describing: panel)) {
+            if midscanPanels.contains(String(describing: panel).lowercased()) {
                 pump(midscanDelay)   // 只等布局，不等数据
                 shoot(name + "-midscan")
             }
             waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
             shoot(panel == .big && bigDrillDir != nil ? name + "-drilled" : name)
+            if shootBack {
+                store.goBack()
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 60)
+                shoot(name + "-back")
+            }
+            if panel == .folderDrill, SnapshotMode.upProbe, drillDir != nil {
+                store.goUpFromDrill()
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 60)
+                shoot(name + "-up")
+            }
             if sheetPanels.contains(String(describing: panel)) {
                 store.envListPulse += 1
                 pump(1.6)     // 弹出动画 + 名单首帧

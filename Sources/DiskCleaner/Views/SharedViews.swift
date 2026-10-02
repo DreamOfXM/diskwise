@@ -726,8 +726,15 @@ struct ExplainLine: View {
 
 /// 路径行。整行就是「在访达里把这个文件选中」那颗按钮。
 ///
-/// 为什么不用 `Button` 包：Button 的 label 会吃掉 `.textSelection`，
-/// 那样就只剩「打开」没有了「复制路径」。点一下和拖选一段得同时成立。
+/// ⚠️ 这一行**不能开 `.textSelection`**。开着的时候那层文字视图会在 AppKit 层吃掉
+/// `mouseDown`，点上去什么手势都不响——`onTapGesture` 挂在文字上、挂在外面那层
+/// `HStack` 上、调换修饰符顺序、换成 `simultaneousGesture`、把点击挪到底下的
+/// background 层，五条路一条都不响；只有关掉选择的对照组接得到（macOS 13 实拍过）。
+/// 而这一行长得就是个链接（悬停有手型 + 下划线），点了没反应比不开这个口子更坏。
+/// 所以左键留给「打开」，复制走右键菜单：两件事不再抢同一片像素。
+///
+/// 为什么不用 `Button` 包：`.buttonStyle(.plain)` 也会把这一行做成一个整体控件，
+/// 悬停变色、手型光标、右键菜单全得自己再写一遍，而这里要的就是一个平铺的链接。
 struct PathLine: View {
     @Environment(\.theme) private var theme
     var path: String
@@ -743,6 +750,11 @@ struct PathLine: View {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
+    private func copyPath() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "folder")
@@ -752,13 +764,16 @@ struct PathLine: View {
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(fg)
                 .underline(hovering, color: fg)
-                .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .onTapGesture(perform: reveal)
         }
         .padding(.leading, 2)
         .contentShape(Rectangle())
         .onTapGesture(perform: reveal)
+        .contextMenu {
+            Button(L("访达显示")) { reveal() }
+            Button(L("拷贝路径")) { copyPath() }
+        }
         .onHover {
             hovering = $0
             // 同 SweepRing：光标只在翻转时动，拆掉这层时要把箭头还回去

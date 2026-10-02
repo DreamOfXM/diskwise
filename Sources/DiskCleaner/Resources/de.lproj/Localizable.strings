@@ -24,7 +24,7 @@
 "看清空间" = "Speicher ansehen";
 "开发机专项" = "Entwickler-Mac";
 "清理" = "Aufräumen";
-"关于" = "Über";
+"设置" = "Einstellungen";
 "依赖能重装，空间先拿回" = "Abhängigkeiten lassen sich neu installieren – hol dir den Platz zurück";
 "空间总览" = "Übersicht";
 "大文件" = "Große Dateien";
@@ -37,6 +37,16 @@
 "废纸篓" = "Papierkorb";
 "外观皮肤" = "Skins";
 "问题反馈" = "Feedback";
+"菜单栏与启动" = "Menüleiste & Start";
+"App 没开窗的时候，你从哪里找到它" = "Wo du DiskWise findest, wenn kein Fenster offen ist";
+"在菜单栏显示可用容量" = "Freien Speicherplatz in der Menüleiste anzeigen";
+"只看卷的剩余空间，不扫盘、不读你的文件 · 默认开着" = "Fragt nur den freien Platz des Volumes ab — kein Laufwerksscan, keine Dateien werden gelesen · standardmäßig ein";
+"开机时启动 DiskWise" = "Beim Anmelden öffnen";
+"不随机启动时，菜单栏只在 App 开着时出现 · 系统设置里允许后才生效" = "Ohne das erscheint die Zahl nur, wenn die App offen ist · wirksam erst nach der Erlaubnis in den Systemeinstellungen";
+"打开系统设置" = "Systemeinstellungen öffnen";
+"这一屏只有上面两行。扫描范围、单位口径、语言这些等有真实需要再进来。" = "Mehr als diese zwei Schalter gibt es hier nicht. Scanbereich, Einheitsbasis und Sprache kommen erst, wenn sie wirklich gebraucht werden.";
+"返回" = "Zurück";
+"回到「%@」" = "Zurück zu «%@»";
 
 // ── Übersicht ───────────────────────────────────────────────────────────────
 "停止" = "Stopp";
@@ -89,6 +99,7 @@
 "范围「%@」，要把每个目录走一遍才出列表。" = "Umfang «%@» – erst muss jeder Ordner durchlaufen werden, dann erscheint die Liste.";
 "磁盘占用环形图：%@" = "Ringdiagramm der Plattenbelegung: %@";
 "访达显示" = "Im Finder zeigen";
+"拷贝路径" = "Pfad kopieren";
 "深挖" = "Nachsehen";
 "在访达里打开 %@" = "%@ im Finder öffnen";
 "这一层没有读得出的子目录。" = "Auf dieser Ebene gibt es keine lesbaren Unterordner.";

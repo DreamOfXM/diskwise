@@ -104,9 +104,13 @@ public func expandHome(_ raw: String) -> String {
     return s
 }
 
-/// 一条路径的完整面包屑：**盘顶 → 该路径**，每一格都是一个能点回去的真实祖先。
+/// 一条路径的面包屑：**该路径自己的每一级**，每一格都是一个能点回去的真实祖先。
 ///
-/// 不从「包含它的那条扫描根」起头：`/Library`、`/Applications` 本身就是扫描根，
+/// **不含盘顶 `/`**：界面上最左那一格固定是「空间总览」——那是这一页的来处，而整盘的账
+/// 本来就是空间总览那一页在做，再单列一格 `/` 等于把同一件事说第二遍；更要紧的是它把
+/// 「上一级」引到一页没什么可干的空账上（那页全是「本工具不碰」，一个字节也清不动）。
+///
+/// 也不从「包含它的那条扫描根」起头：`/Library`、`/Applications` 本身就是扫描根，
 /// 以根为起点的话那些地方只剩孤零零一格，上面全不见——而人恰恰是在「进太深了、
 /// 想退出去」的时候才看这一条。
 ///
@@ -116,7 +120,7 @@ public func crumbChain(for path: String, home: String = homePath()) -> [String] 
     let std = URL(fileURLWithPath: path).standardizedFileURL.path
     let homeStd = URL(fileURLWithPath: home).standardizedFileURL.path
     let me = (homeStd as NSString).lastPathComponent
-    var out: [String] = ["/"]
+    var out: [String] = []
     var cur = ""
     for part in std.split(separator: "/").map(String.init) {
         if cur == "/Users", part == me {
@@ -129,6 +133,20 @@ public func crumbChain(for path: String, home: String = homePath()) -> [String] 
         out.append(cur)
     }
     return out
+}
+
+/// 下钻页「上一级」的落点：上一层目录。`nil` = 已经到顶，再往上是面包屑最左那格「空间总览」。
+///
+/// 盘顶 `/` **不算一站**：从 `/Applications`、`/Library` 这类顶层目录往上退，落点直接是
+/// 空间总览，而不是 `/`。理由与 `crumbChain` 同一条——整盘的账是空间总览那一页在做，
+/// 而 `/` 那份报告一个字节也清不动。
+public func drillParent(of path: String) -> String? {
+    guard !path.isEmpty else { return nil }
+    let up = (path as NSString).deletingLastPathComponent
+    // `up.isEmpty` 是给相对路径留的：只有一段的那种退出来是空的，同样当到顶，
+    // 不能让调用方拿一个空串去当下一站。
+    if up.isEmpty || up == path || up == "/" { return nil }
+    return up
 }
 
 // ── 缓存条目（UI 模型）──

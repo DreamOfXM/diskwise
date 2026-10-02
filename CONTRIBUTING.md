@@ -210,11 +210,20 @@ canvas and the README tables don't start wrapping.
 Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
 
 - `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
+- `DISKWISE_BIGDRILL='~/Library/Developer'` with `DISKWISE_ONLY=big` — shoot the Large Files page as
+  it looks after "Dig deeper" from the Overview: one directory scanned on its own, with the
+  `Only <dir>` badge and `Show all folders` in the toolbar. Add `DISKWISE_BACK=1` to also seed the
+  nav history with the two stops that got you there, so the window's global Back button is really on
+  screen, and to shoot a `-back` frame after pressing it. Picking pages by writing `jumpTo` leaves
+  the history at a single stop, so without `DISKWISE_BACK` the button is missing from every shot.
 - `DISKWISE_LANG=ja` — the language to shoot in; it accepts either the `code` or the raw value, so
   `en`, `zh-Hans`, `zh-Hant`, `ja`, `ko`, `de`, `es`, `fr`, `ru` and `pt-BR` all work. Don't
   `defaults write` the stored choice instead: while an instance is running, `cfprefsd` serves that
   process's cached copy back and the app reads the old value. Same trap as `DISKWISE_SKIN` — both are
   per-run overrides.
+- `DISKWISE_UP=1` — on the Folder details page (with `DISKWISE_DRILLDIR`), press its toolbar
+  **Up one level** once after the page shot and save `-up`. A still can only show the breadcrumb, never
+  where that press lands — and for a top-level directory, where it lands is the entire point of it.
 - `DISKWISE_PICK=dup,caches` — press that page's bottom-bar select-all twice and shoot
   `-selected` / `-deselected`. A checkbox list you can't un-check is a defect, and only an
   actual press proves it's gone.
@@ -246,12 +255,57 @@ Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
     still prints 155 frames, but ⑥⑦ silently become "armed, then timed out", and the GIF ends up
     advertising a move that never happened. The run says so on stderr (`放回 0 处` plus a ✗ line) —
     read that line before you encode.
+  - Beat ⑥ is where bytes actually move, and the move draws a token: a small `6.3 GB` chip leaves
+    the ring's centre, arcs across the page and lands on the Trash row, while that row's hatched bar
+    fills over the same 0.62 s. The chip reads its progress off the burst clock, not the wall clock —
+    `withAnimation` does not advance when the pump is stepped by hand. To look at that one frame
+    without re-shooting all 153, `DISKWISE_FLIGHT=<0~1>` pins a single chip at that fraction of the
+    trip (0 leaving the ring, 0.5 top of the arc, 1 landed). It is a still, so it proves where the
+    chip is drawn, not that it moves — the burst is what proves the motion.
   Cut the scan beat (f0001…f0042) when you assemble the GIF: the README already carries
   `01-overview-scanning.png` as a still, and starting the loop on a settled ring means the last
   frame and the first frame match. 113 frames ≈ 3.1 MB.
 
 English copy runs ~30% wider than Chinese, so check more than one language — a lot of layout bugs
 are only visible in one of them, and `DISKWISE_LANG` takes any of the ten.
+
+The Folder details breadcrumb lists **the path's own levels**, and the disk root is not one of them:
+the leftmost cell is always Overview, because the whole-disk ledger is that page's job and a `/` page
+could not reclaim a single byte. The same rule decides the **Up one level** button — from
+`/Applications` it goes back to Overview rather than stopping at the root in between. Both read
+`crumbChain` and `drillParent`; keep them on one rule, or the crumb will say one thing while the
+button does another.
+
+## Clickable rows and text selection
+
+A row that looks clickable has to *be* clickable, or it is worse than no affordance at all. And in
+this app that runs into a hard wall: **`.textSelection(.enabled)` and a tap gesture cannot share the
+same pixels.** The selectable text is backed by an AppKit text view that swallows the `mouseDown`, so
+nothing in SwiftUI ever sees the click. Measured on macOS 13, clicking dead centre on the text:
+
+| The row | Taps received |
+|---|---|
+| plain `Text` + `onTapGesture`, no selection (control) | 2 / 2 |
+| `.textSelection(.enabled)`, gesture on the text **and** on the enclosing `HStack` | 0 / 2 |
+| same, with the gesture applied *before* `.textSelection` | 0 / 2 |
+| same, with `simultaneousGesture` | 0 / 2 |
+| same, with the gesture moved to a background layer under the text | 0 / 2 |
+
+Reordering modifiers, `simultaneousGesture` and a background layer all fail. The only thing that
+works is turning selection off — so pick one action per pixel:
+
+- `PathLine` (the path under an unfolded row) keeps left-click = reveal in Finder, and puts
+  **Copy Path** in its context menu.
+- `Components.swift`'s scan readout is display-only, so it disables selection to stop the cursor
+  turning into an I-beam.
+
+If you need to know whether a click handler actually fires, don't squint at it — post a real event
+into your own window from inside the app and count. `NSApp.postEvent` needs no extra permissions, and
+`NSEvent.mouseEvent(with:location:windowNumber:…)` plus a `GeometryReader`/`PreferenceKey` pair to
+measure where the row landed is enough to drive a click at its centre. Two traps: put a throwaway
+click somewhere harmless first and discard it, because macOS spends the first click on activating an
+inactive window; and note SwiftUI's named coordinate space has its origin top-left while AppKit
+window coordinates have theirs bottom-left.
 
 ## Before opening a PR
 

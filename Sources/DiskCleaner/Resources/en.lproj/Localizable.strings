@@ -15,7 +15,7 @@
 "看清空间" = "See your storage";
 "开发机专项" = "Dev machine";
 "清理" = "Clean up";
-"关于" = "About";
+"设置" = "Settings";
 "依赖能重装，空间先拿回" = "Dependencies reinstall themselves — take the space back";
 "空间总览" = "Overview";
 "大文件" = "Large Files";
@@ -28,6 +28,16 @@
 "废纸篓" = "Trash";
 "外观皮肤" = "Skins";
 "问题反馈" = "Feedback";
+"菜单栏与启动" = "Menu Bar & Launch";
+"App 没开窗的时候，你从哪里找到它" = "Where to find DiskWise when no window is open";
+"在菜单栏显示可用容量" = "Show free space in the menu bar";
+"只看卷的剩余空间，不扫盘、不读你的文件 · 默认开着" = "It only asks the volume how much is left — no disk scan, no reading your files · on by default";
+"开机时启动 DiskWise" = "Open at Login";
+"不随机启动时，菜单栏只在 App 开着时出现 · 系统设置里允许后才生效" = "Without it the number shows only while DiskWise is open · it takes effect once you allow it in System Settings";
+"打开系统设置" = "Open System Settings";
+"这一屏只有上面两行。扫描范围、单位口径、语言这些等有真实需要再进来。" = "These two switches are the whole page. Scan scope, unit basis and language come when there’s a real need for them.";
+"返回" = "Back";
+"回到「%@」" = "Back to “%@”";
 
 // ── 总览 ────────────────────────────────────────────────────────────────────
 "停止" = "Stop";
@@ -80,6 +90,7 @@
 "范围「%@」，要把每个目录走一遍才出列表。" = "Scope “%@” — every folder has to be walked before the list appears.";
 "磁盘占用环形图：%@" = "Disk usage ring: %@";
 "访达显示" = "Reveal";
+"拷贝路径" = "Copy Path";
 "深挖" = "Dig in";
 "在访达里打开 %@" = "Open %@ in Finder";
 "这一层没有读得出的子目录。" = "No readable subfolders at this level.";

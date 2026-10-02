@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Combine
 import DiskCleanerCore
 
@@ -39,6 +40,20 @@ struct DiskCleanerApp: App {
         // 而每一页页头本来就有标题——两行同义反复叠在一起就是重影。
         // 隐藏标题栏后内容顶到窗口边，红绿灯那一条改由我们自己让（见 ChromeStrip）。
         .windowStyle(.hiddenTitleBar)
+        // ⌘, 是 macOS 用户找设置的落点，稿子①的判据就是「按 ⌘, 真能打开这一屏」。
+        // 不换窗口、不开第二个壳：这一屏本来就在侧栏里，按了就把它带到那一行。
+        // 一个窗口都没有时先把 App 激活，落点存着不丢，下一扇窗开起来时接住
+        // （见 `ContentView.onAppear` 那条 drain）。
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(L("设置")) {
+                    // 和点侧栏同一条：换目的地，顺手把导航历史压成只有这一站。
+                    store.resetNav(to: .menuLaunch)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 }
 
@@ -95,13 +110,22 @@ final class ScanStore: ObservableObject {
         case .orphans:     return orphans.started ? orphans.totalBytes : nil
         // 下钻页的那笔账是「当前这一层」，跟侧栏那一列（各页总量）不是一个口径，
         // 报上去只会让同一格数字随用户点进点出地跳。
-        case .overview, .trash, .appearance, .feedback, .folderDrill: return nil
+        case .overview, .trash, .appearance, .feedback, .folderDrill, .menuLaunch: return nil
         }
     }
 
     private func cacheAmount(_ model: CachesModel) -> Int64? {
         model.started ? model.items.reduce(Int64(0)) { $0 + max(0, $1.size ?? 0) } : nil
     }
+}
+
+/// 历史里的一站。
+///
+/// 两截：去了哪一页，以及**页内落在哪一层**。下钻页里往里进一层也是一次跳转，
+/// 只记页名的话退回来会落在这棵树的入口，而不是刚才站着的那一层。
+struct NavStop: Equatable {
+    var panel: AppPanel
+    var drillPath: String? = nil
 }
 
 // 全 App 共享：废纸篓历史（撤销用）+ 顶部提示条 + 跨页跳转
@@ -113,9 +137,27 @@ final class AppStore: ObservableObject {
     @Published var bigScanDir: URL? = nil   // 总览跳过来的定向扫描目录
     /// 「进这个文件夹往下看」——文件夹下钻页要落到哪一层。
     ///
-    /// 跟 `jumpTo` 分工：这个只说「看哪儿」，切页由 `drill(into:)` 一起做。
+    /// 跟 `jumpTo` 分工：这个只说「看哪儿」，切页由 `arrive(_:)` / `resetNav(to:)` 一起做。
     /// 分开是因为从总览、大文件、下钻页三处都能发起下钻，而「跳页」这件事只有一处该管。
     @Published var folderDrillPath: String? = nil
+    /// 走到过的地方。**栈顶就是此刻这一屏**，这是「返回」的全部依据。
+    ///
+    /// `jumpTo` 是消费一次就清空的命令，答不了「我从哪儿来」，所以来源得单独记一本。
+    /// 两种入口分得很清楚：侧栏点页与面包屑首格是「根」入口，走 `resetNav(to:)`
+    /// 把历史压成只有那一站；内容里每一次跳转（深挖、点文件夹名、下钻页里进/退）
+    /// 都走 `arrive(_:)`。这条界线就是「返回」的边界——重新挑目的地，
+    /// 不该还能倒着走回去。
+    ///
+    /// 去重和截断的规则在 `NavStack` 里，由自检钉住；这里只管把它接到界面上。
+    private var nav = NavStack<NavStop>(first: NavStop(panel: .overview))
+    /// 第一站只认第一次 `seedNav`：窗重新出现时不能把走过的历史清掉。
+    private var navSeeded = false
+    /// 每走一步 +1。下钻页据此重新对账自己在哪一层。
+    ///
+    /// 光听 `folderDrillPath` 不够：后退时落点可能和来处**恰好是同一个值**
+    /// （比如从 A 进到 A/B 再退回来，中间那一段被截掉了），
+    /// 值没变 onChange 就不响，界面会停在子目录上不动。
+    @Published private(set) var navPulse = 0
     /// 让总览页就地摊开某个名字的那一行，读完即清空。
     /// 现在只有截图链路会写它（`DISKWISE_DRILL`）：摊开出来的下级要点下去才看得见，
     /// 而批量拍图这一路没有键鼠。走的仍是行上那颗箭头调的同一个方法，不是另画的假界面。
@@ -134,6 +176,14 @@ final class AppStore: ObservableObject {
     /// 同样只有截图链路会写（`DISKWISE_SHEET`）。名单只在点开后才存在，而这一路没有键鼠，
     /// 按的仍是那句 `EnvCopiesClause` 自己的 action。
     @Published var envListPulse = 0
+    /// 「整盘重扫了一轮」的脉冲：每 +1 表示总览那颗按钮刚被按下。
+    ///
+    /// 总览自己会就地作废它摊开出来的下一级（`dropChildren`），但**别的页**手里那些
+    /// 「进过的层」还挂着上一轮的数——文件夹详情就是一个，它进过的每一层都存在自己
+    /// 那个 `cache` 里。盘的账已经变了，隔着一轮扫描还拿旧数当今天的账看，
+    /// 正是「手动重扫」这个动作要消灭的东西。各页自己监听这个数去作废各自的缓存，
+    /// 谁也不必认识谁。
+    @Published var rescanPulse = 0
     /// 把总览那一屏当前摊开的明细收回去。行首那颗 `▸` 的收起路径就是再点一次同一行，
     /// 截图这一路点不到它，所以每 +1 让视图自己走一遍同一颗 `setDrill(nil)`。
     @Published var overviewCollapsePulse = 0
@@ -167,12 +217,78 @@ final class AppStore: ObservableObject {
         trashHistory.append(r)
     }
 
-    /// 进某个文件夹往下看。三个入口（总览的账目行与明细行、大文件页的行、下钻页的面包屑）
-    /// 都收在这一条上：先写落点、再切页，顺序反了会先看见上一处的残留内容再跳。
+    var canGoBack: Bool { nav.canGoBack }
+
+    /// 后退一步。栈空时什么都不做——那颗按钮本来就只在有上一站时才画出来。
+    func goBack() {
+        guard let top = nav.pop() else { return }
+        folderDrillPath = top.drillPath
+        jumpTo = top.panel
+        navPulse += 1
+    }
+
+    /// 内容里的一次跳转：落到 `stop`，并记进历史。
+    /// 去重与截断的规则在 `NavStack.arrive`，这里只管把它接上界面。
+    func arrive(_ stop: NavStop) {
+        nav.arrive(stop)
+        folderDrillPath = stop.drillPath
+        jumpTo = stop.panel
+        navPulse += 1
+    }
+
+    /// 「根」入口：侧栏点页、面包屑首格。历史压成只有这一站，返回按钮随即消失。
+    /// 点侧栏是在重新挑目的地，不是往下走一步——把这一幕也记进历史的话，
+    /// 人会在缓存页按返回跳到大文件页，谁都不想要这个。
+    func resetNav(to panel: AppPanel) {
+        if panel != .folderDrill { folderDrillPath = nil }
+        nav.reset(to: NavStop(panel: panel, drillPath: folderDrillPath))
+        jumpTo = panel
+        navPulse += 1
+    }
+
+    /// 开机时把第一站放进历史，不导航——窗已经开在那一页上了。
+    /// 少了这一步，第一跳之后栈底是空的，会退到一个没有页面的地方。
+    func seedNav(_ panel: AppPanel) {
+        guard !navSeeded else { return }
+        navSeeded = true
+        nav.reset(to: NavStop(panel: panel, drillPath: folderDrillPath))
+    }
+
+    /// 进某个文件夹往下看。四个入口（总览的账目行与明细行、大文件页的行、
+    /// 下钻页的面包屑与「上一级」）都收在这一条上：先写落点、再切页，
+    /// 顺序反了会先看见上一处的残留内容再跳。
     func drill(into path: String) {
         guard !path.isEmpty else { return }
-        folderDrillPath = path
-        jumpTo = .folderDrill
+        arrive(NavStop(panel: .folderDrill, drillPath: path))
+    }
+
+    /// 深挖：去大文件页，只扫这一棵。总览的账目行与明细行两处共用。
+    /// 落点在切页之前写好，大文件页的 `onAppear` 才能一次就消费到。
+    func deepDive(into path: String) {
+        guard !path.isEmpty else { return }
+        bigScanDir = URL(fileURLWithPath: path)
+        arrive(NavStop(panel: .big))
+    }
+
+    /// 下钻页的「上一级」。顶层目录（`/Applications`、`/Library` 这类）再往上是
+    /// **空间总览**：盘顶 `/` 不算一站，理由见 `drillParent`。它跟面包屑第一格
+    /// 走的是同一条路，所以两边必须由同一条规则算落点——分开写迟早会一处分折、一处不折。
+    func goUpFromDrill() {
+        guard let p = folderDrillPath, !p.isEmpty else { return }
+        if let up = drillParent(of: p) {
+            drill(into: up)
+        } else {
+            resetNav(to: .overview)
+        }
+    }
+
+    /// 返回按钮那行说明里要写的名字：上一站是个目录就写目录名，否则写页名。
+    var backTargetLabel: String {
+        guard let top = nav.previous else { return "" }
+        if top.panel == .folderDrill, let p = top.drillPath {
+            return (p as NSString).lastPathComponent
+        }
+        return top.panel.title
     }
 
     func undoLast() -> String {
@@ -195,7 +311,8 @@ enum AppPanel: Hashable, CaseIterable {
     // `folderDrill` 追加在最后：`tileIndex` 拿 `allCases` 的下标当取色序号，
     // 插在中间会把后面每一页的图标配色整体挪一格（那是一条看不见的回归）。
     // 它也不进侧栏——下钻页是「从某一行进去」的，不是一栏常驻的目的地。
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill
+    // `menuLaunch` 同理追加在末尾（2026-09-30 的稿子①那一屏）。
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill, menuLaunch
 
     var symbol: String {
         switch self {
@@ -212,6 +329,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .appearance: return "paintpalette"
         case .feedback: return "text.bubble"
         case .folderDrill: return "folder"
+        case .menuLaunch: return "gearshape.2"
         }
     }
 
@@ -231,6 +349,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .appearance: return "外观皮肤"
         case .feedback: return "问题反馈"
         case .folderDrill: return "文件夹详情"
+        case .menuLaunch: return "菜单栏与启动"
         }
     }
 
@@ -246,6 +365,7 @@ struct ContentView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var grant = HomeGrant.shared
+    @ObservedObject private var prefs = Prefs.shared
     @StateObject private var scans = ScanStore()
     @State private var selection: AppPanel? = SnapshotMode.requestedPanel ?? .overview
 
@@ -265,12 +385,28 @@ struct ContentView: View {
         // 系统那条 52pt 的标题带原本是空的（我们只把红绿灯和侧栏切换按钮让了出来）。
         // 容量读数挂在它上面：不占版面、切到哪页都在，清完一轮涨的就是这里那个数。
         .toolbar {
+            // 全局后退：只在历史里还有上一站时才画出来，栈空即消失。
+            //
+            // 摆在窗口上而不是每页各摆一颗——退路本来就与「哪一页」无关，
+            // 分页去摆迟早会长出两种按法：大文件页原先那颗写死的「返回空间总览」
+            // 就是这么来的，而文件夹详情页那边压根不走同一条路。
+            ToolbarItem(placement: .navigation) { BackButton() }
             ToolbarItem(placement: .primaryAction) { VolumeChip() }
         }
         .onChange(of: store.jumpTo) { target in
             guard let target else { return }
             withAnimation(theme.animation) { selection = target }
             store.jumpTo = nil
+        }
+        .onAppear {
+            // 一个窗口都没有时按 ⌘,，落点只能先存着：这一扇窗（或下一扇）起来时在这儿接住。
+            if let target = store.jumpTo {
+                selection = target
+                store.jumpTo = nil
+            }
+            // 历史里先站一站：少了它，第一跳之后栈底是空的，返回会退到没有页面的地方。
+            store.seedNav(selection ?? .overview)
+            MenuBar.readout.apply(shows: prefs.menuBarEnabled)
         }
         .background(WindowContentUnderTitleBar())
     }
@@ -283,7 +419,9 @@ struct ContentView: View {
                 sideSection(L("看清空间"), [.overview, .big, .old, .dup])
                 sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
                 sideSection(L("清理"), [.caches, .orphans, .trash])
-                sideSection(L("关于"), [.appearance, .feedback])
+                // 第四组从「关于」改叫「设置」：皮肤和反馈挂在「关于」下是同一处错位——
+                // macOS 用户按 ⌘, 找的就是这一组（稿子①，2026-09-30 拍板）。
+                sideSection(L("设置"), [.appearance, .feedback, .menuLaunch])
             }
             .padding(.horizontal, 8)
             .padding(.bottom, 16)
@@ -307,7 +445,9 @@ struct ContentView: View {
             ForEach(panels, id: \.self) { panel in
                 SidebarRow(panel: panel, amount: scans.amount(panel),
                            isSelected: selection == panel) {
-                    withAnimation(theme.animation) { selection = panel }
+                    // 走 store 而不是直接改 selection：点侧栏是「重新挑目的地」，
+                    // 得顺手把导航历史压成只有这一站，返回按钮随之消失。
+                    store.resetNav(to: panel)
                 }
             }
         }
@@ -395,6 +535,29 @@ struct ContentView: View {
         case .appearance: AppearanceView()
         case .feedback: FeedbackView()
         case .folderDrill: FolderDrillView(model: scans.folderDrill)
+        case .menuLaunch: MenuBarLaunchView()
+        }
+    }
+}
+
+// MARK: - 后退
+
+/// 窗口顶上那颗「退一步」。历史里没有上一站时什么都不画。
+///
+/// 按的是 `AppStore.navHistory`：每一站都记着「哪一页 ＋ 页内哪一层」，
+/// 所以从下钻页退出来落回刚才那一层目录，而不是这一页的入口。
+private struct BackButton: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        if store.canGoBack {
+            Button {
+                store.goBack()
+            } label: {
+                Label(L("返回"), systemImage: "chevron.backward")
+            }
+            .labelStyle(.titleAndIcon)
+            .help(LF("回到「%@」", store.backTargetLabel))
         }
     }
 }
