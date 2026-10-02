@@ -1,19 +1,19 @@
 name: Release
 
-# 打 tag（v1.3、v1.3.1 这种）就出包；也可以手动跑一次只出构建产物、不发 Release。
-# 下面这几项 secrets 齐不齐决定这一版是否走正式签名；缺任何一项就退回 ad-hoc 包，构建本身不会失败。
+# 这个 workflow 只做「编译 + 自检 + 产物校验」，不再负责出厂。
+# 正式包（Developer ID 签名 → DMG → 公证 → staple）在本地跑 build_app/build.sh，
+# Developer ID 私钥不上云，GitHub 这边一个 secrets 都不用配。
 #
-# 需要的 secrets：
-#   DEVELOPER_ID_CERT_P12
-#   CERT_PASSWORD
-#   APPLE_ID
-#   APPLE_TEAM_ID
-#   APP_SPECIFIC_PASSWORD
+# 所以这里刻意不再监听 tag。以前 tag 一推就触发：缺凭据时它会悄悄出一个 ad-hoc 包，
+# 再用 `gh release upload --clobber` 把本地签好的正式附件覆盖掉——同名同版本，
+# 用户拿到的却是没签名那份，Release 页面上完全看不出被换过。
+# 现在手动跑一次只把产物传到 workflow 页，不创建也不覆盖任何 Release。
+#
+# 下面导入证书 / 公证那几步保留但默认全部跳过：只有真去仓库 settings 里补齐
+# DEVELOPER_ID_CERT_P12 / CERT_PASSWORD / APPLE_ID / APPLE_TEAM_ID / APP_SPECIFIC_PASSWORD
+# 这五个才会启用，走本地签名时不要填。
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       arch:

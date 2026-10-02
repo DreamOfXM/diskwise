@@ -43,7 +43,7 @@ DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
-VERSION="1.6"
+VERSION="1.7"
 MIN_MACOS="13.0"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
 # 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
@@ -130,7 +130,19 @@ else
 		[ -x "$f" ] || { echo "错误：通用包缺一刀，$f 不存在" >&2; exit 1; }
 	done
 	# 各自薄切片先自检：合完再验就查不出是哪一刀坏了
-	"$ARM_BIN_DIR/SelfTest" 2>&1 | tail -n 1 | sed 's/^/    arm64   /'
+	if ARM_LOG="$("$ARM_BIN_DIR/SelfTest" 2>&1)"; then
+		printf '%s\n' "    arm64   $(printf '%s' "$ARM_LOG" | tail -n 1)"
+	elif printf '%s' "$ARM_LOG" | grep -q "Bad CPU type"; then
+		# macOS 26 起 Intel 机器装不了 Rosetta（softwareupdate --install-rosetta 直接回
+		# "not supported"），所以 arm64 一刀在这类机器上只能编译、不能执行。
+		# 跳过的是「执行」，不是「出厂」：release.yml 的 macos-14 runner 是 Apple Silicon，
+		# 那一刀的 SelfTest 在那边原生跑，发版前手动 dispatch 一次补上。
+		echo "    arm64   跳过自检：本机是 Intel 且系统不支持 Rosetta（CI 的 macos-14 runner 上会跑）"
+	else
+		echo "错误：arm64 切片自检没过，不能出厂" >&2
+		printf '%s\n' "$ARM_LOG" | tail -n 6 >&2
+		exit 1
+	fi
 	if X86_LOG="$("$X86_BIN_DIR/SelfTest" 2>&1)"; then
 		printf '%s\n' "    x86_64  $(printf '%s' "$X86_LOG" | tail -n 1)"
 	elif printf '%s' "$X86_LOG" | grep -q "Bad CPU type"; then
