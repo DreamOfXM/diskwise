@@ -243,7 +243,11 @@ struct ThemeButton: View {
                 if let symbol {
                     Image(systemName: symbol).font(.system(size: iconSize, weight: .semibold))
                 }
-                Text(title).font(font)
+                // 标签**只给一行**：按钮被挤窄时默认会折行，而中文没有词间空格，
+                // 折出来的是「访／达／显／示」四个字竖成一列——那已经不是一颗按钮了。
+                // 宁可截成「访达显…」，也不能让它长成这样。这一处改的是**所有**按钮，
+                // 因为「挤窄了会竖排」跟按钮是哪一颗无关（2026-10-01 总览明细行实拍）。
+                Text(title).font(font).lineLimit(1)
             }
             .padding(.horizontal, hPad)
             .padding(.vertical, vPad)
@@ -689,6 +693,10 @@ struct VolumeChip: View {
                         .foregroundStyle(theme.palette.inkSecondary)
                         .fixedSize()
                 }
+                // 系统给这条 capsule 的内边距是按它以为的字号算的，而我们这串字比那一档大，
+                // 于是行尾那个数会贴到胶囊边上（实拍：左右各只剩 1 pt，补完后各 7 pt）。自己补一点，
+                // 让这块读数在胶囊里有呼吸的余地——不加的话它不是溢出，是看着像要溢出。
+                .padding(.horizontal, 6)
                 .accessibilityElement(children: .combine)
             }
         }
@@ -2146,6 +2154,18 @@ struct LoadingRow: View {
     /// 刻意不报百分比和剩余时间——沙盒里量不到整盘的文件总数，报出来的是编的。
     var progress: ScanProgress? = nil
 
+    /// 「正在看」那一行路径的固定宽度。
+    ///
+    /// 必须**定宽**，不能写成 `maxWidth`：读数每 0.4 秒来一次，路径长短和计数位数一直在变，
+    /// 让文字自己决定宽度的话整条卡片就跟着一伸一缩，旁边那几枚徽章和「停止」按钮
+    /// 也跟着左右挪——一屏上最需要稳的东西（正在跑的现场）恰恰是最不稳的那个。
+    ///
+    /// 460 的来历：380 定宽的那一版，一条 380 的路径槽配着右边一大片空地
+    /// （控制条里内容和动作之间是 `Spacer`），读起来像卡片没画完；而 node_modules 那页
+    /// 同时挂着一枚**永远只会说同一句话**的范围徽章（该页范围写死，徽章跟着撤了）。
+    /// 徽章让出来的那 ~80 pt 就补到这里：卡片变宽，路径能多露出一截，整条控制条的总宽没变。
+    static let readWidth: CGFloat = 460
+
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
             ProgressView().controlSize(.small)
@@ -2168,7 +2188,7 @@ struct LoadingRow: View {
                                     .foregroundStyle(theme.palette.inkSecondary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .frame(maxWidth: 380, alignment: .leading)
+                                    .frame(width: Self.readWidth, alignment: .leading)
                             }
                             HStack(spacing: 5) {
                                 Text(LF("已检查 %@",

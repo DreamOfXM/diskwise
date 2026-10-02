@@ -77,10 +77,13 @@ struct NMView: View {
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(model.items.count, "个项目"), human(model.totalBytes)))
                     }
-                    // 这页不吃「整盘」开关（理由见 findNodeModules），那就把范围写在脸上，
-                    // 别让「全盘找 node_modules」这句提示冒充整盘覆盖。
-                    ThemeBadge(text: LF("范围：%@", ScanScope.user.uiName),
-                               tone: .neutral, symbol: "scope")
+                    // 这一页**不挂范围徽章**。别处那几枚（大文件/很久没动/重复）都是跟着用户
+                    // 手上那个「整盘 ↔ 用户区」开关走的，徽章说的是**这一刻选了什么**；
+                    // 这一页的范围是写死的 `ScanScope.user`（理由见 `findNodeModules`），
+                    // 一枚永远只会说同一句话的徽章不是信息，是装饰——而且这一屏就它一个人挂，
+                    // 读起来像「这一页另有一个可以调的档却找不到」。
+                    // 「这页只看用户区」这件事由别处说：加载那行写的是「翻**项目目录**找
+                    // node_modules」，而项目只长在家目录里。
                 } trailing: {
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })
@@ -116,6 +119,8 @@ struct NMView: View {
                 }
                 .ledgerCard()
             }
+
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.totalBytes),

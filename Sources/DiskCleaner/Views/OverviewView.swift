@@ -2066,11 +2066,18 @@ private struct DrillRow: View {
                 .help(LF("进入 %@ 往下看", displayPath(URL(fileURLWithPath: path))))
                 // 条子定宽、不铺满：贴到行尾的长条会被读成分隔线，
                 // 而这一列上面那六行的条子就是这个宽度，两档尺没意义。
+                //
+                // 但**下限必须软**，跟上面那六行同一个 `barFloor`：这一行的尾巴上同时住着
+                // 徽章、那句「可回收」、体积和一颗按钮，而这一列在最小窗（1000）下只有
+                // 五百多点——条子按 232 不让时，被挤出窗口边的就是尾巴上那几件
+                // （2026-10-01 实拍：`Logs` 那行「访达显示」四个字竖成一列、`Caches` 那行
+                // 按钮被压成一条）。条子短了仍读得出长短，按钮没了就真没了。
                 ProportionBar(fraction: fraction,
                               color: reclaim > 0 ? SweepRing.lamp(theme.palette.tint)
                                                  : theme.palette.inkTertiary,
                               track: theme.palette.surfaceAlt,
-                              height: 3, trackWidth: 232)
+                              height: 3, trackWidth: 232,
+                              minTrackWidth: RingLedgerRow.barFloor)
             }
             Spacer(minLength: 10)
             // 判词徽章跟右边那两样是**三条轴**：这一枚说「知识库认不认得它、删了要付什么代价」，
