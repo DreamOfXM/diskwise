@@ -118,11 +118,28 @@ check(isDeletable(URL(fileURLWithPath: applicationsDir()).appendingPathComponent
       "装 App 的目录可删")
 check(!isDeletable(URL(fileURLWithPath: "/Library/Developer/Xcode/DerivedData")), "系统区不可删")
 check(!isDeletable(URL(fileURLWithPath: "/opt/homebrew/lib/libfoo.dylib")), "Homebrew 目录不可删")
+
+// 4b-1. 家目录之外唯一放行的两处：两个共享临时区。
+//       `/tmp` 与 `/var/tmp` 都是指向 `/private` 的软链，而 `standardizedFileURL` **不解析软链**
+//       ——同一个位置会以 `/tmp/x` 与 `/private/tmp/x` 两种写法同时出现（从 `/` 钻进去走前者，
+//       整盘扫 `/private` 走后者）。少认一种，同一份东西换个入口就一会儿能删、一会儿只能看。
+check(isDeletable(URL(fileURLWithPath: "/tmp/dw-junk/x.bin")), "临时区里的文件可删")
+check(isDeletable(URL(fileURLWithPath: "/private/tmp/dw-junk/x.bin")),
+      "临时区的另一种写法也认——软链不解析，两种前缀都在")
+check(isDeletable(URL(fileURLWithPath: "/var/tmp/dw-junk/x.bin")), "/var/tmp 同样放行")
+// 放行的是「里面的东西」，不是这两个目录本身：搬走 `/tmp` 等于端掉整个系统的临时空间。
+check(!isDeletable(URL(fileURLWithPath: "/tmp")), "临时目录本体不可删")
+check(!isDeletable(URL(fileURLWithPath: "/var/tmp")), "/var/tmp 本体同样不可删")
+check(isProtected(URL(fileURLWithPath: "/tmp")), "临时目录本体另进受保护集，两道闸都拦得住")
+// 边界另一侧：`$TMPDIR` 那一片名字里也有「临时」，但它归系统管，**不**放行。
+// 这条是防止日后「顺手再划大一点」把范围挪到别处去。
+check(!isDeletable(URL(fileURLWithPath: "/private/var/folders/ab/cdef/T/x.bin")),
+      "家目录之外的临时区（$TMPDIR 那一片）仍然不动")
 do {
     _ = try trashItem(URL(fileURLWithPath: "/Library/Caches"))
     check(false, "删系统区应被拦")
 } catch let e as TrashError {
-    check(e.reasonKey == "超出允许范围（仅限家目录与 /Applications）",
+    check(e.reasonKey == "超出允许范围（仅限家目录、/Applications 与 /tmp、/var/tmp）",
           "系统区被拦：\(e.reasonKey)")
 }
 

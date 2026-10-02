@@ -1,6 +1,43 @@
 import SwiftUI
 import DiskCleanerCore
 
+// ── 知识库覆盖总账（大文件 / 很久没动 共用）──
+
+/// 一列文件里，知识库认得多少、认得的各要付什么代价，剩下多少压根不在库里。
+///
+/// 为什么要单说这一句：行内徽章只在**认得**时才挂，于是「没有徽章」里混着
+/// 「认得且安全」和「不认识」两种完全不同的情形。不把这层说破，用户会把整列读成
+/// 「都没问题」——**不在知识库里不等于能删**，而这正是这两页最不能给错的一句话。
+///
+/// 句子跟文件夹详情页那一句是同一组（那边叫 `verdictNote`）：同一句话在两个列表页
+/// 长得不一样，就是在教用户「这两处说的不是一回事」。差别只在换算尺——那页钉在
+/// 「这一层的合计」上，这两页没有那一层，没影响项合计就摊在这一列自己的合计上。
+private func fileVerdictNote(_ rows: [FileRow], ruler: Int64) -> String? {
+    guard !rows.isEmpty else { return nil }
+    var safe = 0, redo = 0, risky = 0, unknown = 0
+    var safeBytes = Int64(0)
+    for r in rows {
+        switch VerdictIndex.shared.verdict(for: r.url.path).tier {
+        case .safe:    safe += 1; safeBytes += r.size
+        case .redo:    redo += 1
+        case .risky:   risky += 1
+        case .unknown: unknown += 1
+        }
+    }
+    var parts: [String] = []
+    if safe > 0 {
+        parts.append(LF("删了没影响的 %1$@合计 %2$@",
+                        cnt(safe, "项"), human(safeBytes, inRulerOf: ruler)))
+    }
+    if redo > 0 { parts.append(LF("%1$@删了要重新下载", cnt(redo, "项"))) }
+    if risky > 0 { parts.append(LF("%1$@删了会丢数据", cnt(risky, "项"))) }
+    if unknown > 0 {
+        parts.append(LF("另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径",
+                        cnt(unknown, "项")))
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ") + "。"
+}
+
 // ── 大文件 TOP ──
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
@@ -27,7 +64,7 @@ final class BigFilesModel: ObservableObject {
     var selected: [FileRow] { rows.filter { $0.selected } }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
 
-    /// 「全选」只管勾得动的那几行：系统区的行选上也删不掉，全选后按清理只会换一屏报错。
+    /// 「全选」只管勾得动的那几行：本工具不碰的行选上也删不掉，全选后按清理只会换一屏报错。
     /// 一行都勾不动时返回 nil，按钮不画——画一颗点了没反应的按钮比没有更糟。
     var selectAll: SelectAll? {
         let open = rows.filter(\.deletable)
@@ -112,12 +149,10 @@ struct BigFilesView: View {
                         Text(LF("共扫到 %@", cnt(model.count, "个文件")))
                     }
                     if let note = model.scopeNote {
-                        // 深挖是从总览的热点行跳进来的，但这条链上没人记「上一页」，
-                        // 删空之后这一屏就成了死胡同——所以返回入口固定摆在工具条最左，
-                        // 空列表时页头还在，它就一直按得回去。
-                        ThemeButton(kind: .compact, title: L("返回空间总览")) {
-                            store.jumpTo = .overview
-                        }
+                        // 这里原先钉着一颗「返回空间总览」——深挖那条链上没人记「上一页」，
+                        // 删空之后这一屏就成了死胡同，只能把退路写死在工具条最左。
+                        // 现在退路归窗口顶上那颗全局「返回」管，它按的是同一本历史、
+                        // 落在哪儿就写哪儿，所以这里不再单摆一颗：两个返回入口会打架。
                         ThemeBadge(text: LF("只看 %@", note), tone: .tint, symbol: "scope")
                         ThemeButton(kind: .compact, title: L("不限这个目录")) {
                             model.scan(scope: store.scope)
@@ -157,9 +192,17 @@ struct BigFilesView: View {
                             icon: .path(r.url),
                             name: r.name,
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
+                            // 第三行只给知识库认得的那几行：徽章只说代价的名字，这一行说代价是什么。
+                            // 命不中的一行为空——一屏几十行里绝大多数本来就不在库里，那不是信息。
+                            hint: verdictHint(for: r.url.path),
                             sizeText: shown[r.id] ?? human(r.size),
                             fraction: Double(r.size) / Double(maxSize),
-                            badge: r.deletable ? nil : ItemBadge(text: L("系统区"), tone: .neutral),
+                            badge: r.deletable ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
+                            // 第二枚徽章走**另一条轴**：上面那枚说本工具动不动这一行，这枚说甩掉它
+                            // 要付什么代价。这两页原先只有前一枚，于是恰好漏掉
+                            // 最该提醒的那一类——**本工具能清、但删了会丢数据**的（模拟器数据、
+                            // 模型权重）：勾选框大方地开着，一个字都不提醒，勾下去就没了。
+                            badge2: verdictBadge(VerdictIndex.shared.verdict(for: r.url.path).tier),
                             selectable: r.deletable,
                             lit: r.deletable,
                             showRule: model.rows.first?.id != r.id,
@@ -176,7 +219,13 @@ struct BigFilesView: View {
                     }
                 }
                 .ledgerCard()
+                // 这一列的知识库覆盖总账。徽章只在认得时挂，于是「没徽章」里混着
+                // 「认得且没影响」和「压根不认识」两种可能——不把这一层说破，
+                // 用户会把整列读成「都没问题」，而那正是这一页最不能给错的一句话。
+                if let vn = verdictNote { ListNote(text: vn) }
             }
+
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
@@ -210,11 +259,11 @@ struct BigFilesView: View {
         sizeColumn(model.rows.map { (key: $0.id, bytes: $0.size) })
     }
 
-    /// 这一页两笔账：系统区里的东西本工具不动手，所以分「动得了 / 只能看」两档。
+    /// 这一页两笔账：本工具不碰的位置只摆上列表不入账，所以分「本工具能清 / 本工具不碰」两档。
     private var tiers: [LedgerTier] {
         let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { $0.deletable })
-        return [LedgerTier(label: L("动得了"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("只能看"), bytes: sp.viewOnly, tone: .cold)]
+        return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
     }
 
     /// 「共扫到 152 个」和这一列加起来是两回事：这一屏只画了前 30 个。
@@ -225,6 +274,8 @@ struct BigFilesView: View {
                  String(model.count), model.rows.count)
             : nil
     }
+
+    private var verdictNote: String? { fileVerdictNote(model.rows, ruler: listedTotal) }
 
     private func doClean() {
         err = nil
@@ -359,9 +410,17 @@ struct OldFilesView: View {
                             icon: .path(r.url),
                             name: r.name,
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
+                            // 第三行只给知识库认得的那几行：徽章只说代价的名字，这一行说代价是什么。
+                            // 命不中的一行为空——一屏几十行里绝大多数本来就不在库里，那不是信息。
+                            hint: verdictHint(for: r.url.path),
                             sizeText: shown[r.id] ?? human(r.size),
                             fraction: Double(r.size) / Double(maxSize),
-                            badge: r.deletable ? nil : ItemBadge(text: L("系统区"), tone: .neutral),
+                            badge: r.deletable ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
+                            // 第二枚徽章走**另一条轴**：上面那枚说本工具动不动这一行，这枚说甩掉它
+                            // 要付什么代价。这两页原先只有前一枚，于是恰好漏掉
+                            // 最该提醒的那一类——**本工具能清、但删了会丢数据**的（模拟器数据、
+                            // 模型权重）：勾选框大方地开着，一个字都不提醒，勾下去就没了。
+                            badge2: verdictBadge(VerdictIndex.shared.verdict(for: r.url.path).tier),
                             selectable: r.deletable,
                             lit: r.deletable,
                             showRule: model.rows.first?.id != r.id,
@@ -378,7 +437,13 @@ struct OldFilesView: View {
                     }
                 }
                 .ledgerCard()
+                // 这一列的知识库覆盖总账。徽章只在认得时挂，于是「没徽章」里混着
+                // 「认得且没影响」和「压根不认识」两种可能——不把这一层说破，
+                // 用户会把整列读成「都没问题」，而那正是这一页最不能给错的一句话。
+                if let vn = verdictNote { ListNote(text: vn) }
             }
+
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.totalBytes),
@@ -403,8 +468,8 @@ struct OldFilesView: View {
 
     private var tiers: [LedgerTier] {
         let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { $0.deletable })
-        return [LedgerTier(label: L("动得了"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("只能看"), bytes: sp.viewOnly, tone: .cold)]
+        return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
     }
 
     private var ledgerNote: String? {
@@ -414,6 +479,8 @@ struct OldFilesView: View {
         }
         return L("这一页的行全在屏幕上，当场就能把这一列加到页头那句。")
     }
+
+    private var verdictNote: String? { fileVerdictNote(model.rows, ruler: model.totalBytes) }
 
     private func doClean() {
         err = nil

@@ -49,7 +49,7 @@ public func systemScanRoots() -> [URL] {
 }
 
 /// 别人的家目录。整盘要是连它都不算，「没量到的那几十 G」里就有一块我们连提都没提。
-/// 只算不删：删除路径由 `isDeletable` 卡死在自己的家目录与 /Applications。
+/// 只算不删：删除路径由 `isDeletable` 卡死在自己的家目录、/Applications 与两个共享临时区。
 func otherHomeRoots(base: String) -> [URL] {
     let usersDir = URL(fileURLWithPath: base.isEmpty ? "/Users" : "\(base)/Users",
                        isDirectory: true)

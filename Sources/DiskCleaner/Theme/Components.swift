@@ -941,7 +941,7 @@ struct SweepRing: View {
     var centerCap: String = ""
     var diameter: CGFloat = 232
     /// 点一条弧时回调。给整条段而不只是落点：
-    /// 动得了的弧要点完才知道要不要跳，光有 `jumpTo` 分不出「能收走」和「只能看」。
+    /// 动得了的弧要点完才知道要不要跳，光有 `jumpTo` 分不出「能收走」和「本工具不碰」。
     var select: ((GaugeSegment) -> Void)? = nil
     /// 上了膛的那条弧（`GaugeSegment.path`，或 `Self.armAll`）。描边画成实墨，
     /// 是在说「再点一下就真搬」。

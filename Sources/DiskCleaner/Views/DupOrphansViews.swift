@@ -96,10 +96,10 @@ struct DupView: View {
         sizeColumn(model.groups.map { (key: $0.id, bytes: $0.waste) })
     }
 
-    /// 这一页只有一档：列出来的每一份都是多出来的副本，动得了。
-    /// 每组保留的那份压根没进这一列，所以条子上也不会出现「只能看」那一段。
+    /// 这一页只有一档：列出来的每一份都是多出来的副本，本工具都能清。
+    /// 每组保留的那份压根没进这一列，所以条子上也不会出现「本工具不碰」那一段。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("动得了"), bytes: model.waste, tone: .hot)]
+        [LedgerTier(label: L("本工具能清"), bytes: model.waste, tone: .hot)]
     }
 
     /// 每组保留的那一份也列在组里（第一行、带锁、勾不动），所以这句话要说的是
@@ -150,6 +150,8 @@ struct DupView: View {
                 }
                 .ledgerCard()
             }
+
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
             CleanBar(count: model.selectedCount, bytes: selectedBytes,
                      bytesText: human(selectedBytes, inRulerOf: model.waste),
@@ -394,7 +396,7 @@ final class OrphansModel: ObservableObject {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + ($1.size ?? 0) } }
     var totalBytes: Int64 { items.reduce(0) { $0 + ($1.size ?? 0) } }
 
-    /// 全选只扫「安全」那批：这页的立脚点是宁可漏报不可误删，标「留意」的意思是
+    /// 全选只扫「删了没影响」那批：这页的立脚点是宁可漏报不可误删，标「删了会丢数据」的意思是
     /// 「得你自己判」，一键把它带走等于把这页存在的理由按掉了。
     var selectAll: SelectAll? {
         let open = items.filter { $0.level != "warn" }
@@ -485,8 +487,7 @@ struct OrphansView: View {
                             sub: it.loc,
                             sizeText: shown[it.id] ?? human(it.size ?? 0),
                             fraction: Double(it.size ?? 0) / Double(maxSize),
-                            badge: ItemBadge(text: it.level == "warn" ? L("留意") : L("安全"),
-                                             tone: it.level == "warn" ? .warn : .safe),
+                            badge: verdictBadge(it.level == "warn" ? .risky : .safe),
                             lit: it.level != "warn",
                             showRule: model.items.first?.id != it.id,
                             preopen: SnapshotMode.expandFirstRow
@@ -503,9 +504,11 @@ struct OrphansView: View {
                 .ledgerCard()
             }
 
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
+
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
-                     errorText: err, hint: L("「留意」那几项本来就不给全选"),
+                     errorText: err, hint: L("删了会丢数据的那几项本来就不给全选"),
                      selection: model.selectAll) { confirm = true }
         }
         .frame(maxWidth: .infinity)
@@ -527,13 +530,13 @@ struct OrphansView: View {
         sizeColumn(model.items.map { (key: $0.id, bytes: $0.size ?? 0) })
     }
 
-    /// 留意项照样能手动勾着删，所以按「全都动得了」记账；它的不同只体现在
+    /// 「删了会丢数据」那档照样能手动勾着删，所以按「本工具全都清得动」记账；它的不同只体现在
     /// 「不给全选」和那一行的灯色上，不是一堆删不掉的字节。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("动得了"), bytes: listedTotal, tone: .hot)]
+        [LedgerTier(label: L("本工具能清"), bytes: listedTotal, tone: .hot)]
     }
 
-    private var ledgerNote: String? { L("标「留意」的那几项不在全选范围内，得逐条自己判。") }
+    private var ledgerNote: String? { L("删了会丢数据的那几项不在全选范围内，得逐条自己判。") }
 
     private func doClean() {
         err = nil

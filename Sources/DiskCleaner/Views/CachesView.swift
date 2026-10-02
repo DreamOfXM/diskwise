@@ -65,10 +65,10 @@ private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
     return parts.joined(separator: " · ")
 }
 
-/// 这一行亮不亮「动得了」那一档。体积还没量出来的不亮（那是「还不知道」，
-/// 不是「能删」）；要重下和会丢数据的那两档也不亮——全选不碰它们，
+/// 这一行亮不亮「删了没影响」那一档。体积还没量出来的不亮（那是「还不知道」，
+/// 不是「删了没事」）；要重下和会丢数据的那两档也不亮——全选不碰它们，
 /// 就不该给批量带走的暗示。判据走 `tier` 而不是 `level` 的字符串：
-/// 页头那三档账也是从 `tier` 加出来的，两处同源才不会出现「行里不亮、账里算进动得了」。
+/// 页头那三档账也是从 `tier` 加出来的，两处同源才不会出现「行里不亮、账里算进没影响」。
 private func cacheLit(_ it: CacheItem) -> Bool {
     (it.size ?? 0) > 0 && it.entry.tier == .safe
 }
@@ -91,7 +91,7 @@ private func simulatorDevicesDir(_ item: CacheItem) -> URL? {
 /// 只在行真被摊开时才量（`.task` 跟着视图生死，收起行就掐掉这一趟）：26 台各走一遍
 /// 子树是这一页最慢的一件事，不该为「也许有人会点开」在页面进来时先付掉。
 ///
-/// 这一格只列不删：整条「模拟器设备」本来就在「留意」档，勾选框在行首那一级，
+/// 这一格只列不删：整条「模拟器设备」本来就在「删了会丢数据」档，勾选框在行首那一级，
 /// 台子级的一键删除要另加一套选中状态，等有人真要按台清时再做。
 struct SimDeviceRows: View {
     @Environment(\.theme) private var theme
@@ -163,9 +163,9 @@ final class CachesModel: ObservableObject {
     /// 「全选」这一按到底能带走多少，给卡下面那句对账话用。
     var selectableBytes: Int64 { contentsUnionSize(pathSizes(of: openItems)) }
 
-    /// 全选只管「勾得动又不催你自己判」的那批：标「留意」的要用户自己过目，
-    /// 一键把它带走等于替用户拍了他该拍的板。体积没量出来的也不能选——
-    /// 选了也不知道能腾出多少，确认框里会写成一个假数。
+    /// 全选只管「勾得动又不催你自己判」的那批，也就是「删了没影响」那一档：另两档
+    /// （要重新下载 / 会丢数据）都要用户自己过目，一键把它带走等于替用户拍了他该拍的板。
+    /// 体积没量出来的也不能选——选了也不知道能腾出多少，确认框里会写成一个假数。
     private var openItems: [CacheItem] { items.filter(cacheLit) }
 
     var selectAll: SelectAll? {
@@ -318,6 +318,8 @@ struct CachesView: View {
                 .ledgerCard()
             }
 
+            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
+
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
                      errorText: errorText, hint: barHint,
@@ -353,14 +355,16 @@ struct CachesView: View {
         sizeColumn(measured.map { (key: $0.id, bytes: $0.bytes) })
     }
 
-    /// 三档：动得了 / 能重下 / 会丢数据。
+    /// 三档：删了没影响 / 删了要重新下载 / 删了会丢数据。
     ///
     /// 三档都从**同一批行**里加出来（就是上面那本 `measured`），所以三档相加正好等于
     /// 「这一页量到」那个合计；哪一档是空的就不画，`PageLedger` 自己会滤掉 0 字节的档。
     ///
-    /// 原先只有两档（动得了 / 留意），而「留意」把两件对着干的事记在了同一个数里：
-    /// 一边是花点流量重下，一边是东西真没了。合成一个数，用户既不敢删那些其实能删的，
-    /// 也看不出剩下那些里哪个更该躲着走——两头都错。
+    /// 这一页分档走的是**代价**那条轴，不是「本工具动不动得了」：缓存页的行全在家目录里，
+    /// 每一条都动得了，再按可删性切只能是「能清 100% · 不碰 0 B」。
+    ///
+    /// 两件对着干的事记在同一个数里，两头都错：一边是花点流量重下，一边是东西真没了。
+    /// 合成一个数，用户既不敢删那些其实能删的，也看不出剩下那些里哪个更该躲着走。
     private var tiers: [LedgerTier] {
         var hot = Int64(0), redo = Int64(0), risk = Int64(0)
         for row in measured {
@@ -372,9 +376,9 @@ struct CachesView: View {
             case .risky:          risk += row.bytes
             }
         }
-        return [LedgerTier(label: L("动得了"), bytes: hot, tone: .hot),
-                LedgerTier(label: L("能重下"), bytes: redo, tone: .warn),
-                LedgerTier(label: L("会丢数据"), bytes: risk, tone: .risk)]
+        return [LedgerTier(label: L("删了没影响"), bytes: hot, tone: .hot),
+                LedgerTier(label: L("删了要重新下载"), bytes: redo, tone: .warn),
+                LedgerTier(label: L("删了会丢数据"), bytes: risk, tone: .risk)]
     }
 
     private var ledgerNote: String? {

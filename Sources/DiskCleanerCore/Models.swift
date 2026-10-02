@@ -15,7 +15,7 @@ public struct SafetyEntry: Decodable {
     /// - `data`：删了就没了，重下也回不来（模拟器里的 App 数据、聊天里的图片、会话记录）
     ///
     /// 分这一刀，是因为 `warn` 底下混着这两种性质完全不同的东西：一个只要花时间重下，
-    /// 一个真要丢东西。两者共用一枚「留意」的时候，用户既不敢删那些其实能删的，
+    /// 一个真要丢东西。混进同一档，用户既不敢删那些其实能删的，
     /// 也没意识到另一些更该先看一眼——两头都错。
     ///
     /// **漏写按 `data` 兜底**：宁可把「重下」说重，不能把「丢数据」说轻。缺了它的条目
@@ -342,6 +342,12 @@ public func human(_ bytes: Int64, inRulerOf total: Int64) -> String {
 
 // ── 受保护路径：整体不允许移入废纸篓（里面的子项可以）──
 
+/// 允许动手的共享临时区（连同它们在 `/private` 下的真身，见 `isDeletable`）。
+///
+/// 列在这里是为了让「这两个目录本身不许搬」有个单一出处：`protectedPaths` 收它们，
+/// 而 `isDeletable` 只认**底下**的项。
+let sharedTempRoots = ["/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"]
+
 public func protectedPaths() -> Set<String> {
     let home = homePath()
     let subs = ["", "/Library", "/Documents", "/Desktop", "/Downloads",
@@ -351,6 +357,8 @@ public func protectedPaths() -> Set<String> {
     set.insert("/")
     set.formUnion(["/Applications", "/System", "/Library", "/usr",
                    "/bin", "/sbin", "/etc", "/var", "/opt"])
+    // 临时区里**里面的东西**能动，但这两个目录本身搬走等于把整个系统的临时空间端掉
+    set.formUnion(sharedTempRoots)
     return set
 }
 
@@ -359,16 +367,31 @@ public func isProtected(_ url: URL) -> Bool {
     return protectedPaths().contains(p)
 }
 
-/// 我们能动手的范围：家目录与 /Applications（演示模式下后者在假树里）。
+/// 我们能动手的范围：家目录、/Applications（演示模式下它在假树里），以及两个共享临时区。
 ///
 /// 整盘扫描会把系统区的大文件也摆上列表——那是账，不是活儿：那些位置要么只有管理员写得动，
 /// 要么是 Homebrew / Xcode 自己的地盘，它们的清理命令比这个按钮靠谱。所以这类行只展示、
-/// 勾选框锁死；删除路径仍然只有 trashItem 这一条。
+/// 勾选框锁死；删除路径仍然只有 `trashItem` 这一条。
+///
+/// `/tmp` 与 `/var/tmp` 是**家目录之外唯一两处放行的地方**：它们名字里就写着「临时」——
+/// 正是用来放随时可以丢掉的东西的。而整盘扫描会走进 `/private`，把这两处底下的东西
+/// （构建残留、演示树、解压到一半的包，动辄几十 G）原样列出来；不给删的话，
+/// 用户只能看着本工具报一个自己动不了的数。
+///
+/// 两个细节：
+/// - 只认**底下**的项。`/tmp` 本身不许删（那等于端掉整个系统的临时空间），
+///   所以这里比的是 `root + "/"` 前缀，`p == root` 落不进来；`protectedPaths` 再兜一道。
+/// - `/tmp` 与 `/var/tmp` 都是指向 `/private` 的符号链接，而 `standardizedFileURL`
+///   **不解析软链**——同一个位置会以 `/tmp/x` 和 `/private/tmp/x` 两种写法同时出现
+///   （从 `/` 钻进去走前者，整盘扫 `/private` 走后者）。少认一种，同一份东西换个入口
+///   就会一会儿能删、一会儿不能删。
 public func isDeletable(_ url: URL) -> Bool {
     let p = url.standardizedFileURL.path
     let home = homePath()
     let apps = applicationsDir()
-    return p == home || p.hasPrefix(home + "/") || p == apps || p.hasPrefix(apps + "/")
+    if p == home || p.hasPrefix(home + "/") { return true }
+    if p == apps || p.hasPrefix(apps + "/") { return true }
+    return sharedTempRoots.contains { p.hasPrefix($0 + "/") }
 }
 
 /// 这一处**整块**能不能搬进废纸篓：`isDeletable` 说「这个位置归本工具管」，

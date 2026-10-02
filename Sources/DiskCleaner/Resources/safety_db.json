@@ -220,6 +220,32 @@
       "icon": "xcode"
     },
     {
+      "name": "模拟器内的系统资产",
+      "what": "模拟器按需下载的系统资产（Siri、语音识别等的 dmg），装在每台设备的 MobileAsset 里",
+      "whatif": "删掉后对应功能在模拟器里首次使用时重新下载，模拟器和里面的 App 数据不受影响",
+      "rec": "无需恢复；系统需要时按需重新下载",
+      "path": "~/Library/Developer/CoreSimulator/Devices/*/data/private/var/MobileAsset",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "app": "com.apple.dt.Xcode",
+      "icon": "xcode",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
+      "name": "模拟器内的共享缓存",
+      "what": "模拟器内各 App 共用的动态链接共享缓存与符号数据（uuidtext），由系统生成",
+      "whatif": "删掉后模拟器下次启动会重新生成，首次启动稍慢",
+      "rec": "无需恢复；系统启动时自动重建",
+      "path": "~/Library/Developer/CoreSimulator/Devices/*/data/var/db/uuidtext",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "app": "com.apple.dt.Xcode",
+      "icon": "xcode",
+      "docs": "https://developer.apple.com/xcode/"
+    },
+    {
       "name": "iOS 设备备份",
       "what": "iPhone/iPad 通过这台电脑做的整机备份",
       "whatif": "删掉后这些历史备份没了，设备本身不受影响",

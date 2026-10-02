@@ -84,13 +84,12 @@
 "用户区" = "Benutzerbereich";
 "整盘" = "Ganze Platte";
 "范围：%@" = "Umfang: %@";
-"系统区" = "Systembereich";
-"这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。" = "Hier rühren wir nichts an: Entweder darf nur ein Administrator schreiben, oder Homebrew bzw. Xcode verwaltet es selbst – deren eigener Aufräumbefehl ist der sichere Weg.";
+"本工具不碰" = "Lassen wir liegen";
+"这个位置不在本工具的动手范围（只含你自己的家目录、/Applications，以及 /tmp、/var/tmp）。要清它，从行尾那颗「访达显示」去访达里自己来——这里多半归系统或别的工具管。" = "Dieser Ort liegt außerhalb dessen, was dieses Tool anfasst (nur dein Benutzerordner, /Applications sowie /tmp und /var/tmp). Zum Leeren nutze «Im Finder zeigen» am Zeilenende und mach es dort selbst – hier waltet meist das System oder ein anderes Tool.";
 "范围「%@」，要把每个目录走一遍才出列表。" = "Umfang «%@» – erst muss jeder Ordner durchlaufen werden, dann erscheint die Liste.";
 "磁盘占用环形图：%@" = "Ringdiagramm der Plattenbelegung: %@";
 "访达显示" = "Im Finder zeigen";
 "深挖" = "Nachsehen";
-"只能看" = "Nur ansehen";
 "在访达里打开 %@" = "%@ im Finder öffnen";
 "这一层没有读得出的子目录。" = "Auf dieser Ebene gibt es keine lesbaren Unterordner.";
 "%1$d 处不到 %2$@ 的小目录 %3$@" = "kleine Ordner unter %2$@ (%1$d): %3$@";
@@ -101,7 +100,6 @@
 "正在翻你的文件夹…" = "Deine Ordner werden durchgesehen…";
 "共扫到 %@" = "%@ gefunden";
 "只看 %@" = "Nur %@";
-"返回空间总览" = "Zurück zur Übersicht";
 "不限这个目录" = "Alle Ordner zeigen";
 "还没扫到大文件" = "Noch keine großen Dateien";
 "点右上角重新扫描，或回总览换个目录深挖" = "Oben rechts auf Neu scannen tippen oder in der Übersicht einen anderen Ordner wählen";
@@ -184,10 +182,9 @@
 "从没启动过" = "Noch nie gestartet";
 "常规缓存" = "Alltägliche Caches";
 "国产 App" = "Chinesische Apps";
-"留意" = "Vorsicht";
-"安全" = "Sicher";
-"能重下" = "Erneut ladbar";
-"会丢数据" = "Datenverlust";
+"删了没影响" = "Keine Auswirkung";
+"删了要重新下载" = "Neu laden nötig";
+"删了会丢数据" = "Datenverlust";
 
 // ── Restbestände ────────────────────────────────────────────────────────────
 "App 卸载了，数据没带走——按已装应用逐一对过" = "Apps wurden gelöscht, ihre Daten blieben – gegen jede installierte App geprüft";
@@ -352,7 +349,7 @@
 "撤销失败：%@" = "Rückgängig fehlgeschlagen: %@";
 "移入废纸篓失败" = "Verschieben in den Papierkorb fehlgeschlagen";
 "系统保护路径，不能整体删除" = "Systemgeschützter Pfad – komplett löschen ist nicht erlaubt";
-"超出允许范围（仅限家目录与 /Applications）" = "Außerhalb des erlaubten Bereichs (nur Benutzerordner und /Applications)";
+"超出允许范围（仅限家目录、/Applications 与 /tmp、/var/tmp）" = "Außerhalb des erlaubten Bereichs (nur Benutzerordner, /Applications sowie /tmp und /var/tmp)";
 "系统未返回废纸篓位置" = "Das System hat keinen Papierkorb-Pfad geliefert";
 "无法创建访达指令" = "Finder-Befehl ließ sich nicht erstellen";
 "访达拒绝执行" = "Der Finder hat die Ausführung verweigert";
@@ -567,6 +564,14 @@
 "这些虚拟机连同已装的 App 数据一起没了" = "Diese virtuellen Geräte sind weg, samt der installierten App-Daten";
 "无法直接恢复；需在 Device Manager 重新创建" = "Nicht direkt wiederherstellbar; leg das Gerät im Device Manager neu an";
 "无法直接恢复；需在 Xcode 里重新创建模拟器" = "Nicht direkt wiederherstellbar; leg den Simulator in Xcode neu an";
+"模拟器内的系统资产" = "System-Assets im Simulator";
+"模拟器按需下载的系统资产（Siri、语音识别等的 dmg），装在每台设备的 MobileAsset 里" = "System-Assets, die der Simulator bei Bedarf lädt (Siri, Spracherkennung und weitere dmgs); sie liegen im MobileAsset jedes Geräts";
+"删掉后对应功能在模拟器里首次使用时重新下载，模拟器和里面的 App 数据不受影响" = "Danach lädt der Simulator sie neu, sobald die Funktion zum ersten Mal genutzt wird; Simulator und App-Daten darin bleiben unberührt";
+"无需恢复；系统需要时按需重新下载" = "Nichts wiederherzustellen; das System lädt es bei Bedarf neu";
+"模拟器内的共享缓存" = "Gemeinsamer Cache im Simulator";
+"模拟器内各 App 共用的动态链接共享缓存与符号数据（uuidtext），由系统生成" = "Der von allen Apps im Simulator geteilte Dynamic-Link-Cache samt Symboldaten (uuidtext), vom System erzeugt";
+"删掉后模拟器下次启动会重新生成，首次启动稍慢" = "Danach erzeugt der Simulator ihn beim nächsten Start neu; der erste Start dauert etwas länger";
+"无需恢复；系统启动时自动重建" = "Nichts wiederherzustellen; das System baut ihn beim Start neu auf";
 "无法直接恢复；需用 sdkmanager 重新安装" = "Nicht direkt wiederherstellbar; installiere es mit sdkmanager neu";
 "无需恢复；IDE 打开项目自动重建" = "Nichts wiederherzustellen; die IDE baut es beim Öffnen des Projekts neu auf";
 "无需恢复；IDE 自动重建" = "Nichts wiederherzustellen; die IDE baut es neu auf";
@@ -606,8 +611,8 @@
 "住在哪个环境" = "Liegt in";
 "这些副本各自住在某个环境里。删一份，那个环境就缺一块；卸掉那个环境，整块一起回收。" = "Jede dieser Kopien liegt in einer Umgebung. Lösch eine, und dieser Umgebung fehlt ein Teil; entfern die Umgebung, und der ganze Block geht mit.";
 "关闭" = "Schließen";
-"「留意」那几项本来就不给全选" = "Zeilen mit «Vorsicht» waren nie in «Alle auswählen»";
-"标「留意」的那几项不在全选范围内，得逐条自己判。" = " Zeilen mit «Vorsicht» bleiben außerhalb von «Alle auswählen» – die entscheidest du einzeln.";
+"删了会丢数据的那几项本来就不给全选" = "Zeilen, bei denen Löschen Datenverlust bedeutet, waren nie in «Alle auswählen»";
+"删了会丢数据的那几项不在全选范围内，得逐条自己判。" = " Zeilen, bei denen Löschen Datenverlust bedeutet, bleiben außerhalb von «Alle auswählen» – die entscheidest du einzeln.";
 "%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。" = " %1$d dieser Pfade liegen in einem anderen Eintrag, deshalb nimmt «Alle auswählen» tatsächlich %2$@ mit – nicht das, was diese Spalte zusammenrechnet.";
 "%1$d 条路径套在别的条目底下，合计只数最外面那层" = "%1$d Pfade liegen in anderen Einträgen; die Summe zählt nur die äußerste Ebene";
 "合计按条目各自的大小相加" = "Die Summe addiert die Größe jedes Eintrags";
@@ -615,8 +620,7 @@
 "这一页动不了，所以整列一个灯色都不上。" = "Auf dieser Seite ist nichts zu bewegen, also leuchtet keine Zeile.";
 "下面 %d 行是引擎自己报的口径，和上面那一行量的是同一块磁盘，不单独加一次。" = " Die %d Zeilen darunter sind die eigenen Angaben der Engine zu derselben Platte – nicht noch einmal gezählt.";
 "这一页量到" = "Diese Seite misst";
-"其中动得了的" = "Bewegbar";
-"动得了" = "Bewegbar";
+"本工具能清" = "Von uns löschbar";
 "镜像明细 · 已经算在上面那一段「镜像 · 合计」里" = "Image-Details – schon im Abschnitt «Images · Summe» oben enthalten";
 "这一行的账" = "So wird diese Zeile gezählt";
 "这一行不进展式：它是引擎报的账，不是这块盘上另外的字节" = "Diese Zeile bleibt aus der Summe: Es ist die Angabe der Engine zu derselben Platte, keine zusätzlichen Bytes darauf";
@@ -626,7 +630,7 @@
 "把选中的移进废纸篓" = "Die Auswahl in den Papierkorb";
 
 // ── Der große Ring (Variante A · Lichtband beim Scan) ────────────────────────
-"%@ 不在本工具动手的范围内（家目录与应用程序之外）。" = "%@ liegt außerhalb dessen, was dieses Tool anfasst – jenseits von Benutzerordner und Programme.";
+"%@ 不在本工具动手的范围内（家目录、应用程序与 /tmp、/var/tmp 之外）。" = "%@ liegt außerhalb dessen, was dieses Tool anfasst – jenseits von Benutzerordner, Programme sowie /tmp und /var/tmp.";
 "%@：这一圈里的账，不是一个能整个搬走的位置。" = "%@: ein Posten in diesem Ring, kein Ort, den man als Ganzes verschieben könnte.";
 "去废纸篓页：这些字节还占着盘，在那里交给访达清空才真让位" = "Zur Papierkorb-Seite: Diese Bytes belegen noch die Platte – erst wenn der Finder dort leert, wird der Platz wirklich frei";
 "各段之和 %1$@" = "Die Abschnitte ergeben %1$@";
@@ -709,12 +713,12 @@
 "查看所在文件夹" = "Ordner öffnen";
 
 // ── 判词：这一处的知识库结论（安全 / 能重下 / 会丢数据 / 不认识）────────────────────────────
-"%1$@删了要重下" = "%1$@ müssten neu geladen werden";
+"%1$@删了要重新下载" = "%1$@ müssten neu geladen werden";
 "%1$@删了会丢数据" = "%1$@ würden Daten verlieren";
 "删了会怎样：%@；怎么恢复：%@" = "Wenn gelöscht: %@; wiederherstellen: %@";
 "另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径" = "Weitere %1$@ stehen nicht im Wissensspeicher: nicht gelistet heißt nicht löschbar – vor dem Anhaken den Pfad prüfen";
 "本工具不认得" = "Nicht im Wissensspeicher";
-"知识库认得、能放心删的 %1$@合计 %2$@" = "%1$@, die der Wissensspeicher kennt und die sich gefahrlos löschen lassen – zusammen %2$@";
+"删了没影响的 %1$@合计 %2$@" = "%1$@ ohne Auswirkung, zusammen %2$@";
 "这一层自己的文件合计 %@，没逐行列出。" = "Die eigenen Dateien dieser Ebene machen %@ aus und sind nicht einzeln aufgeführt.";
 
 // ── 知识库补录：模型、虚拟机、AI 编辑器的运行时数据（2026-10-01）───────────────

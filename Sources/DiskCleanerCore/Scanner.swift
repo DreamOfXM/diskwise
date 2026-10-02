@@ -620,7 +620,7 @@ public enum TrashError: Error {
     public var reasonKey: String {
         switch self {
         case .protected: return "系统保护路径，不能整体删除"
-        case .outsideAllowed: return "超出允许范围（仅限家目录与 /Applications）"
+        case .outsideAllowed: return "超出允许范围（仅限家目录、/Applications 与 /tmp、/var/tmp）"
         case .failed: return "移入废纸篓失败"
         case .noTrashLocation: return "系统未返回废纸篓位置"
         case .noFinderScript: return "无法创建访达指令"

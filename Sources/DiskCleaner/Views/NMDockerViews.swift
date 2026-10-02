@@ -138,9 +138,9 @@ struct NMView: View {
         sizeColumn(model.items.map { (key: $0.id, bytes: $0.size) })
     }
 
-    /// 这一页只有一档：列出来的每个 `node_modules` 都能重装回来，全动得了。
+    /// 这一页只有一档：列出来的每个 `node_modules` 都能重装回来，本工具全都清得动。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("动得了"), bytes: model.totalBytes, tone: .hot)]
+        [LedgerTier(label: L("本工具能清"), bytes: model.totalBytes, tone: .hot)]
     }
 
     private var ledgerNote: String? {
@@ -417,9 +417,9 @@ struct DockerView: View {
         return out
     }
 
-    /// 这一页一个字节的决定都不替用户做，所以只有「只能看」这一档，整块条子是灰的。
+    /// 这一页一个字节的决定都不替用户做，所以只有「本工具不碰」这一档，整块条子是灰的。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("只能看"), bytes: model.totalBytes, tone: .cold)]
+        [LedgerTier(label: L("本工具不碰"), bytes: model.totalBytes, tone: .cold)]
     }
 
     /// 原来这句还要重述一遍「N 段相加 X 就是页头那个数」——那是 `ListNote` 唯一的活，

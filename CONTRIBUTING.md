@@ -21,6 +21,48 @@ Thanks for taking a look. Two things up front:
 - The Docker page is read-only. Images and volumes live inside a virtual disk with no per-item
   path, so the app points at Docker Desktop instead of pretending to prune.
 
+## Delete scope, and the strings that describe it
+
+`isDeletable()` in `Sources/DiskCleanerCore/Models.swift` is the single answer to "may this app
+touch this path at all". Three places are in range: your own home folder, `/Applications`, and the
+shared temp roots `/tmp` and `/var/tmp`. The temp roots are matched as `root + "/"`, so their
+children are deletable but the roots themselves are not — taking `/tmp` away would end the whole
+system's scratch space. Everything else is still listed (that is the point of a disk report), just
+locked.
+
+Widening or narrowing that scope leaves three user-visible strings describing a fact that has
+changed. Nothing ties them together but the coverage gate, so change all of them, in all nine
+tables, in the same PR:
+
+- `outsideScopeHint` (`SharedViews.swift`) — the line under a locked row.
+- `refuseNote(for:)` (`OverviewView.swift`) — the note on the Overview ring.
+- `TrashError.outsideAllowed.reasonKey` (`Scanner.swift`) — `SelfTest` asserts this one.
+
+Keep them to **scope only**. Say which paths are in range; never guess who else manages one.
+"Admins only, or Homebrew/Xcode own it" sounds like a reason and is false for `$TMPDIR` and for
+another user's home folder — and a reason that does not hold reads as "someone else owns this",
+which is worse than saying nothing.
+
+## Two axes, and the words for each
+
+Every row answers two independent questions, and each has its own phrasing. They must never share
+vocabulary:
+
+| The question | Decided by | The words (Chinese source → English) |
+|---|---|---|
+| Does this app act on this row at all? | `isDeletable()` | `本工具能清` / `本工具不碰` → "Ours to clean" / "Not ours to touch" |
+| What does deleting it cost? | `VerdictTier` (`level` + `cost` in `safety_db.json`) | `删了没影响` / `删了要重新下载` / `删了会丢数据` → "No impact" / "Needs re-download" / "Loses data" |
+
+- The retired words are `安全` ("Safe"), `能重下` ("Re-downloadable"), `动得了` and `只能看`: they
+  mixed permission, capability and cost onto one axis. Don't reintroduce them.
+- The three cost badges are one pattern — `删了` plus what happens — and each is a complete verdict
+  on its own. They say nothing about whether the row may be deleted; that is the other axis.
+- The badge comes from one place: `verdictBadge(_:)` in `SharedViews.swift`. Don't `switch` on the
+  tier at the call site. That is how one page ends up saying "loses data" while another says
+  "re-downloadable" about the same path.
+- Where the UI prints a bucket's name (the ledger card's right-hand cell, say), read it from the
+  bucket rather than hard-coding a phrase — a hard-coded one drifts from the legend on the same card.
+
 ## Dev setup
 
 You only need the Xcode Command Line Tools — full Xcode is not required, and `xcodebuild` being

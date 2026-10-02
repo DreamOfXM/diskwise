@@ -663,7 +663,7 @@ struct OverviewView: View {
         if isProtected(url) {
             return LF("%@ 是受保护的位置，整个搬走会伤到系统或你自己的资料。里面的东西能清——去别的清理页挑。", seg.label)
         }
-        return LF("%@ 不在本工具动手的范围内（家目录与应用程序之外）。", seg.label)
+        return LF("%@ 不在本工具动手的范围内（家目录、应用程序与 /tmp、/var/tmp 之外）。", seg.label)
     }
 
     /// 圆心那行副读（样稿 `.mid .now`）：鼠标停在谁身上，就把「是谁 · 占多少 · 我收得走多少」
@@ -1918,7 +1918,7 @@ private struct DrillRow: View {
 
     @State private var hovering = false
 
-    /// 右边那句话。三件事按硬事实排序：系统挡着的说「只能看」；知识库点名要搬的报数；
+    /// 右边那句话。三件事按硬事实排序：本工具挡着的说「本工具不碰」；知识库点名要搬的报数；
     /// **知识库不认识的，够大才说**。
     ///
     /// 最后那条的阈值不是抠门：这一列本来就属于「一眼扫过去」的账目，
@@ -1926,7 +1926,7 @@ private struct DrillRow: View {
     /// 而这一页也没有任何按行删除的动作——真正需要「不认识 ≠ 能删」这句话的场景
     /// 是勾选那一栏，那在文件夹详情页，那儿由页尾那句一次说清。
     private var verdictCell: String {
-        if !isDeletable(URL(fileURLWithPath: path)) { return L("只能看") }
+        if !isDeletable(URL(fileURLWithPath: path)) { return L("本工具不碰") }
         if reclaim > 0 { return LF("%1$@ 可回收", human(reclaim, inRulerOf: ruler)) }
         guard size >= GB else { return "" }
         return VerdictIndex.shared.verdict(for: path).known ? "" : L("本工具不认得")
@@ -1982,10 +1982,10 @@ private struct DrillRow: View {
             if let b = verdictBadge(VerdictIndex.shared.verdict(for: path).tier) {
                 ThemeBadge(text: b.text, tone: b.tone)
             }
-            // 动不了的必须当场说「只能看」。一列全是数、没有这一句，
+            // 动不了的必须当场说「本工具不碰」。一列全是数、没有这一句，
             // 人就只剩「按下去大概能删」这一种预期，而那正是错的那种。
             //
-            // 但这三个字只管**系统在挡**这件事，不能拿它顶替「知识库不认得」：
+            // 但这四个字只管**本工具够不着**这件事，不能拿它顶替「知识库不认得」：
             // `~/Library/Group Containers` 里躺着几十 G 的虚拟机磁盘，删得动，
             // 只是这本知识库里没有它。两件事挤成同一句话，读的人会把
             // 「我不认识」当成「你不能删」——而这两个结论要求的下一步动作正好相反。

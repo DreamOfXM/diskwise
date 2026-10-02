@@ -9,7 +9,7 @@ import DiskCleanerCore
 // 从任意一个文件夹进去，每层把**子目录和文件混排**列出来，点目录继续往下走。
 //
 // 两条边界，刻意不越：
-//   1. 可删性一律走 `isDeletable`（同大文件页），不另立规矩。系统区照样只能看——
+//   1. 可删性一律走 `isDeletable`（同大文件页），不另立规矩。本工具不碰的位置照样列出来——
 //      但**能钻进去看**，这正是这一页存在的理由。
 //   2. 每进一层才量一层（`dirLevel`），不预先递归整棵树：~/Library 一级四十多个目录，
 //      预先递归就是替用户决定「哪支值得看」。
@@ -203,16 +203,19 @@ struct FolderDrillView: View {
                         icon: .path(r.url),
                         name: r.name,
                         sub: subLine(r),
-                        hint: verdictHint(r),
+                        hint: verdictHint(for: r.path),
                         sizeText: sizeCell(r),
                         fraction: Double(r.size) / Double(maxSize),
-                        badge: isDeletable(r.url) ? nil : ItemBadge(text: L("只能看"), tone: .neutral),
+                        badge: isDeletable(r.url) ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
                         badge2: rowBadge(r),
                         selectable: isDeletable(r.url),
                         lit: isDeletable(r.url),
                         lockedHint: isDeletable(r.url) ? nil : outsideScopeHint,
-                        onOpen: r.isDir ? { model.into(r) } : nil,
-                        onReveal: { reveal(r.path) }) {
+                        onOpen: r.isDir ? { store.drill(into: r.path) } : nil,
+                        onReveal: { reveal(r.path) },
+                        // 文件行的路径只有摊开才看得见，而摊开这件事批量拍图这一路点不到，
+                        // 所以由视图自己置位——改的是同一个 `expanded`，不是另画一张展开样。
+                        preopen: SnapshotMode.expandsRow(r.name)) {
                     PathLine(path: r.path)
                 }
             }
@@ -236,19 +239,12 @@ struct FolderDrillView: View {
         verdictBadge(VerdictIndex.shared.verdict(for: r.path).tier)
     }
 
-    /// 判词的后半段：「删了会怎样 · 怎么恢复」。这是「放心删」这三个字背后的依据，
-    /// 没有它，徽章就只是一句本工具的判断，用户没法自己核。
-    private func verdictHint(_ r: ChildEntry) -> String? {
-        guard let e = VerdictIndex.shared.verdict(for: r.path).entry else { return nil }
-        return LF("删了会怎样：%@；怎么恢复：%@", L(e.whatif), L(e.rec))
-    }
-
     /// 这一层的判词总账：知识库认得的那几处里，有多少是**指得出再生成路径**的。
     ///
     /// 这是「哪些放心删」在这页上的正面回答；剩下那些不在知识库里的必须一起说出来，
     /// 而且要说清「不在 ≠ 能删」——只报认得的那几项，等于把不认识的默认洗成安全。
     ///
-    /// 「能重下」和「会丢数据」分开数、分开说。原先它们合在「要先看一眼」一句里，
+    /// 「删了要重新下载」和「删了会丢数据」分开数、分开说。原先它们合在「要先看一眼」一句里，
     /// 于是 40 GB 的模型权重和 3 台模拟器的数据在页尾是同一句话，用户没法据此决定
     /// 先动哪个——而这页唯一的作用就是帮他做这个决定。
     private var verdictNote: String? {
@@ -265,11 +261,11 @@ struct FolderDrillView: View {
         }
         var parts: [String] = []
         if safe > 0 {
-            parts.append(LF("知识库认得、能放心删的 %1$@合计 %2$@",
+            parts.append(LF("删了没影响的 %1$@合计 %2$@",
                             cnt(safe, "项"), human(safeBytes, inRulerOf: model.level?.total ?? 0)))
         }
         if redo > 0 {
-            parts.append(LF("%1$@删了要重下", cnt(redo, "项")))
+            parts.append(LF("%1$@删了要重新下载", cnt(redo, "项")))
         }
         if risky > 0 {
             parts.append(LF("%1$@删了会丢数据", cnt(risky, "项")))
@@ -316,11 +312,11 @@ struct FolderDrillView: View {
 
     // MARK: 数
 
-    /// 这一层的账：分「动得了 / 只能看」两堆，跟大文件页同一口径。
+    /// 这一层的账：分「本工具能清 / 本工具不碰」两堆，跟大文件页同一口径。
     private var tiers: [LedgerTier] {
         let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { isDeletable($0.url) })
-        return [LedgerTier(label: L("动得了"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("只能看"), bytes: sp.viewOnly, tone: .cold)]
+        return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
     }
 
     private var maxSize: Int64 { max(1, model.rows.map(\.size).max() ?? 1) }
@@ -393,7 +389,7 @@ struct FolderDrillView: View {
                 })
     }
 
-    /// 「全选」只管勾得动的那几行：系统区的行选上也删不掉，全选后按清理只会换一屏报错。
+    /// 「全选」只管勾得动的那几行：本工具不碰的行选上也删不掉，全选后按清理只会换一屏报错。
     private var selectAll: SelectAll? {
         let open = model.rows.filter { isDeletable($0.url) }
         guard !open.isEmpty else { return nil }

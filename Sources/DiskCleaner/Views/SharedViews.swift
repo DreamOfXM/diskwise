@@ -81,18 +81,38 @@ struct ItemBadge {
 /// 知识库判词 → 徽章。缓存页、文件夹详情、总览三处共用这一份。
 ///
 /// 共用不是为了省几行：同一句话在三个地方必须长得一模一样，各自 `switch` 一遍，
-/// 迟早有一处漏改，用户就会在总览看到「会丢数据」、点进去变成「留意」。
+/// 迟早有一处漏改，用户就会在总览看到一种说法、点进去变成另一种。
 ///
-/// 徽章说的一律是**删了要付什么代价**，不说「能不能删」——那是另一枚徽章和灯色的事。
+/// 三枚走**同一条轴**：删了要付什么代价。所以三句话一个句式——「删了 + 后果」，
+/// 每枚单看都是一句完整的结论。原先那三个词（安全 / 能重下 / 会丢数据）混着两种意思：
+/// 「安全」在说许可、「能重下」在说能力，只有第三枚在说代价；同一排里三枚徽章答三道题，
+/// 而旁边那枚 `本工具不碰` 又碰巧也是个许可词——用户没法从用词上分清哪枚在说哪件事。
+///
+/// 也**不说「能不能删」**：那是 `本工具能清 / 本工具不碰` 那条轴和灯色的事。
+///
 /// 「不认识」不给徽章（返回 nil）：各页按自己的情况说它（详情页是页尾一句，
 /// 总览里够大才标），一屏九十行挂九十枚「不认识」，那就不是信息了。
 func verdictBadge(_ tier: VerdictTier) -> ItemBadge? {
     switch tier {
-    case .safe:    return ItemBadge(text: L("安全"), tone: .safe)
-    case .redo:    return ItemBadge(text: L("能重下"), tone: .warn)
-    case .risky:   return ItemBadge(text: L("会丢数据"), tone: .danger)
+    case .safe:    return ItemBadge(text: L("删了没影响"), tone: .safe)
+    case .redo:    return ItemBadge(text: L("删了要重新下载"), tone: .warn)
+    case .risky:   return ItemBadge(text: L("删了会丢数据"), tone: .danger)
     case .unknown: return nil
     }
+}
+
+/// 判词的后半段：「删了会怎样 · 怎么恢复」。这是「放心删」这三个字背后的依据，
+/// 没有它，徽章就只是一句本工具的判断，用户没法自己核。
+///
+/// 跟 `verdictBadge` 一样给多处共用（文件夹详情、大文件、很久没动）：
+/// 徽章只说代价的名字，这一句说代价是什么，同一句解释在两页长得不一样，
+/// 就是在教用户「这两处说的不是一回事」。
+///
+/// 命不中返回 nil——**不在这里说「不认识」**：一屏几十行里绝大多数都会挂上那句话，
+/// 那不是信息。要说的时候由各页在页尾整层说一句。
+func verdictHint(for path: String) -> String? {
+    guard let e = VerdictIndex.shared.verdict(for: path).entry else { return nil }
+    return LF("删了会怎样：%@；怎么恢复：%@", L(e.whatif), L(e.rec))
 }
 
 /// 行首图形那一格的边长。
@@ -112,8 +132,14 @@ let rowLeadInset: CGFloat = 16 + 10 + rowIconSide + 10 + 12
 /// 整盘扫描会扫到我们删不动的位置。行照样列出来（那是账），但勾选框锁死，
 /// 而且得说清为什么锁——不然用户只会以为工具坏了。
 /// 做成计算属性而不是常量：语言切换后要跟着换。
+///
+/// 这句话只说**范围**，不去猜这一处「归谁管」。原先写的是「要么只有管理员写得动，
+/// 要么归 Homebrew / Xcode 自己管」——可范围外还有一类既不归谁管、自己又写得动的地方
+/// （`$TMPDIR` 那一片、别人家目录里的东西），那句理由在它们头上是假的，
+/// 而一个不成立的理由比不说更坏：读起来像「这是别人管的，我不能碰」。
+/// 范围是**由代码本身决定**的事实，永远不会说错；为什么归别人管是猜，能不说就不说。
 var outsideScopeHint: String {
-    L("这个位置我们不动：要么只有管理员写得动，要么归 Homebrew / Xcode 自己管，用它们各自的清理命令更安全。")
+    L("这个位置不在本工具的动手范围（只含你自己的家目录、/Applications，以及 /tmp、/var/tmp）。要清它，从行尾那颗「访达显示」去访达里自己来——这里多半归系统或别的工具管。")
 }
 
 /// 扫描中、一行都还没出来时画在账本里的那几道灰格。
@@ -246,13 +272,14 @@ struct ItemRow<Detail: View>: View {
     /// 0...1，相对本页最大项的比例——磁盘工具不画比例就等于没画
     var fraction: Double = 1
     var badge: ItemBadge? = nil
-    /// 第二枚徽章。跟 `badge` 是**两条轴**：那一枚说「这一行你删不删得动」，
-    /// 这一枚说「知识库认不认得它、删了有没有代价」。挤进同一格就只能二选一，
-    /// 于是「删得动但知识库不认识」的行会一个字都不说——那正是最需要说的那一类。
+    /// 第二枚徽章。跟 `badge` 是**两条轴**：那一枚说「本工具动不动这一行」，
+    /// 这一枚说「甩掉它要付什么代价」。两枚的词各成一个句式（`本工具不碰` / `删了…`），
+    /// 并排站着也分得出谁在说谁。挤进同一格就只能二选一，
+    /// 于是「本工具能清、但删了会丢数据」的行会一个字都不说——那正是最需要说的那一类。
     var badge2: ItemBadge? = nil
     var selectable: Bool = true
-    /// 「动得了」这一档：灯色、21pt、条子只给它。默认跟着 `selectable`；
-    /// 缓存页和残留页要再收紧一层——标「留意」的行得用户自己判，不给它灯的暗示。
+    /// 这一行亮不亮灯。默认跟着 `selectable`（本工具能清）；缓存页与残留页再收紧一档，
+    /// 只给「删了没影响」那批亮——「删了会丢数据」的行得用户自己过目，不给它灯的暗示。
     var lit: Bool? = nil
     /// 首行不画分段线（样稿 `.ledger>.mrow:first-child::before{display:none}`）
     var showRule: Bool = true
@@ -398,7 +425,7 @@ struct ItemRow<Detail: View>: View {
         .themedRow()
     }
 
-    /// 数和单位的颜色，三档：已勾 > 动得了 > 只能看。
+    /// 数和单位的颜色，三档：已勾 > 本工具能清 > 本工具不碰。
     ///
     /// 已勾那一档必须是灯色：底部那条清理条只报「已选 X 项」，哪几项被选了得在
     /// 列表里当场看得见（样稿 `.val.sel`）。
@@ -408,8 +435,8 @@ struct ItemRow<Detail: View>: View {
     }
 
     private var chevronColor: Color {
-        // 往里走那颗箭头不跟着可删性变暗：「能不能删」和「能不能进去看」是两件事，
-        // 而系统区那些行恰恰是最需要进去看的地方——压成三级墨色等于把它们画成死行。
+        // 往里面走那颗箭头不跟着可删性变暗：「能不能删」和「能不能进去看」是两件事，
+        // 而本工具不碰的那些行恰恰是最需要进去看的地方——压成三级墨色等于把它们画成死行。
         if onOpen != nil { return SweepRing.lamp(theme.palette.tint) }
         return act ? SweepRing.lamp(theme.palette.tint).opacity(0.72) : theme.palette.inkTertiary
     }
@@ -477,11 +504,11 @@ struct ListNote: View {
 
 /// 账上的一个分档：这一屏列出的行里，归这一档的那部分字节。
 ///
-/// 分档由**各页自己**给，不是一套模板：缓存页有「动得了 / 能重下 / 会丢数据」三堆，
-/// 重复项、node_modules 整页都动得了，Docker 整页一个字节的决定都不替用户做。
-/// 硬套一套固定档数就得编出「只能看 0 B」。
+/// 分档由**各页自己**给，不是一套模板：缓存页一页全在家目录里，三档分的是「删了要付什么代价」；
+/// 大文件、很久没动、文件夹详情那几页则分「本工具能清 / 本工具不碰」两堆。
+/// 硬套一套固定档数就得编出「本工具不碰 0 B」。
 struct LedgerTier {
-    /// `risk` 与 `warn` 必须分得开：一个是「要重新下载」，一个是「东西没了」。
+    /// `risk` 与 `warn` 必须分得开：一个是「删了要重新下载」，一个是「东西没了」。
     /// 两档同色就等于又把它们混回去了，那正是这一版要修的缺陷。
     enum Tone { case hot, warn, risk, cold }
     var label: String
@@ -492,14 +519,14 @@ struct LedgerTier {
 /// 列表页顶上的「这一页的账」：合计数、分档条、图例。
 ///
 /// 这笔账原来只有一句 11pt 灰字，压在二十行列表**底下**（`ListNote`）：
-/// 「列出的 18 项合计 29.2 GB：本工具动得了 15.4 GB，其余只能看不能删」。
-/// 话是对的，位置不对——一屏最先要回答的是「这一页值多少、其中多少动得了」，
+/// 「列出的 18 项合计 29.2 GB：本工具能清 15.4 GB，其余本工具不碰」。
+/// 话是对的，位置不对——一屏最先要回答的是「这一页值多少、其中多少能清」，
 /// 却排在下面二十个数字之后，等用户自己把那一列加出来。这里把同一笔账搬到
 /// 列表上方，字换成行里那套两档数字，分档用一条整页宽的条子说。
 ///
 /// 不新增数字：合计与每一档都从**同一批行**里加出来（`listedSplitOf` 那本账），
 /// 各档字符串走 `addableHumanColumn`，所以图例相加正好等于头上那个合计。
-/// 空的那一档不画、那句「其中动得了的」在只有一个档时也不写（它跟合计是同一个数）。
+/// 空的那一档不画、热档那一格在只有一个档时也不写（它跟合计是同一个数）。
 struct PageLedger: View {
     @Environment(\.theme) private var theme
     var tiers: [LedgerTier]
@@ -513,10 +540,17 @@ struct PageLedger: View {
     private var shown: [String] { addableHumanColumn(drawn.map(\.bytes), total: total) }
     private var totalShown: String { human(total) }
 
-    /// 「其中动得了的」那一格：只有当动得了的确实少于合计数才写。
-    private var hotCell: Int? {
+    /// 被顶上那颗合计衬着的那一格（右肩）。
+    ///
+    /// 档名照读这一档自己的 `label`，**不另写一句死话**。各页的热档不是同一个词——
+    /// 大文件、很久没动、文件夹详情那几页的热档是「本工具能清」，缓存页的热档是
+    /// 「删了没影响」（那一页分的是代价）。写死一句就会出现同一张卡上右肩写一个词、
+    /// 底下图例里同一个数写另一个词，17.8 MB 在屏幕上成了两种东西。
+    ///
+    /// 只有热档确实少于合计数时才写：整页全是热档时，这个数跟头上的合计是同一个。
+    private var hotCell: (label: String, index: Int)? {
         guard let i = drawn.firstIndex(where: { $0.tone == .hot }) else { return nil }
-        return drawn[i].bytes < total ? i : nil
+        return drawn[i].bytes < total ? (label: drawn[i].label, index: i) : nil
     }
 
     var body: some View {
@@ -527,7 +561,7 @@ struct PageLedger: View {
                 VStack(alignment: .leading, spacing: drawn.count > 1 ? 9 : 8) {
                     numbers
                     // 条子永远画：只有一个档时它是这一页唯一的图形信息——整条亮色＝
-                    // 「这一页全动得了」，整条灰＝「一个字节的决定都不替你做」。
+                    // 「这一页全在本工具手里」，整条灰＝「一个字节的决定都不替你做」。
                     // 这也是这块卡片的横向重心：少了一条通宽的条，卡片右半截是空的。
                     stack
                     // 图例只在两档以上才出现：单档时它会把头上那个合计数一字不差
@@ -566,11 +600,11 @@ struct PageLedger: View {
                 .foregroundStyle(theme.palette.inkTertiary)
                 .layoutPriority(1)
             Spacer(minLength: 10)
-            if let i = hotCell {
-                Text(L("其中动得了的"))
+            if let h = hotCell {
+                Text(h.label)
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
-                SizeNumber(shown: shown[i], size: 22, color: theme.palette.tint)
+                SizeNumber(shown: shown[h.index], size: 22, color: theme.palette.tint)
             }
         }
     }
@@ -614,11 +648,11 @@ struct PageLedger: View {
         }
     }
 
-    /// 一档一色，跟环形图那条规矩同一套：**彩色只给动得了的**，其余三档都不上主色。
+    /// 一档一色，跟环形图那条规矩同一套：**彩色只给本工具能清的**，其余几档都不上主色。
     ///
-    /// 「能重下」和「会丢数据」各走行内徽章那支黄和那支红，一色对一色：
+    /// 「删了要重新下载」和「删了会丢数据」各走行内徽章那支黄和那支红，一色对一色：
     /// 页头这条账里的两档要和下面行里那两枚徽章对得上，否则同一屏上
-    /// 「会丢数据」这堆在条子里是黄、在行里是红，看着就成了两回事。
+    /// 「删了会丢数据」这堆在条子里是黄、在行里是红，看着就成了两回事。
     /// 灰那一档走 `inkTertiary` 而不是 `separator`：实拍过分隔线那个
     /// 灰在白卡上几乎看不见，整条读成一道分隔线而不是一段账。
     private func color(_ tone: LedgerTier.Tone) -> Color {
@@ -631,10 +665,10 @@ struct PageLedger: View {
     }
 }
 
-/// 列出的这些行按「动得了 / 只能看」分两堆的字节账，给 `PageLedger` 当输入。
+/// 列出的这些行按「本工具能清 / 本工具不碰」分两堆的字节账，给 `PageLedger` 当输入。
 ///
 /// 两堆从**同一批行**里加出来，所以两者之和就是那一列的合计——对账句里
-/// 「合计 X：动得了 Y」的 X 与 Y 必须同源，否则那句本身就加不回来。
+/// 「合计 X：能清 Y」的 X 与 Y 必须同源，否则那句本身就加不回来。
 func listedSplitOf<T>(_ rows: [T], bytes: (T) -> Int64,
                       lit: (T) -> Bool) -> (reclaimable: Int64, viewOnly: Int64) {
     var r = Int64(0), v = Int64(0)
@@ -754,6 +788,10 @@ struct SelectAll {
 /// 抢同一块地方——上面那张账本卡和它下面这张浮卡。样稿把它压成一条带子：
 /// 通栏、只有一道上边线、不投影。它说的是「这一页的合计与动手的地方」，
 /// 不是一个飘在画面上的通知。
+///
+/// 每一处调用点前面都要有一颗 `Spacer(minLength: 0)`：内容短的时候（正在扫的骨架、
+/// 空态、只有几行的列表）带子会浮到窗口中间去，而它的位置本身就是它的一部分——
+/// 「动手的地方」得钉在窗口下沿，手才知道往哪儿落。
 struct CleanBar: View {
     @Environment(\.theme) private var theme
     @EnvironmentObject private var store: AppStore
@@ -763,7 +801,7 @@ struct CleanBar: View {
     /// 不给就现算——现算的会和上面那一列不同单位，同一屏两把尺。
     var bytesText: String = ""
     var errorText: String? = nil
-    /// 清理条右侧那句口径话：这一页的合计是怎么算出来的（并集、每组留一份、留意项不批量勾）
+    /// 清理条右侧那句口径话：这一页的合计是怎么算出来的（并集、每组留一份、会丢数据那档不批量勾）
     var hint: String? = nil
     var selection: SelectAll? = nil
     var onClean: () -> Void

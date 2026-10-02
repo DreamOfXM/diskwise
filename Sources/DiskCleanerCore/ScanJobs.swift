@@ -290,6 +290,12 @@ private let orphanLocations: [(label: String, subpath: String, kind: String, lev
     ("WebKit", "Library/WebKit", "dir", "safe"),
     ("Logs", "Library/Logs", "dir", "safe"),
     ("Application Scripts", "Library/Application Scripts", "dir", "safe"),
+    // 第 11 处（稿子④，2026-09-30 拍板「只加一行」）：App 卸载了、它的自启动还留着。
+    // 这一档不是「列全自启动项」——那是启动管理工具的事；这里要的正是没主的那几个 plist。
+    // 系统态那两个目录（/Library/LaunchAgents、/Library/LaunchDaemons）不接：09-30 实测
+    // 沙盒里读得到，但本机那 3 条属于**在装**的软件（搜狗、OrbStack），「残留」这个语义
+    // 在它们身上不成立。
+    ("LaunchAgents", "Library/LaunchAgents", "plist", "warn"),
 ]
 
 private let orphanDenylist: Set<String> = [
@@ -382,7 +388,7 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
                 stem = n
             }
             if loc.label == "Caches" || loc.label == "HTTPStorages" || loc.label == "Containers"
-                || loc.label == "Saved Application State" {
+                || loc.label == "Saved Application State" || loc.label == "LaunchAgents" {
                 if !stem.contains(".") { continue }  // 只认 id 形态，避免误报 pip 之类
             }
             if related(stem) { continue }
