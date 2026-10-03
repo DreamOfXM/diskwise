@@ -11,6 +11,7 @@ import { resolve } from "path";
  * base 默认按 GitHub Pages 项目站路径（https://dreamofxm.github.io/diskwise/）生成，
  * 若绑定自定义域名或部署到根路径，把 base 改为 "/" 即可。
  * 四个语言入口：/（中文）、/en/、/ja/、/ko/，与 README 的四语一一对应。
+ * 另加两张对比页（只做 zh / en，与商店元数据的语言覆盖一致）：/vs/cleanmymac/、/vs/daisydisk/。
  */
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/diskwise/",
@@ -25,6 +26,10 @@ export default defineConfig({
         en: resolve(__dirname, "en/index.html"),
         ja: resolve(__dirname, "ja/index.html"),
         ko: resolve(__dirname, "ko/index.html"),
+        "vs-cleanmymac": resolve(__dirname, "vs/cleanmymac/index.html"),
+        "vs-daisydisk": resolve(__dirname, "vs/daisydisk/index.html"),
+        "en-vs-cleanmymac": resolve(__dirname, "en/vs/cleanmymac/index.html"),
+        "en-vs-daisydisk": resolve(__dirname, "en/vs/daisydisk/index.html"),
       },
       output: {
         entryFileNames: "assets/[name]-[hash].js",

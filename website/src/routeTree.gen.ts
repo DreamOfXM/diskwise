@@ -13,6 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as EnIndexRouteImport } from './routes/en/index'
 import { Route as JaIndexRouteImport } from './routes/ja/index'
 import { Route as KoIndexRouteImport } from './routes/ko/index'
+import { Route as VsCleanmymacIndexRouteImport } from './routes/vs/cleanmymac/index'
+import { Route as VsDaisydiskIndexRouteImport } from './routes/vs/daisydisk/index'
+import { Route as EnVsCleanmymacIndexRouteImport } from './routes/en/vs/cleanmymac/index'
+import { Route as EnVsDaisydiskIndexRouteImport } from './routes/en/vs/daisydisk/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +38,46 @@ const KoIndexRoute = KoIndexRouteImport.update({
   path: '/ko/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VsCleanmymacIndexRoute = VsCleanmymacIndexRouteImport.update({
+  id: '/vs/cleanmymac/',
+  path: '/vs/cleanmymac/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VsDaisydiskIndexRoute = VsDaisydiskIndexRouteImport.update({
+  id: '/vs/daisydisk/',
+  path: '/vs/daisydisk/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnVsCleanmymacIndexRoute = EnVsCleanmymacIndexRouteImport.update({
+  id: '/en/vs/cleanmymac/',
+  path: '/en/vs/cleanmymac/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnVsDaisydiskIndexRoute = EnVsDaisydiskIndexRouteImport.update({
+  id: '/en/vs/daisydisk/',
+  path: '/en/vs/daisydisk/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/en/': typeof EnIndexRoute
   '/ja/': typeof JaIndexRoute
   '/ko/': typeof KoIndexRoute
+  '/vs/cleanmymac/': typeof VsCleanmymacIndexRoute
+  '/vs/daisydisk/': typeof VsDaisydiskIndexRoute
+  '/en/vs/cleanmymac/': typeof EnVsCleanmymacIndexRoute
+  '/en/vs/daisydisk/': typeof EnVsDaisydiskIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/en': typeof EnIndexRoute
   '/ja': typeof JaIndexRoute
   '/ko': typeof KoIndexRoute
+  '/vs/cleanmymac': typeof VsCleanmymacIndexRoute
+  '/vs/daisydisk': typeof VsDaisydiskIndexRoute
+  '/en/vs/cleanmymac': typeof EnVsCleanmymacIndexRoute
+  '/en/vs/daisydisk': typeof EnVsDaisydiskIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +85,42 @@ export interface FileRoutesById {
   '/en/': typeof EnIndexRoute
   '/ja/': typeof JaIndexRoute
   '/ko/': typeof KoIndexRoute
+  '/vs/cleanmymac/': typeof VsCleanmymacIndexRoute
+  '/vs/daisydisk/': typeof VsDaisydiskIndexRoute
+  '/en/vs/cleanmymac/': typeof EnVsCleanmymacIndexRoute
+  '/en/vs/daisydisk/': typeof EnVsDaisydiskIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/en/' | '/ja/' | '/ko/'
+  fullPaths:
+    | '/'
+    | '/en/'
+    | '/ja/'
+    | '/ko/'
+    | '/vs/cleanmymac/'
+    | '/vs/daisydisk/'
+    | '/en/vs/cleanmymac/'
+    | '/en/vs/daisydisk/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/en' | '/ja' | '/ko'
-  id: '__root__' | '/' | '/en/' | '/ja/' | '/ko/'
+  to:
+    | '/'
+    | '/en'
+    | '/ja'
+    | '/ko'
+    | '/vs/cleanmymac'
+    | '/vs/daisydisk'
+    | '/en/vs/cleanmymac'
+    | '/en/vs/daisydisk'
+  id:
+    | '__root__'
+    | '/'
+    | '/en/'
+    | '/ja/'
+    | '/ko/'
+    | '/vs/cleanmymac/'
+    | '/vs/daisydisk/'
+    | '/en/vs/cleanmymac/'
+    | '/en/vs/daisydisk/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +128,10 @@ export interface RootRouteChildren {
   EnIndexRoute: typeof EnIndexRoute
   JaIndexRoute: typeof JaIndexRoute
   KoIndexRoute: typeof KoIndexRoute
+  VsCleanmymacIndexRoute: typeof VsCleanmymacIndexRoute
+  VsDaisydiskIndexRoute: typeof VsDaisydiskIndexRoute
+  EnVsCleanmymacIndexRoute: typeof EnVsCleanmymacIndexRoute
+  EnVsDaisydiskIndexRoute: typeof EnVsDaisydiskIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +164,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KoIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vs/cleanmymac/': {
+      id: '/vs/cleanmymac/'
+      path: '/vs/cleanmymac'
+      fullPath: '/vs/cleanmymac/'
+      preLoaderRoute: typeof VsCleanmymacIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vs/daisydisk/': {
+      id: '/vs/daisydisk/'
+      path: '/vs/daisydisk'
+      fullPath: '/vs/daisydisk/'
+      preLoaderRoute: typeof VsDaisydiskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/en/vs/cleanmymac/': {
+      id: '/en/vs/cleanmymac/'
+      path: '/en/vs/cleanmymac'
+      fullPath: '/en/vs/cleanmymac/'
+      preLoaderRoute: typeof EnVsCleanmymacIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/en/vs/daisydisk/': {
+      id: '/en/vs/daisydisk/'
+      path: '/en/vs/daisydisk'
+      fullPath: '/en/vs/daisydisk/'
+      preLoaderRoute: typeof EnVsDaisydiskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +200,10 @@ const rootRouteChildren: RootRouteChildren = {
   EnIndexRoute: EnIndexRoute,
   JaIndexRoute: JaIndexRoute,
   KoIndexRoute: KoIndexRoute,
+  VsCleanmymacIndexRoute: VsCleanmymacIndexRoute,
+  VsDaisydiskIndexRoute: VsDaisydiskIndexRoute,
+  EnVsCleanmymacIndexRoute: EnVsCleanmymacIndexRoute,
+  EnVsDaisydiskIndexRoute: EnVsDaisydiskIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

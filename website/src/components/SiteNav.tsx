@@ -72,7 +72,13 @@ function LangSwitcher() {
   );
 }
 
-export function SiteNav() {
+export function SiteNav({
+  links,
+  homeHref = "#top",
+}: {
+  links?: { href: string; label: string }[];
+  homeHref?: string;
+} = {}) {
   const { t } = useContent();
   const [scrolled, setScrolled] = useState(false);
 
@@ -92,14 +98,14 @@ export function SiteNav() {
       }`}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
-        <a href="#top" className="flex items-center gap-2 font-semibold tracking-tight">
+        <a href={homeHref} className="flex items-center gap-2 font-semibold tracking-tight">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground">
             <HardDrive className="h-4 w-4" />
           </span>
           DiskWise
         </a>
         <nav className="ml-auto hidden items-center gap-1 md:flex">
-          {t.nav.map((n) => (
+          {(links ?? t.nav).map((n) => (
             <a
               key={n.href}
               href={n.href}

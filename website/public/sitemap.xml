@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  四个语言页各一条 URL，互相声明 alternate，与页面里的 hreflang 一致。
+  四个语言首页 + 两张对比页（各 zh / en 两条），互相声明 alternate，与页面里的 hreflang 一致。
   发现途径：GitHub Pages 项目站的 robots.txt 只在主机根生效（dreamofxm.github.io/robots.txt，
   不归本项目管），所以这份 sitemap 需要手动提交给 Search Console。
 -->
@@ -37,5 +37,34 @@
     <xhtml:link rel="alternate" hreflang="ja" href="https://dreamofxm.github.io/diskwise/ja/" />
     <xhtml:link rel="alternate" hreflang="ko" href="https://dreamofxm.github.io/diskwise/ko/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/" />
+  </url>
+  <!-- 对比页只有 zh / en 两语，alternate 就只声明这两条 + x-default -->
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/vs/cleanmymac/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/cleanmymac/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/cleanmymac/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/cleanmymac/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/en/vs/cleanmymac/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/cleanmymac/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/cleanmymac/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/cleanmymac/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/vs/daisydisk/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/daisydisk/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/en/vs/daisydisk/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/daisydisk/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
   </url>
 </urlset>

@@ -1,4 +1,20 @@
+import { COMPARE_SLUG_BY_NAME, compareHref } from "@/data/compare";
 import { useContent } from "@/locale";
+
+function RivalName({ name }: { name: string }) {
+  const { locale } = useContent();
+  const slug = COMPARE_SLUG_BY_NAME[name];
+  if (!slug) return <>{name}</>;
+  return (
+    <a
+      href={compareHref(locale, slug)}
+      className="underline decoration-dotted underline-offset-4 transition hover:text-sky-400"
+      title={`DiskWise vs ${name}`}
+    >
+      {name}
+    </a>
+  );
+}
 
 export function Competitors() {
   const { t } = useContent();
@@ -40,7 +56,7 @@ export function Competitors() {
               >
                 <td className="px-5 py-4">
                   <span className={c.ours ? "font-semibold text-sky-300" : "font-medium"}>
-                    {c.name}
+                    <RivalName name={c.name} />
                   </span>
                 </td>
                 <td className="px-5 py-4 text-muted-foreground">{c.kind}</td>
@@ -66,7 +82,9 @@ export function Competitors() {
             }
           >
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className={c.ours ? "font-semibold text-sky-300" : "font-semibold"}>{c.name}</h3>
+              <h3 className={c.ours ? "font-semibold text-sky-300" : "font-semibold"}>
+                <RivalName name={c.name} />
+              </h3>
               <span className="text-xs text-muted-foreground">{c.kind}</span>
             </div>
             <dl className="mt-3 space-y-1.5 text-xs leading-relaxed text-muted-foreground">

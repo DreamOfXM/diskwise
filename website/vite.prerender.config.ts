@@ -10,6 +10,9 @@ import { resolve } from "path";
  * 直接加 --ssr 会把预渲染脚本也打成 assets/prerender-[hash].js，node 无法稳定执行。
  */
 export default defineConfig({
+  // 必须与 vite.config.ts 的 base 一致：预渲染产物里的内链由 import.meta.env.BASE_URL 拼出，
+  // 这里留空会让爬虫看到 /vs/daisydisk/ 而不是 /diskwise/vs/daisydisk/（浏览器侧是对的，看不出问题）
+  base: process.env.VITE_BASE ?? "/diskwise/",
   plugins: [viteReact(), tsConfigPaths()],
   build: {
     ssr: resolve(__dirname, "src/prerender.tsx"),
