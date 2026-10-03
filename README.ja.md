@@ -312,9 +312,14 @@ arm64 のみ（`DiskWise-<バージョン>.dmg`、名前に `-universal` なし�
 |---|---|
 | メール | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
 | GitHub | [Issue を立てる](https://github.com/DreamOfXM/diskwise/issues) —— 英語でも中国語でも構いません |
+| Discussions | [質問・アイデア・使い方の共有](https://github.com/DreamOfXM/diskwise/discussions) |
 
-同じ 2 つの経路はアプリ内にもあります：サイドバー最下部の **フィードバック** ページで、どのアドレスも
+メールと Issue はアプリ内にもあります：サイドバー最下部の **フィードバック** ページで、どのアドレスも
 ワンクリックでコピーできます。
+
+使っていない容量が見つかったら、[リポジトリに Star](https://github.com/DreamOfXM/diskwise) を押すのが
+次の人に届く最も現実的な方法です。このプロジェクトには広告費がなく、GitHub の検索と awesome リストからの
+流入が「誰の目に入るか」をそのまま決めます。
 
 ## プライバシー
 

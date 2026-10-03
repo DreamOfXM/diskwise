@@ -310,9 +310,14 @@ v1.3부터 공개한 DMG는 모두 `ARCH=universal` 로 만들어 arm64와 x86_6
 |---|---|
 | 이메일 | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
 | GitHub | [이슈 열기](https://github.com/DreamOfXM/diskwise/issues) —— 영어도 중국어도 괜찮습니다 |
+| Discussions | [질문·아이디어·사용 후기](https://github.com/DreamOfXM/diskwise/discussions) |
 
-같은 두 경로가 앱 안에도 있습니다: 사이드바 맨 아래 **피드백** 페이지에서 모든 주소를 한 번에 복사할 수
+이메일과 이슈는 앱 안에도 있습니다: 사이드바 맨 아래 **피드백** 페이지에서 모든 주소를 한 번에 복사할 수
 있습니다.
+
+쓰지 않는 공간을 찾아냈다면 [저장소에 Star](https://github.com/DreamOfXM/diskwise)를 누르는 것이 다른 사람에게
+알려지는 가장 현실적인 방법입니다. 이 프로젝트에는 마케팅 예산이 없어서, GitHub 검색과 awesome 목록 유입이 곧
+노출을 결정합니다.
 
 ## 개인정보
 

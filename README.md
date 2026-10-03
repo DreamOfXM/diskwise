@@ -316,9 +316,14 @@ The app has no network access, so there is no built-in "send feedback" button �
 |---|---|
 | Email | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
 | GitHub | [Open an issue](https://github.com/DreamOfXM/diskwise/issues) — English or Chinese is fine |
+| Discussions | [Questions, ideas, show-and-tell](https://github.com/DreamOfXM/diskwise/discussions) |
 
-The same two channels live in-app: the **Feedback** page at the bottom of the sidebar, with
+Email and issues also live in-app: the **Feedback** page at the bottom of the sidebar, with
 copy buttons for every address.
+
+If it cleared space you didn't know you had, [starring the repo](https://github.com/DreamOfXM/diskwise)
+is genuinely how the next person finds it — there is no marketing budget behind this project, so GitHub
+search and awesome-list traffic are what decide whether anyone sees it at all.
 
 ## Privacy
 

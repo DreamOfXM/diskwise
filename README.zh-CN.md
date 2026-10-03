@@ -279,8 +279,12 @@ App 不联网，所以没有「一键发送反馈」这种按钮。两个渠道�
 |---|---|
 | 邮箱 | [hnyxgxm2009@163.com](mailto:hnyxgxm2009@163.com) |
 | GitHub | [提 Issue](https://github.com/DreamOfXM/diskwise/issues)，中文英文都收 |
+| Discussions | [提问、想法、用法分享](https://github.com/DreamOfXM/diskwise/discussions) |
 
-App 内侧边栏最下面就是「问题反馈」页，同样这两条渠道，每个地址都能一键复制。
+邮箱和 Issue 在 App 里也有：侧边栏最下面的「问题反馈」页，每个地址都能一键复制。
+
+如果它清出了你本来不知道的占用空间，[给仓库点个 Star](https://github.com/DreamOfXM/diskwise) 就是新用户
+找到它的实际途径——这个项目没有投放预算，能不能被人看见，全靠 GitHub 自己的搜索和 awesome 列表流量。
 
 ## 隐私
 
