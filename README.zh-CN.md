@@ -23,6 +23,10 @@ Apple Silicon 和 Intel 两个切片。
 
 *扫描 → 点开一行 → 两下 → 撤销。这屏跑的是造出来的演示目录，屏幕上的数都是编的——顶上那条橙色横幅写的就是这件事。*
 
+[![屏幕上的是「应用缓存」页：每一行都写着删掉它的代价](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=ePKOkt2h70w)
+
+*▶ 43 秒演示片（YouTube）。*
+
 </div>
 
 ```bash

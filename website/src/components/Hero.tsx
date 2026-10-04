@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Check, Copy, Github, Play, Terminal } from "lucide-react";
-import { BREW_CMD, REPO, RELEASES } from "@/data/site";
+import { BREW_CMD, REPO, RELEASES, VIDEO } from "@/data/site";
 import { useContent } from "@/locale";
 
 export function Hero() {
@@ -102,7 +102,7 @@ export function Hero() {
         {/* Demo 动图：随语言选择对应版本，失败时展示可点击的兜底入口 */}
         <div className="relative">
           <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-sky-400/15 via-violet-400/10 to-transparent blur-xl" />
-          <figure className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl shadow-black/40">
+          <figure className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl shadow-black/40">
             <img
               src={t.demoGif}
               alt="DiskWise Overview"
@@ -125,9 +125,31 @@ export function Hero() {
               <span className="text-sm font-medium">{t.hero.fallbackTitle}</span>
               <span className="text-xs text-muted-foreground">{t.hero.fallbackNote}</span>
             </a>
+            <a
+              href={VIDEO}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={t.hero.watchLink}
+              title={t.hero.watchLink}
+              className="absolute bottom-3 left-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/75 text-white backdrop-blur transition hover:scale-105 hover:bg-black/90"
+            >
+              <Play className="h-4 w-4 translate-x-[1px]" />
+            </a>
           </figure>
-          <figcaption className="mt-3 text-center text-xs text-muted-foreground">
+          <figcaption className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
             {t.hero.figcaption}
+            <span aria-hidden className="mx-1.5 opacity-50">
+              ·
+            </span>
+            <a
+              href={VIDEO}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-sky-300 underline-offset-2 transition hover:underline"
+            >
+              <Play className="h-3 w-3" />
+              {t.hero.watchLink}
+            </a>
           </figcaption>
         </div>
       </div>

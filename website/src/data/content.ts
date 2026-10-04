@@ -27,6 +27,7 @@ export interface SiteContent {
     brewTitle: string;
     dmgBtn: string;
     starBtn: string;
+    watchLink: string;
     stats: { num: string; label: string }[];
     figcaption: string;
     fallbackTitle: string;
@@ -86,6 +87,7 @@ const zh: SiteContent = {
     brewTitle: "点击复制安装命令",
     dmgBtn: "下载 DMG（~5MB）",
     starBtn: "GitHub Star",
+    watchLink: "在 YouTube 上看 43 秒演示片",
     stats: [
       { num: "0", label: "遥测 / 后台守护进程" },
       { num: "~5MB", label: "DMG 体积，单文件通吃 Apple Silicon + Intel" },
@@ -250,6 +252,7 @@ const en: SiteContent = {
     brewTitle: "Click to copy the install command",
     dmgBtn: "Download DMG (~5MB)",
     starBtn: "GitHub Star",
+    watchLink: "Watch the 43-second film on YouTube",
     stats: [
       { num: "0", label: "telemetry / background daemons" },
       { num: "~5MB", label: "DMG — one file for Apple Silicon + Intel" },
@@ -414,6 +417,7 @@ const ja: SiteContent = {
     brewTitle: "クリックでインストールコマンドをコピー",
     dmgBtn: "DMG をダウンロード（~5MB）",
     starBtn: "GitHub Star",
+    watchLink: "YouTube で 43 秒の映像を見る",
     stats: [
       { num: "0", label: "テレメトリ / 常駐プロセス" },
       { num: "~5MB", label: "DMG 1 つで Apple Silicon + Intel 両対応" },
@@ -578,6 +582,7 @@ const ko: SiteContent = {
     brewTitle: "클릭하면 설치 명령이 복사됩니다",
     dmgBtn: "DMG 다운로드 (~5MB)",
     starBtn: "GitHub Star",
+    watchLink: "YouTube에서 43초 영상 보기",
     stats: [
       { num: "0", label: "텔레메트리 / 백그라운드 데몬" },
       { num: "~5MB", label: "DMG 하나로 Apple Silicon + Intel 동시 지원" },
