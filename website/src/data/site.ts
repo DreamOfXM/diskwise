@@ -3,9 +3,9 @@
 
 export const REPO = "https://github.com/DreamOfXM/diskwise";
 export const RELEASES = "https://github.com/DreamOfXM/diskwise/releases/latest";
-// 钉死 /us/ 商店：应用目前只在美国区上架，无地区码链接会按访客所属商店解析，
-// 中国区访客会被甩到商店首页。其它地区上架后可改回无地区码形式。
-export const APP_STORE = "https://apps.apple.com/us/app/diskwise-storage-cleaner/id6813265402";
+// 无地区码商店链接：中美两区均已上架（2026-10-06 复核，商店版 1.5），
+// 各区访客自动落到所属商店；若某区未上架，该区访客会被甩到商店首页，届时再钉死地区码。
+export const APP_STORE = "https://apps.apple.com/app/id6813265402";
 export const BREW_CMD = "brew install --cask dreamofxm/diskwise/diskwise";
 // 演示片：仓库与产品页都指向同一条 YouTube 视频，链接以视频 ID 为准
 export const VIDEO = "https://www.youtube.com/watch?v=ePKOkt2h70w";
