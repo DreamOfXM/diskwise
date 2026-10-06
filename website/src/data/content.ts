@@ -166,7 +166,7 @@ const zh: SiteContent = {
     logic: [
       ["市场空位", "CLI 阵营（Mole 60k★）证明了需求真实存在，但把普通用户挡在终端外；GUI 阵营最出名的 CleanMyMac 又贵又闭源。「开源 + 原生 GUI + 安全删除」这个格子至今没人占。"],
       ["一句话差异", "别的工具问你要不要「永久删除」，DiskWise 从架构上就没有永久删除这条代码路径。"],
-      ["可信度来源", "Apache-2.0 可审计 + 每个 release 附 DMG SHA-256 + App Store 上架（经苹果审核）。"],
+      ["可信度来源", "Apache-2.0 可审计 + Developer ID 签名并经 Apple 公证（v1.7 起双击即开）+ 每个 release 附 SHA-256 + App Store 上架。"],
       ["为谁而做", "开发者自己装；也想帮爸妈、同事、设计师朋友清出几十 GB 的任何人。微信、钉钉等中文场景的缓存从第一天起就是一等公民。"],
     ],
   },
@@ -190,7 +190,7 @@ const zh: SiteContent = {
     sub: "macOS 13+ · Apple Silicon 与 Intel 共用一个 ~5MB 的通用 DMG",
     channels: [
       { name: "Homebrew", desc: "一行命令装好，后续 brew upgrade --cask 更新。", action: "brew install --cask dreamofxm/diskwise/diskwise" },
-      { name: "GitHub Release", desc: "直接下载 DMG，每个 release 附 SHA-256 校验值。", action: "下载最新 DMG" },
+      { name: "GitHub Release", desc: "Developer ID 签名 + Apple 公证，下载后双击即开；每个 release 附 SHA-256 校验值。", action: "下载最新 DMG" },
       { name: "Mac App Store", desc: "经 App Store 审核上架，更新由商店自动推送，完全免费。", action: "在 App Store 获取" },
     ],
     note: "App Store 的每一版都要先过苹果审核，所以商店里的版本可能比 GitHub Release 慢一些。只想要最新那一版，用上面的 Homebrew 或直接下载 DMG。",
@@ -331,7 +331,7 @@ const en: SiteContent = {
     logic: [
       ["The market gap", "The CLI camp (Mole at 60k★) proves the demand is real but locks non-terminal users out; the most famous GUI, CleanMyMac, is pricey and closed. The \"open-source + native GUI + safe deletion\" cell is still empty."],
       ["The one-line difference", "Other tools ask whether to \"permanently delete\". DiskWise has no permanent-delete code path at all."],
-      ["Why trust it", "Apache-2.0 auditable code + SHA-256 with every release DMG + on the Mac App Store (Apple-reviewed)."],
+      ["Why trust it", "Apache-2.0 auditable code + Developer ID signed and Apple-notarized since v1.7 (opens on a double-click) + SHA-256 with every release + on the Mac App Store."],
       ["Who it's for", "Developers installing it themselves — and anyone who'd like to free tens of GB for parents, colleagues or designer friends. Chinese-app caches (WeChat, DingTalk) are first-class citizens from day one."],
     ],
   },
@@ -355,7 +355,7 @@ const en: SiteContent = {
     sub: "macOS 13+ · one ~5MB universal DMG for Apple Silicon and Intel",
     channels: [
       { name: "Homebrew", desc: "One command, then brew upgrade --cask keeps it fresh.", action: "brew install --cask dreamofxm/diskwise/diskwise" },
-      { name: "GitHub Release", desc: "Download the DMG directly; every release ships its SHA-256.", action: "Download the latest DMG" },
+      { name: "GitHub Release", desc: "Developer ID signed and Apple-notarized — it opens on a double-click. Every release ships its SHA-256.", action: "Download the latest DMG" },
       { name: "Mac App Store", desc: "Apple-reviewed, auto-updating from the store, completely free.", action: "Get it on the Mac App Store" },
     ],
     note: "Every App Store release has to clear Apple's review first, so the store build can sit behind GitHub Releases for a while. For the newest version, use Homebrew or the DMG above.",
@@ -496,7 +496,7 @@ const ja: SiteContent = {
     logic: [
       ["市場の空白", "CLI 陣営（Mole 60k★）は需要の実在を証明しましたが、端末を持たない人を締め出しています。GUI で最も有名な CleanMyMac は高額でクローズド。「オープンソース + ネイティブ GUI + 安全な削除」のマスはまだ空いたままです。"],
       ["ひとことで言うと", "他のツールは「完全に削除しますか？」と聞いてきます。DiskWise には永久削除というコードパス自体が存在しません。"],
-      ["信頼の根拠", "Apache-2.0 で監査可能 + リリースごとの DMG SHA-256 + App Store で配信（Apple 審査済み）。"],
+      ["信頼の根拠", "Apache-2.0 で監査可能 + v1.7 から Developer ID 署名・Apple 公証済み（ダブルクリックで起動）+ リリースごとの SHA-256 + App Store で配信。"],
       ["誰のためか", "開発者自身はもちろん、両親や同僚、デザイナーの友達のために数十 GB を解放したい人まで。WeChat など中国発アプリのキャッシュは初日から第一級市民です。"],
     ],
   },
@@ -520,7 +520,7 @@ const ja: SiteContent = {
     sub: "macOS 13+ · Apple Silicon と Intel が共通の ~5MB ユニバーサル DMG",
     channels: [
       { name: "Homebrew", desc: "コマンド 1 本で導入、以降は brew upgrade --cask で更新。", action: "brew install --cask dreamofxm/diskwise/diskwise" },
-      { name: "GitHub Release", desc: "DMG を直接ダウンロード。各リリースに SHA-256 を同梱。", action: "最新 DMG をダウンロード" },
+      { name: "GitHub Release", desc: "Developer ID 署名 + Apple 公証済み、ダブルクリックで起動。各リリースに SHA-256 を同梱。", action: "最新 DMG をダウンロード" },
       { name: "Mac App Store", desc: "Apple 審査を経て配信、自動更新、ストア内は完全無料。", action: "App Store で入手" },
     ],
     note: "App Store 版はリリースごとに Apple の審査が必要なため、ストア版は GitHub Release より少し遅れて届きます。いちばん新しい版が必要なら Homebrew か DMG を使ってください。",
@@ -661,7 +661,7 @@ const ko: SiteContent = {
     logic: [
       ["시장 공백", "CLI 진영(Mole 60k★)은 수요가 실재함을 증명했지만 터미널 없는 사용자를 가로막습니다. 가장 유명한 GUI인 CleanMyMac은 비싸고 폐쇄적입니다. \"오픈소스 + 네이티브 GUI + 안전한 삭제\" 칸은 여전히 비어 있습니다."],
       ["한 줄 차이", "다른 도구는 \"영구 삭제하시겠습니까?\"라고 묻습니다. DiskWise에는 영구 삭제 코드 경로 자체가 없습니다."],
-      ["신뢰의 근거", "Apache-2.0 감사 가능 + 릴리스마다 DMG SHA-256 제공 + Mac App Store 출시(Apple 심사 통과)."],
+      ["신뢰의 근거", "Apache-2.0 감사 가능 + v1.7부터 Developer ID 서명·Apple 공증(더블클릭으로 바로 실행) + 릴리스마다 SHA-256 제공 + Mac App Store 출시."],
       ["누구를 위한 것", "직접 설치하는 개발자부터, 부모님·동료·디자이너 친구의 수십 GB를 돌려주고 싶은 모두까지. WeChat 등 중국 앱 캐시는 첫날부터 일급 시민입니다."],
     ],
   },
@@ -685,7 +685,7 @@ const ko: SiteContent = {
     sub: "macOS 13+ · Apple Silicon과 Intel이 공유하는 ~5MB 범용 DMG",
     channels: [
       { name: "Homebrew", desc: "명령 한 줄로 설치, 이후 brew upgrade --cask로 업데이트.", action: "brew install --cask dreamofxm/diskwise/diskwise" },
-      { name: "GitHub Release", desc: "DMG를 직접 다운로드. 모든 릴리스에 SHA-256이 함께 제공됩니다.", action: "최신 DMG 다운로드" },
+      { name: "GitHub Release", desc: "Developer ID 서명 + Apple 공증 완료, 더블클릭으로 바로 실행됩니다. 모든 릴리스에 SHA-256이 함께 제공됩니다.", action: "최신 DMG 다운로드" },
       { name: "Mac App Store", desc: "Apple 심사를 통과해 출시, 자동 업데이트, 스토어에서 완전 무료.", action: "App Store에서 받기" },
     ],
     note: "App Store 버전은 릴리스마다 Apple 심사를 통과해야 해서, 한동안 GitHub Release보다 뒤처진 버전으로 표시됩니다. 가장 최신 버전이 필요하면 Homebrew나 DMG를 사용해 주세요.",
