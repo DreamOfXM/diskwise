@@ -1,4 +1,5 @@
 import SwiftUI
+import DiskCleanerCore
 
 /// 一枚「正飞往废纸篓」的字节筹码。
 ///
@@ -171,5 +172,175 @@ extension View {
                                        value: [name: CGPoint(x: f.midX, y: f.midY)])
             }
         )
+    }
+
+    /// 往 `HeroAnchorKey` 报一个锚点，量的是**屏幕全局**坐标。
+    ///
+    /// 列表页的起点在 `List` 里，跨 NSView 背板量到某个命名坐标系会差一截
+    /// （实测起点比那一行低了近一行）；一律走 `.global`，落到飞行图层时再按图层
+    /// 自己的 global 原点换算回局部坐标，中间不经过任何命名坐标系。
+    func heroAnchorGlobal(_ name: String) -> some View {
+        background(
+            GeometryReader { g in
+                let f = g.frame(in: .global)
+                Color.clear.preference(key: HeroAnchorKey.self,
+                                       value: [name: CGPoint(x: f.midX, y: f.midY)])
+            }
+        )
+    }
+
+    /// 同上，按需开关。列表里几百行全挂一颗 `GeometryReader` 是白量——
+    /// 只有**勾上的那几行**才需要报起点，不勾的行不报。
+    @ViewBuilder
+    func heroAnchorGlobal(_ name: String, enabled: Bool) -> some View {
+        if enabled { heroAnchorGlobal(name) } else { self }
+    }
+
+    /// 同上，但按落点是否要飞行来开关（`CleanBar` 那张带子用）。
+    @ViewBuilder
+    func heroAnchorGlobalIf(_ name: String, enabled: Bool) -> some View {
+        if enabled { heroAnchorGlobal(name) } else { self }
+    }
+}
+
+// MARK: - 列表页共用的飞行
+
+extension TrashFlight {
+    /// 列表页的落点锚名：`CleanBar` 那颗「移进废纸篓」。
+    static let targetAnchor = "trash"
+
+    /// 一行一枚筹码的上限。超过就并成一枚写合计——几十枚一起飞只剩噪声，
+    /// 跟总览「已经有几枚在空中就够」同一条理由。真数一个都没少，都进了那句通知。
+    static let perRowLimit = 4
+
+    /// 一次删除要飞的筹码。起点是每行此刻在屏幕上的位置（`heroAnchorGlobal` 量出来的），
+    /// 终点是那颗真会动手的按钮。两处都必须是量出来的，不是猜的。
+    ///
+    /// 少时一行一枚、各写自己的体积（看得出谁走了）；多时并成一枚写合计（从最上面那行出发）。
+    static func volley(sources: [(point: CGPoint, bytes: Int64)], to: CGPoint) -> [TrashFlight] {
+        guard !sources.isEmpty else { return [] }
+        if sources.count <= perRowLimit {
+            return sources.enumerated().map { i, s in
+                TrashFlight(text: human(s.bytes), from: s.point, to: to, delay: Double(i) * 0.08)
+            }
+        }
+        let total = sources.reduce(Int64(0)) { $0 + $1.bytes }
+        return [TrashFlight(text: human(total), from: sources[0].point, to: to)]
+    }
+
+    /// 把起点终点从屏幕全局坐标换算到飞行图层自己的局部坐标。
+    func offsetBy(_ o: CGPoint) -> TrashFlight {
+        var f = self
+        f.from = CGPoint(x: from.x - o.x, y: from.y - o.y)
+        f.to = CGPoint(x: to.x - o.x, y: to.y - o.y)
+        return f
+    }
+}
+
+/// 列表页的飞行舞台：锚点收集 + 飞行图层。
+///
+/// 锚点一律是**屏幕全局**坐标（见 `heroAnchorGlobal`）：起点在 `List` 里，跨 NSView
+/// 背板量命名坐标系会差一截。这里拿图层自己的 global 原点把它们换算回局部坐标再画，
+/// 中间不经过任何命名坐标系——那一截差正是从这里来的。
+///
+/// 页面只留两个 `@State`（`flights` / `anchors`）加一句 `.flightField(...)`。
+struct FlightField: ViewModifier {
+    @Binding var flights: [TrashFlight]
+    @Binding var anchors: [String: CGPoint]
+
+    func body(content: Content) -> some View {
+        content
+            .onPreferenceChange(HeroAnchorKey.self) { anchors = $0 }
+            .overlay {
+                GeometryReader { g in
+                    let origin = g.frame(in: .global).origin
+                    TrashFlightLayer(flights: flights.map { $0.offsetBy(origin) }) { id in
+                        flights.removeAll { $0.id == id }
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func flightField(flights: Binding<[TrashFlight]>,
+                     anchors: Binding<[String: CGPoint]>) -> some View {
+        modifier(FlightField(flights: flights, anchors: anchors))
+    }
+}
+
+/// 列表页删除飞行的状态与动作。各页 `@StateObject` 一个，省得三处 `@State` 各写一遍、
+/// 各写错一处。行上的起点用 `rowAnchor(_:)`，落点是 `TrashFlight.targetAnchor`（`CleanBar` 报的）。
+@MainActor
+final class TrashFlightController: ObservableObject {
+    /// 此刻在空中飞的筹码。
+    @Published var flights: [TrashFlight] = []
+    /// 行的起点、CleanBar 的落点，由 `heroAnchorGlobal` 报上来（屏幕全局坐标）。
+    @Published var anchors: [String: CGPoint] = [:]
+    /// 正在离开的那几行：先转淡，收行之后再摘掉。只有**晚一步才收行**的页面用到它，
+    /// 其余页面那一行当场就没了，转淡没有意义（见 `launch(rows:animate:fade:)`）。
+    @Published var leaving: Set<String> = []
+
+    /// 行起点的锚名。`key` 是这一行自己的稳定标识（路径 / id）。
+    static func rowAnchor(_ key: String) -> String { "row:\(key)" }
+
+    /// 一次删除的飞行：从这几行发筹码、飞到 `CleanBar` 那颗「移进废纸篓」上。
+    ///
+    /// `rows` 每项是 `(行标识, 这一行要带走的字节)`；标识必须和行上 `heroAnchorGlobal` 报的名一致。
+    /// `animate` 为假（「减弱动态效果」或截图模式）时不飞——凭空出现又消失比没有更难解释，
+    /// 而结果一样给全。
+    ///
+    /// `fade` 管的是「行先转淡、等筹码落地再收」：只有收行**不是当场**发生的页面要它
+    /// （文件夹详情页收行要重扫这一层）。行当场就消失的页面不要——那一行已经不在了，
+    /// 转淡给谁看；筹码从它原来的位置起飞，起点在 `launch` 这一下已经量好。
+    @discardableResult
+    func launch(rows: [(key: String, bytes: Int64)], animate: Bool, fade: Bool = false) -> Bool {
+        guard animate, let to = anchors[TrashFlight.targetAnchor] else { return false }
+        let sources = rows.compactMap { r -> (point: CGPoint, bytes: Int64)? in
+            anchors[Self.rowAnchor(r.key)].map { (point: $0, bytes: r.bytes) }
+        }
+        guard !sources.isEmpty else { return false }
+        flights.append(contentsOf: TrashFlight.volley(sources: sources, to: to))
+        if fade {
+            withAnimation(.easeInOut(duration: TrashFlight.travel)) {
+                leaving.formUnion(rows.map(\.key))
+            }
+        }
+        return true
+    }
+
+    /// 飞完把转淡的这几行摘掉（收行之后调用）。
+    func settle(_ done: Set<String>) { leaving.subtract(done) }
+
+    /// 收行要等多久：飞了就等它落地，没飞就立刻。
+    static func settleDelay(_ waiting: Bool) -> Double {
+        waiting ? TrashFlight.travel + 0.12 : 0
+    }
+
+    /// 这一屏此刻该不该飞：不是「减弱动态效果」，也不在截图模式里。
+    static func canAnimate(reduceMotion: Bool) -> Bool {
+        !reduceMotion && !SnapshotMode.active
+    }
+
+    /// 截图钩子（`DISKWISE_FLIGHT=<0~1>`）：把这一页的飞行也钉住拍一张。
+    ///
+    /// 跟总览同一条理由——它整个 0.62 秒都在动，静帧判定永远等不到它停，只能钉住相位。
+    /// 起点终点都得是**量出来的**：所以先勾上候选行（锚点要「勾中的行」才报），
+    /// 下一帧锚点到手再补筹码。这一趟不写真账（就没有真的 `trashItem`），也不会真删。
+    ///
+    /// `candidates` 是这一页前两行（`key`/`bytes`），`selected` 说此刻勾上没有，
+    /// `select` 是把它们勾上那条路——按的是行上那个勾选框自己改的那份状态。
+    @discardableResult
+    func fireSnapshotIfAsked(candidates: [(key: String, bytes: Int64)],
+                             selected: Bool,
+                             select: () -> Void) -> Bool {
+        guard SnapshotMode.flightPhase != nil, flights.isEmpty, !candidates.isEmpty else { return false }
+        if !selected { select(); return true }
+        let sources = candidates.compactMap { c -> (point: CGPoint, bytes: Int64)? in
+            anchors[Self.rowAnchor(c.key)].map { (point: $0, bytes: c.bytes) }
+        }
+        guard let to = anchors[TrashFlight.targetAnchor], !sources.isEmpty else { return false }
+        flights.append(contentsOf: TrashFlight.volley(sources: sources, to: to))
+        return true
     }
 }

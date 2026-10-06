@@ -31,6 +31,10 @@ final class FolderDrillModel: ObservableObject {
     @Published private(set) var pendingPath: String = ""
     @Published var selected: Set<String> = []
 
+    /// 现场读数。这一层慢在**逐个量子目录**（一级几十个，每个都是一棵子树），
+    /// 所以要说的不只是「正在量 ~/Library」，还有「这四十多个目录走到第几个了」。
+    private(set) var progress = ScanProgress()
+
     /// 文件最多列这么多行。**只掐文件**：`/Applications` 那种一级几百个，
     /// 全列出来没人逐行扫，多出来的并进尾巴那句。目录不受这条管——这一页里
     /// 少一个目录就是少一条往下走的路，而「往下走」正是它存在的理由。
@@ -90,11 +94,15 @@ final class FolderDrillModel: ObservableObject {
             return
         }
         level = nil
+        // 一趟一层，读数与清单也跟着重来：上一层的账挂在这一层上是另一本账。
+        progress = ScanProgress()
         busy = true
         pendingPath = target
         let limit = Self.fileCap
+        let prog = progress
         task = Task { [weak self] in
-            let lv = await dirLevel(URL(fileURLWithPath: target), includeFiles: true, fileLimit: limit)
+            let lv = await dirLevel(URL(fileURLWithPath: target), includeFiles: true,
+                                    fileLimit: limit, progress: prog)
             guard !Task.isCancelled, let self, self.path == target else { return }
             self.cache[target] = lv
             self.level = lv
@@ -118,9 +126,13 @@ final class FolderDrillModel: ObservableObject {
 struct FolderDrillView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: FolderDrillModel
     @State private var confirm = false
     @State private var err: String? = nil
+
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -153,7 +165,8 @@ struct FolderDrillView: View {
                 crumbsBar
                 ControlStrip {
                     if model.busy {
-                        LoadingRow(text: LF("正在量「%@」", shortLabel(model.pendingPath)))
+                        LoadingRow(text: LF("正在量「%@」", shortLabel(model.pendingPath)),
+                                   progress: model.progress)
                     } else if let lv = model.level {
                         Text(LF("这一层量到 %@", human(lv.total)))
                         ThemeBadge(text: LF("%1$@ · %2$@",
@@ -175,9 +188,15 @@ struct FolderDrillView: View {
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.level?.total ?? 0),
-                     errorText: err, selection: selectAll) { confirm = true }
+                     errorText: err, selection: selectAll,
+                     flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时这一层还没量完），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「量完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.rows.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear {
             // 截图链路自动钻的那一趟也交给外面走：同一本历史才认得出它。
             model.onAutoDescend = { store.drill(into: $0) }
@@ -216,7 +235,7 @@ struct FolderDrillView: View {
                        hint: L("回空间总览，点一行文件夹的名字进来；也可以从大文件那页点「查看所在文件夹」。"))
                 .frame(maxHeight: .infinity)
         } else if model.busy && model.rows.isEmpty {
-            ScanSkeleton()
+            ScanChecklist(progress: model.progress)
         } else if !model.busy && model.rows.isEmpty {
             EmptyState(symbol: "folder", title: L("这一层没有读得出的东西"),
                        hint: L("可能是空目录，或它需要「完全磁盘访问权限」才读得动。"))
@@ -243,6 +262,11 @@ struct FolderDrillView: View {
                         preopen: SnapshotMode.expandsRow(r.name)) {
                     PathLine(path: r.path)
                 }
+                // 删掉的那几行先转淡，让筹码从它身上起飞；收行交给飞完之后的 `reload`。
+                .opacity(flight.leaving.contains(r.path) ? 0.30 : 1)
+                // 只有勾上的行才报起点：这一层可能几百行，全挂 GeometryReader 是白量。
+                .heroAnchorGlobal(TrashFlightController.rowAnchor(r.path),
+                                  enabled: model.selected.contains(r.path))
             }
             .ledgerCard()
             ListNote(text: tailNote)
@@ -444,19 +468,50 @@ struct FolderDrillView: View {
 
     private func doClean() {
         err = nil
+        let targets = model.selectedEntries
+        let rows = targets.map { (key: $0.path, bytes: $0.size) }
+        // 起点终点都得在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        // 「减弱动态效果」与截图模式下不飞：凭空出现又消失比没有更难解释，而结果一样给全。
+        // 这一页收行要重扫这一层，不是当场发生，所以 `fade`：先转淡，筹码落地再收。
+        let fly = flight.launch(rows: rows,
+                                animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion),
+                                fade: true)
+        model.selected.removeAll()
+
         var ok = 0
         var errs: [String] = []
-        for r in model.selectedEntries {
+        for r in targets {
             do {
                 let t = try trashItem(r.url)
                 store.record(TrashRecord(original: r.url, inTrash: t, size: r.size, displayName: r.name))
                 ok += 1
             } catch { errs.append(failLine(r.name, error)) }
         }
-        model.selected.removeAll()
-        model.reload()
+
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "项", failed: errs.count)
+
+        // 行先转淡、筹码飞完再重载：不然筹码还在半路、行已经没了，那条路又白走了。
+        let gone = Set(targets.map(\.path))
+        DispatchQueue.main.asyncAfter(deadline: .now() + TrashFlightController.settleDelay(fly)) {
+            [weak model, weak flight] in
+            model?.reload()
+            flight?.settle(gone)
+        }
+    }
+
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行也钉住拍一张。
+    ///
+    /// 候选行只有本工具清得动的那几行（钩子不写真账，但起点得是真会飞的那几行）；
+    /// 具体怎么勾、怎么发筹码在 `TrashFlightController.fireSnapshotIfAsked`。
+    private func fireSnapshotFlightIfAsked() {
+        guard let lv = model.level, !model.busy, !lv.entries.isEmpty else { return }
+        let open = Array(model.rows.filter { isDeletable($0.url) }.prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.path, bytes: $0.size) },
+                                   selected: model.selected.contains(first.path)) {
+            model.selected = Set(open.map(\.path))
+        }
     }
 }
 

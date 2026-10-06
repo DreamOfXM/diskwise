@@ -1115,5 +1115,37 @@ root.reset(to: "缓存")
 check(root.stops == ["缓存"] && !root.canGoBack,
       "点侧栏是重新挑目的地，返回随即失效（得 \(root.stops)）")
 
+// 14. 扫描清单的格子短名：清单答的是「现在走到哪一处」，两格同名就等于没答。
+let hm = homePath()
+check(ScanProgress.shortName(hm) == "~", "家目录那一格就是 ~")
+check(ScanProgress.shortName("\(hm)/Library/Caches") == "Caches",
+      "家目录里的一处只写尾段（面包屑已经说了在哪一层）")
+check(ScanProgress.shortName("\(hm)/Library/Application Support") == "Application Support",
+      "名字里带空格的原样留着（得 \(ScanProgress.shortName("\(hm)/Library/Application Support"))）")
+check(ScanProgress.shortName("/opt") == "opt", "盘顶那几处本来就是一段")
+// 这两条是整盘范围里的真根：只写尾段会跟别处混成同一件事
+check(ScanProgress.shortName("/usr/local") == "usr/local",
+      "深层绝对路径至少留两段，不写成一个光秃秃的 local")
+check(ScanProgress.shortName("/System/Volumes/Data/System") == "Data/System",
+      "数据卷底下那层 System 不能印成 System——那会跟密封系统卷混成一件事")
+check(ScanProgress.shortName("com.example.legacyeditor") == "com.example.legacyeditor",
+      "本来就不是路径的那几处（残留按目录名走）原样留着")
+
+// 三处 Applications（用户装 App 的地方有两条，系统那条一条）必须分得开
+let appNames = ScanProgress.labels(for: ["/Applications", "/System/Applications",
+                                         "\(hm)/Applications"])
+check(Set(appNames).count == 3, "三处 Applications 分开（得 \(appNames)）")
+check(appNames[0] == "Applications", "盘顶那条仍是最短写法（得 \(appNames[0])）")
+check(appNames[1] == "System/Applications", "系统那条补上一段（得 \(appNames[1])）")
+check(appNames[2] == "~/Applications", "家目录那条把 ~ 摆回来（得 \(appNames[2])）")
+// 不重名时不许无谓加长
+let oneNames = ScanProgress.labels(for: ["/Applications", "/opt", "\(hm)/Library/Caches"])
+check(oneNames == ["Applications", "opt", "Caches"],
+      "没有重名就不加长（得 \(oneNames)）")
+// 加长也不够分时继续往下加：两个都叫 Caches 的目录
+let twoCaches = ScanProgress.labels(for: ["\(hm)/Library/Caches", "\(hm)/Caches"])
+check(twoCaches == ["~/Library/Caches", "~/Caches"],
+      "家目录里重名时补成从家目录起的两段（得 \(twoCaches)）")
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

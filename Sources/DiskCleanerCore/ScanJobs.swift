@@ -48,12 +48,31 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
     func nestedRoots(under root: String) -> Set<String> {
         Set(rootPaths.filter { $0 != root && $0.hasPrefix(root + "/") })
     }
-    var stack: [(String, dev_t?, Set<String>)] = rootPaths.map {
-        ($0, deviceOf(URL(fileURLWithPath: $0)), nestedRoots(under: $0))
+    // 清单：这一趟要走的就是这几个根。**按实际走序预列**——栈是后进先出，最后一个根最先走，
+    // 所以清单倒着列；不这么办的话清单自上而下亮起来，而实际是从下往上走完的。
+    let walkOrder = Array(rootPaths.indices.reversed())
+    let stations = progress.map { $0.plan(walkOrder.map { rootPaths[$0] }) } ?? []
+    // 没挂清单时每一格都是 -1：这一趟照走，只是不报点。**`-1` 不是序号**，
+    // 所以下面换格那一步要按「是不是序号」判入场，不能按「在不在清单里」判——后者会把
+    // 没挂清单的那一趟整个 continue 掉，一个文件都不走。
+    var stationOf = [Int](repeating: -1, count: rootPaths.count)
+    if !stations.isEmpty { for (k, ri) in walkOrder.enumerated() { stationOf[ri] = k } }
+    var stack: [(String, dev_t?, Set<String>, Int)] = rootPaths.indices.map { ri in
+        (rootPaths[ri], deviceOf(URL(fileURLWithPath: rootPaths[ri])),
+         nestedRoots(under: rootPaths[ri]), stationOf[ri])
     }
     var n = 0
-    while let (dir, rootDev, skip) = stack.popLast() {
+    /// 此刻量到清单上第几格、这一格累计了多少。走到根就换格，换格时把上一格收掉。
+    var at = -1
+    var atBytes: Int64 = 0
+    while let (dir, rootDev, skip, stn) = stack.popLast() {
         if Task.isCancelled { break }
+        if stn >= 0 && stn != at {
+            if at >= 0 { progress?.finish(stations[at], bytes: atBytes) }
+            at = stn
+            atBytes = 0
+            progress?.enter(stations[stn])
+        }
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
         var dFiles = 0
         var dBytes: Int64 = 0
@@ -67,7 +86,7 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             if mode == S_IFDIR {
                 if skip.contains(URL(fileURLWithPath: p).standardizedFileURL.path) { continue }
                 if let d = rootDev, st.st_dev != d { continue }
-                stack.append((p, rootDev, skip))
+                stack.append((p, rootDev, skip, stn))
                 continue
             }
             n += 1
@@ -88,7 +107,9 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             }
         }
         progress?.walk(files: dFiles, bytes: dBytes, in: dir)
+        atBytes += dBytes
     }
+    if at >= 0 && at < stations.count { progress?.finish(stations[at], bytes: atBytes) }
     out.sort { $0.size > $1.size }
     if top > 0 { out = Array(out.prefix(top)) }
     return WalkResult(rows: out, matched: matched)
@@ -328,8 +349,18 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
     // 1. 盘点已安装 App
     var ids = Set<String>(), toks = Set<String>(), names = Set<String>()
     let home = homePath()
-    for root in [applicationsDir(), "/System/Applications", home + "/Applications"] {
-        guard let apps = try? FileManager.default.contentsOfDirectory(atPath: root) else { continue }
+    // 清单三段：① 盘点已装 App（按 App 目录）② 找孤儿（按 `~/Library` 下那几处）
+    // ③ 量体积（按每一处疑似残留）。三段都预列，因为三段各自的长短用户都该看得出来——
+    // 这一段慢在哪，比「正在盘点…」一句话有用得多。
+    let appRoots = [applicationsDir(), "/System/Applications", home + "/Applications"]
+    let appStations = progress.map { $0.plan(appRoots) } ?? []
+    for (k, root) in appRoots.enumerated() {
+        progress?.enter(appStations[k])
+        guard let apps = try? FileManager.default.contentsOfDirectory(atPath: root) else {
+            progress?.finish(appStations[k], bytes: 0)
+            continue
+        }
+        progress?.walk(files: apps.count, bytes: 0, in: root)
         for a in apps where a.hasSuffix(".app") {
             let stem = String(a.dropLast(4)).trimmingCharacters(in: .whitespaces).lowercased()
             names.insert(stem)
@@ -345,6 +376,7 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
             }
             if Task.isCancelled { return ([], names.count) }
         }
+        progress?.finish(appStations[k], bytes: 0)
     }
     func related(_ stem: String) -> Bool {
         let cl = stripTeamID(stem).lowercased().trimmingCharacters(in: .whitespaces)
@@ -362,9 +394,16 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
     }
     // 2. 找孤儿
     var cands: [(label: String, level: String, path: String, stem: String)] = []
-    for loc in orphanLocations {
+    let locStations = progress.map {
+        $0.plan(orphanLocations.map { (home as NSString).appendingPathComponent($0.subpath) })
+    } ?? []
+    for (k, loc) in orphanLocations.enumerated() {
+        progress?.enter(locStations[k])
         let root = (home as NSString).appendingPathComponent(loc.subpath)
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root) else { continue }
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root) else {
+            progress?.finish(locStations[k], bytes: 0)
+            continue
+        }
         for n in entries {
             if n.hasPrefix(".") { continue }
             let p = (root as NSString).appendingPathComponent(n)
@@ -394,16 +433,23 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
             if related(stem) { continue }
             cands.append((loc.label, loc.level, p, stem))
         }
+        progress?.finish(locStations[k], bytes: 0)
         if Task.isCancelled { break }
     }
-    // 3. 并行统计大小
+    // 3. 并行统计大小。清单上这一段的短名就是那一处残留的目录名（`com.foo.bar` 那种 id），
+    // 认不认得出来全靠它——「正在量哪一处」在这里比在任何一页都更该说得出来。
+    let candStations = progress.map { $0.plan(cands.map(\.path)) } ?? []
     var items: [OrphanItem] = []
     await withTaskGroup(of: OrphanItem?.self) { group in
-        for c in cands {
+        for (k, c) in cands.enumerated() {
             group.addTask {
+                let station = k < candStations.count ? candStations[k] : nil
+                if let station { progress?.enter(station) }
+                defer { if let station { progress?.finish(station, bytes: 0) } }
                 if Task.isCancelled { return nil }
                 let u = URL(fileURLWithPath: c.path)
                 let st = await pathStat(u, progress: progress)
+                if let station { progress?.finish(station, bytes: st.bytes) }
                 guard st.bytes > 0 else { return nil }
                 let g = guess(c.stem)
                 return OrphanItem(
@@ -464,12 +510,24 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
     let home = homePath()
     let roots = [URL(fileURLWithPath: home), URL(fileURLWithPath: applicationsDir())]
         .filter { FileManager.default.fileExists(atPath: $0.path) }
+    // 清单：第一段「翻目录」按根走，第二段「逐个量」按项目走。**预列走的顺序**——
+    // 栈是后进先出，最后一个根最先走，所以清单一开头那几格倒着列（同 `walkFiles`）。
+    let walkOrder = Array(roots.indices.reversed())
+    let rootStations = progress.map { $0.plan(walkOrder.map { roots[$0].path }) } ?? []
+    var stationOf = [Int](repeating: -1, count: roots.count)
+    if !rootStations.isEmpty { for (k, ri) in walkOrder.enumerated() { stationOf[ri] = k } }
     // 第一段：翻目录找 node_modules（命中即不再下钻）
     var nmDirs: [String] = []
     // 每个根记自己的卷号：跨卷守卫要按根比
-    var stack = roots.map { ($0.path, deviceOf($0)) }
-    while let (d, rootDev) = stack.popLast() {
+    var stack = roots.indices.reversed().map { (roots[$0].path, deviceOf(roots[$0]), stationOf[$0]) }
+    var at = -1
+    while let (d, rootDev, stn) = stack.popLast() {
         if Task.isCancelled { break }
+        if stn >= 0 && stn != at {
+            if at >= 0 { progress?.finish(rootStations[at], bytes: 0) }
+            at = stn
+            progress?.enter(rootStations[stn])
+        }
         guard let kids = try? FileManager.default.contentsOfDirectory(atPath: d) else { continue }
         for k in kids {
             if k == ".Trash" || k == ".git" { continue }
@@ -480,17 +538,27 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
             if lstat(p, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK { continue }
             if k == "node_modules" { nmDirs.append(p); continue }
             if let dev = rootDev, st.st_dev != dev { continue }
-            stack.append((p, rootDev))
+            stack.append((p, rootDev, stn))
         }
         // 这一趟数的是目录项而不是文件：整棵家目录翻下来一个 node_modules 都可能没撞上，
         // 但「正在看 ~/Projects/foo/src」这句话是真的在往前走的证据。
         progress?.walk(files: kids.count, bytes: 0, in: d)
     }
+    if at >= 0 && at < rootStations.count { progress?.finish(rootStations[at], bytes: 0) }
     // 第二段：并行统计，聚合到项目级
+    //
+    // 清单上这一段的短名取**项目目录的尾段**（不是 `node_modules`——那样每一格都叫同一个名字），
+    // 完整位置仍挂在格子上，鼠标停上去看得见到底在量哪一份。
+    let projectStations = progress.map {
+        $0.plan(nmDirs.map { ($0 as NSString).deletingLastPathComponent })
+    } ?? []
     var projects: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool, mgr: String?)] = [:]
     await withTaskGroup(of: (proj: String, size: Int64, mt: Date, partial: Bool, mgr: String?)?.self) { group in
-        for nm in nmDirs {
+        for (k, nm) in nmDirs.enumerated() {
             group.addTask {
+                let station = k < projectStations.count ? projectStations[k] : nil
+                if let station { progress?.enter(station) }
+                defer { if let station { progress?.finish(station, bytes: 0) } }
                 if Task.isCancelled { return nil }
                 let u = URL(fileURLWithPath: nm)
                 // 项目根：向上找 package.json
@@ -507,6 +575,8 @@ public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] 
                 }
                 let sz = await dirSize(u)
                 let mt = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                // 量出来了就把这一格点亮（上面那个 `defer` 只负责中途被掐掉时不留下永久「正在量」）。
+                if let station { progress?.finish(station, bytes: sz) }
                 return (proj, sz, mt, false, nodePackageManager(nmDir: nm, projectDir: proj))
             }
         }
@@ -748,14 +818,19 @@ private func engineOwnerRuntime() -> DockerRuntime? {
 /// 真占住的那部分。OrbStack 那块 `data.img.raw` 逻辑大小 494 GB、实占 22.8 GB
 /// （本机实测 2026-09-27），它自家 README 就写着「看到 8 TB 别慌，那不是它占的空间」——
 /// 印逻辑大小等于替人撒谎。
-private func runtimeDiskRows() async -> [DockerItem] {
-    let installed = DockerRuntime.allCases.compactMap { r in r.dataDir.map { (r, $0) } }
+private func runtimeDiskRows(installed: [(DockerRuntime, URL)],
+                             progress: ScanProgress? = nil,
+                             stations: [Int] = []) async -> [DockerItem] {
     var out: [(Int, DockerItem)] = []
     await withTaskGroup(of: (Int, DockerItem)?.self) { group in
         for (i, pair) in installed.enumerated() {
             group.addTask {
+                let station = i < stations.count ? stations[i] : nil
+                if let station { progress?.enter(station) }
+                defer { if let station { progress?.finish(station, bytes: 0) } }
                 if Task.isCancelled { return nil }
                 let sz = await dirSize(pair.1)
+                if let station { progress?.finish(station, bytes: sz) }
                 guard sz > 0 else { return nil }
                 return (i, DockerItem(kind: .runtime, runtime: pair.0,
                                       title: pair.0.rawValue, size: sz, path: pair.1))
@@ -766,9 +841,22 @@ private func runtimeDiskRows() async -> [DockerItem] {
     return out.sorted { $0.0 < $1.0 }.map(\.1)
 }
 
-public func scanDocker() async -> [DockerItem] {
+/// - Parameter engineLabel：清单上「问引擎自己的账本」那一格的短名。**由调用方给**：
+///   这些字得跟着界面语言走，而 Core 不认识 `.strings`。它必须跟运行时名分得开——
+///   跑着的那一家自己也在下面的运行时之列，两格同名的话清单就答不出走到哪一件活了。
+public func scanDocker(engineLabel: String, progress: ScanProgress? = nil) async -> [DockerItem] {
     var detail: [DockerItem] = []
     let engine: DockerRuntime? = HomeAccess.runsSandboxed ? nil : engineOwnerRuntime()
+    let installed = DockerRuntime.allCases.compactMap { r in r.dataDir.map { (r, $0) } }
+    // 清单两段：① 问引擎自己的账本 ② 逐家量虚拟机磁盘在这块盘上的实占。
+    // 格子的短名用运行时的名字（`OrbStack` 那种）——数据目录的尾段（`group.com.docker`）
+    // 谁也认不出来，而这一页要指的路正是「去哪一家里清」。
+    let stations = progress.map {
+        $0.plan([engineLabel] + installed.map { $0.0.rawValue })
+    } ?? []
+    let engineStation = stations.first
+    let diskStations = Array(stations.dropFirst())
+    if let engineStation { progress?.enter(engineStation) }
     // ① 引擎自己的账本：CLI 在且守护进程答得上来。沙盒版不走这条路——起外部可执行文件
     // 在沙盒里本就不确定，而这一页要答的「占了这块盘多少」按磁盘实占同样答得出。
     if !HomeAccess.runsSandboxed,
@@ -808,8 +896,9 @@ public func scanDocker() async -> [DockerItem] {
         }
         detail += imgItems.sorted { $0.size > $1.size }.prefix(60)
     }
+    if let engineStation { progress?.finish(engineStation, bytes: 0) }
     // ② 磁盘的账：运行时那一行排在最前面，页头那个「共 X」就是它们相加
-    let disks = await runtimeDiskRows()
+    let disks = await runtimeDiskRows(installed: installed, progress: progress, stations: diskStations)
     guard disks.isEmpty else { return disks + detail }
     // 引擎答了、机器上却找不到任何一家的数据目录（DOCKER_HOST 指向远端之类）。
     // 这时候没有磁盘实占那一行可以落账，就把段相加顶上去——页头写 0 是更坏的谎。

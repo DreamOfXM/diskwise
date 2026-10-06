@@ -1986,11 +1986,61 @@ struct PageHeader<Trailing: View>: View {
     var subtitle: String
     var tileFill: Color? = nil
     var variant: Variant = .compact
+    /// 标题与右侧控件装不下同一行时，是否让控件退到下一行、整行右对齐。
+    ///
+    /// 这一条的宽度全押在译文长度上：`Entwicklerordner überspringen` 是「跳过开发目录」的
+    /// 两倍多，同一套控件在中文里占 692 pt，到德语就是 997 pt，而 1060 窗的内容区只有 774 pt。
+    /// 所以「并列」只在短译文下成立，长译文必须能退让——退让比让 `Spacer` 把副标题挤断、
+    /// 控件顶出窗口边要体面。
+    ///
+    /// 默认关着：右侧只挂一颗小按钮的页本来就装得下，多一层 `ViewThatFits` 只是白量一遍。
+    var wrapsControls: Bool = false
     @ViewBuilder var trailing: () -> Trailing
 
     enum Variant { case compact, display }
 
     var body: some View {
+        layout
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
+            .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var layout: some View {
+        if wrapsControls {
+            ViewThatFits(in: .horizontal) {
+                row
+                stacked
+            }
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
+        HStack(alignment: variant == .display ? .center : .top, spacing: 14) {
+            heading
+            Spacer(minLength: 12)
+            trailing()
+        }
+    }
+
+    /// 控件退让的那一档：标题自己一行，控件整行右对齐。
+    ///
+    /// 右对齐不是审美选择——这一行的右缘要跟标题行、读数卡、账卡落在同一条竖线上，
+    /// 靠左的话整屏会多出一条谁都不挨着谁的边。
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            heading
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+                trailing()
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var heading: some View {
         HStack(alignment: variant == .display ? .center : .top, spacing: 14) {
             IconTile(symbol: symbol, side: variant == .display ? 46 : 38, fill: tileFill)
             VStack(alignment: .leading, spacing: 3) {
@@ -2002,12 +2052,7 @@ struct PageHeader<Trailing: View>: View {
                     .font(theme.bodyFont(.callout))
                     .foregroundStyle(theme.palette.inkSecondary)
             }
-            Spacer(minLength: 12)
-            trailing()
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, 2)
-        .accessibilityElement(children: .contain)
     }
 }
 
@@ -2144,6 +2189,26 @@ struct EmptyState: View {
     }
 }
 
+/// `ControlStrip` 换了行、这一行里只剩内容自己时置位。
+///
+/// 为什么要让里面的读数卡知道这件事：控制条一行装不下时会拆成「内容一行、动作一行」，
+/// 而内容那一行若还按自己的理想宽度收着（读数卡 + 徽章），就等于**上面一行靠左、下面一行靠右**，
+/// 两块谁都不挨谁的边——看着像两张没对齐的卡。撑满之后这一行的右缘与下面那行、
+/// 以及再下面的账卡落在同一条竖线上。
+///
+/// 只在换行那一档置位：宽窗口下整条仍是一行，读数卡照旧收着自己的宽度，
+/// 不会把一行卡片拉成一条长条。
+private struct ControlStripWrappedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var controlStripWrapped: Bool {
+        get { self[ControlStripWrappedKey.self] }
+        set { self[ControlStripWrappedKey.self] = newValue }
+    }
+}
+
 struct LoadingRow: View {
     @Environment(\.theme) private var theme
     var text: String
@@ -2154,7 +2219,7 @@ struct LoadingRow: View {
     /// 刻意不报百分比和剩余时间——沙盒里量不到整盘的文件总数，报出来的是编的。
     var progress: ScanProgress? = nil
 
-    /// 「正在看」那一行路径的固定宽度。
+    /// 「正在看」那一行路径的槽宽。
     ///
     /// 必须**定宽**，不能写成 `maxWidth`：读数每 0.4 秒来一次，路径长短和计数位数一直在变，
     /// 让文字自己决定宽度的话整条卡片就跟着一伸一缩，旁边那几枚徽章和「停止」按钮
@@ -2164,10 +2229,36 @@ struct LoadingRow: View {
     /// （控制条里内容和动作之间是 `Spacer`），读起来像卡片没画完；而 node_modules 那页
     /// 同时挂着一枚**永远只会说同一句话**的范围徽章（该页范围写死，徽章跟着撤了）。
     /// 徽章让出来的那 ~80 pt 就补到这里：卡片变宽，路径能多露出一截，整条控制条的总宽没变。
+    ///
+    /// 只有一种情况它不再是上限：这一行里只剩这张卡自己。那时把它撑满整行，
+    /// 行右缘才跟上下那些卡片对齐；此时它是**下限**。
     static let readWidth: CGFloat = 460
 
+    /// 这一行是不是只剩这张卡自己 —— 是就撑满整行。
+    ///
+    /// 默认跟着 `ControlStrip` 的换行档位走（见 `controlStripWrapped`）；控件被页头收走之后
+    /// 读数那行本来就只剩它自己，调用点直接传 true，不必再借环境值转达。
+    var fillsRow: Bool? = nil
+
+    @Environment(\.controlStripWrapped) private var stripWrapped
+
+    private var fills: Bool { fillsRow ?? stripWrapped }
+
     var body: some View {
+        if fills {
+            card.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         HStack(alignment: .top, spacing: 9) {
+            // **这一屏上唯一的转圈**，所以它归这里：整页只有这句话在回答「它还在不在走」。
+            // 下面那张扫描清单答的是**状态**（走到哪一处了）——卡头用确定的分数配细条、
+            // 行上用静止的三态符号，转圈摆在那两处只是噪声。读数本身当然也在动
+            // （用时每 0.4 秒必跳一次），但那是「走得多快」，不是「还在不在走」，
+            // 两件事各归各的说。
             ProgressView().controlSize(.small)
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 3) {
@@ -2188,7 +2279,9 @@ struct LoadingRow: View {
                                     .foregroundStyle(theme.palette.inkSecondary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .frame(width: Self.readWidth, alignment: .leading)
+                                    .frame(minWidth: Self.readWidth,
+                                           maxWidth: fills ? .infinity : Self.readWidth,
+                                           alignment: .leading)
                             }
                             HStack(spacing: 5) {
                                 Text(LF("已检查 %@",

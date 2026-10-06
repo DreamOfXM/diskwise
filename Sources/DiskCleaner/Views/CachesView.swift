@@ -252,10 +252,13 @@ final class CachesModel: ObservableObject {
 struct CachesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: CachesModel
     var page: CachesPage = .app
     @State private var confirmClean = false
     @State private var errorText: String? = nil
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -264,7 +267,11 @@ struct CachesView: View {
                            subtitle: L(page.subtitleKey), variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在翻你的缓存目录，稍等…"), progress: model.progress)
+                        // 这一页的清单就是下面那列行本身（条目来自知识库，先列后量），
+                        // 所以「逐项点亮」在这里等于数字一格一格落下来，页头只管报还差多少条。
+                        LoadingRow(text: LF("正在翻你的缓存目录，已量到 %1$d/%2$d 条",
+                                            measuredCount, model.items.count),
+                                   progress: model.progress)
                     } else {
                         Text(LF("%d 项可查", model.items.count))
                     }
@@ -314,6 +321,9 @@ struct CachesView: View {
                             PathLine(path: p.path)
                         }
                     }
+                    // 只有勾上的行才报起点：这一页几十行，全挂 GeometryReader 是白量。
+                    .heroAnchorGlobal(TrashFlightController.rowAnchor(item.id.uuidString),
+                                      enabled: item.selected)
                 }
                 .ledgerCard()
             }
@@ -323,9 +333,14 @@ struct CachesView: View {
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
                      errorText: errorText, hint: barHint,
-                     selection: model.selectAll) { confirmClean = true }
+                     selection: model.selectAll, flightTarget: true) { confirmClean = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没量出体积），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「量完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { model.load() }
         .confirmTrash(isPresented: $confirmClean,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
@@ -336,6 +351,9 @@ struct CachesView: View {
     }
 
     private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
+
+    /// 已经量出体积的那几条（`size` 为 nil 就是还没量到）。页头那句读它。
+    private var measuredCount: Int { model.items.filter { $0.size != nil }.count }
 
     /// 量出体积的那些行——「合计」和「这一列」说的是同一批行，没量出来的不算进去。
     /// 算进去会怎样：那一格印的是「统计中…」，加不出数，合计却把它当成 0。
@@ -396,11 +414,29 @@ struct CachesView: View {
             : L("合计按条目各自的大小相加")
     }
 
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    /// 候选行取量出了体积的前两条——没体积的行本来就勾不动。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.items.filter { ($0.size ?? 0) > 0 }.prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.id.uuidString, bytes: $0.size ?? 0) },
+                                   selected: first.selected) {
+            for id in open.map(\.id) {
+                if let i = model.items.firstIndex(where: { $0.id == id }) { model.items[i].selected = true }
+            }
+        }
+    }
+
     private func clean() {
         errorText = nil
+        let targets = model.selected
+        // 搬完这一趟，让那笔字节从行里飞到那颗「移进废纸篓」上。见 `TrashFlight`。
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: targets.map { (key: $0.id.uuidString, bytes: $0.size ?? 0) },
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
-        for it in model.selected {
+        for it in targets {
             for p in it.resolvedPaths {
                 do {
                     let sz = it.resolvedPaths.count == 1 ? (it.size ?? 0) : fileSize(p)

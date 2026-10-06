@@ -162,7 +162,8 @@ public func pathStat(_ url: URL, progress: ScanProgress? = nil) async -> DirScan
 /// `fileLimit` **只掐文件**。目录是这一页的导航骨架，少一格就少一条往下走的路；
 /// 文件是内容，一个几万项的目录全列出来没人滚得完，所以按占盘降序留前几条、
 /// 其余并进 `unlistedCount` / `unlistedBytes`。
-public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200) async -> DirLevel {
+public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200,
+                     progress: ScanProgress? = nil) async -> DirLevel {
     let fm = FileManager.default
     guard let names = try? fm.contentsOfDirectory(atPath: url.path) else { return DirLevel() }
     let rootDev = deviceOf(url)
@@ -186,15 +187,24 @@ public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200
         }
     }
     var out: [ChildEntry] = []
+    // 清单：这一层要量的就是这几个子目录。**文件不进来**——它们一个 `lstat` 就有数，
+    // 不占时间，也就没有「走到哪儿了」可言；把几百个文件名铺进清单只会把真在动的部分淹掉。
+    let stations = progress.map { $0.plan(dirs.map(\.path)) } ?? []
+    var stationOf: [String: Int] = [:]
+    for (k, d) in dirs.enumerated() where k < stations.count { stationOf[d.path] = stations[k] }
     var i = 0
     while i < dirs.count {
         if Task.isCancelled { break }
         let wave = Array(dirs[i..<min(i + 6, dirs.count)])
         i += wave.count
+        // 一波六个一起量（理由见上面），所以清单上这六个一起亮起来；但**量完一个就点亮一个**，
+        // 不等这一波齐：等齐了清单就是六格一跳，而「一行一行往前走」正是这张单子要给的东西。
+        var done: [(String, String, Int64, Int, Date?, Bool)] = []
+        for d in wave { if let k = stationOf[d.path] { progress?.enter(k) } }
         await withTaskGroup(of: (String, String, Int64, Int, Date?, Bool).self) { group in
             for d in wave {
                 group.addTask {
-                    let report = await dirSizeReport(URL(fileURLWithPath: d.path))
+                    let report = await dirSizeReport(URL(fileURLWithPath: d.path), progress: progress)
                     // 权限是**跟着这一棵子树**报的：`dirSizeReport` 只在 `contentsOfDirectory`
                     // 失败且 errno 是 EPERM/EACCES 时才记，所以只要数组非空，就说明这里面
                     // 有一块我们没量到——那么这个 0 就不能当「空的」往外说。
@@ -202,10 +212,14 @@ public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200
                     return (d.name, d.path, report.bytes, report.files, report.newest, stuck)
                 }
             }
-            for await (name, path, size, files, newest, stuck) in group {
-                out.append(ChildEntry(path: path, name: name, size: size, isDir: true,
-                                      files: files, newest: newest, unreadable: stuck))
+            for await r in group {
+                if let k = stationOf[r.1] { progress?.finish(k, bytes: r.2) }
+                done.append(r)
             }
+        }
+        for (name, path, size, files, newest, stuck) in done {
+            out.append(ChildEntry(path: path, name: name, size: size, isDir: true,
+                                  files: files, newest: newest, unreadable: stuck))
         }
     }
     for f in files {

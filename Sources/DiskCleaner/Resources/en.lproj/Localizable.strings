@@ -55,6 +55,8 @@
 "已检查 %@" = "Checked %@";
 "已走过 %@" = "Covered %@";
 "用时 %@" = "Elapsed %@";
+// 扫描清单（ScanChecklist）：把这一趟要走的地方先列出来，走到哪亮到哪。
+"已量完 %1$d/%2$d 处" = "%1$d of %2$d measured";
 "整块盘 %1$@：可用 %2$@（空闲 %3$@ ＋ 系统可清除 %4$@），" = "The whole disk is %1$@: %2$@ available (%3$@ free + %4$@ the system can purge), ";
 "整块盘 %1$@：可用 %2$@（全是空闲），" = "The whole disk is %1$@: %2$@ available, all of it genuinely free. ";
 "没量到" = "Not measured";
@@ -169,7 +171,7 @@
 
 // ── 应用缓存 / 开发缓存 ──────────────────────────────────────────────────────
 "每项都写明来历，勾你认得的，不认识的别碰" = "Every entry says what it is. Check what you recognize, leave the rest.";
-"正在翻你的缓存目录，稍等…" = "Digging through your cache folders…";
+"正在翻你的缓存目录，已量到 %1$d/%2$d 条" = "Digging through your cache folders — %1$d of %2$d measured";
 "%d 项可查" = "Entries listed: %d";
 "知识库没加载出来" = "The knowledge base didn't load";
 "点右上角重新扫描，还不行就提个 Issue" = "Hit Rescan in the top right; if it persists, open an Issue";

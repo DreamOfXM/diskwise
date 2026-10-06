@@ -64,6 +64,8 @@
 "已检查 %@" = "Geprüft %@";
 "已走过 %@" = "Durchlaufen %@";
 "用时 %@" = "Dauer %@";
+// 扫描清单（ScanChecklist）：把这一趟要走的地方先列出来，走到哪亮到哪。
+"已量完 %1$d/%2$d 处" = "%1$d von %2$d gemessen";
 "整块盘 %1$@：可用 %2$@（空闲 %3$@ ＋ 系统可清除 %4$@），" = "Die Platte fasst %1$@: %2$@ verfügbar (%3$@ frei + %4$@ bereinigbar), ";
 "整块盘 %1$@：可用 %2$@（全是空闲），" = "Die Platte fasst %1$@: %2$@ verfügbar, alles echter freier Platz. ";
 "没量到" = "Nicht gemessen";
@@ -178,7 +180,7 @@
 
 // ── App-Caches / Entwickler-Caches ──────────────────────────────────────────
 "每项都写明来历，勾你认得的，不认识的别碰" = "Zu jedem Eintrag steht, was er ist. Hak an, was du kennst, und lass den Rest in Ruhe";
-"正在翻你的缓存目录，稍等…" = "Deine Cache-Ordner werden durchgesehen…";
+"正在翻你的缓存目录，已量到 %1$d/%2$d 条" = "Deine Cache-Ordner werden durchgesehen — %1$d von %2$d gemessen";
 "%d 项可查" = "%d Einträge";
 "知识库没加载出来" = "Die Wissensdatenbank wurde nicht geladen";
 "点右上角重新扫描，还不行就提个 Issue" = "Oben rechts auf Neu scannen tippen; hilft das nicht, öffne ein Issue";

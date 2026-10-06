@@ -75,10 +75,13 @@ final class DupModel: ObservableObject {
 struct DupView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: DupModel
     @State private var confirm = false
     @State private var err: String? = nil
     @State private var envList = false
+    /// 删除飞行：起点（勾中的组）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var selectedBytes: Int64 {
         var sizeByPath: [String: Int64] = [:]
@@ -137,7 +140,7 @@ struct DupView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.groups.isEmpty {
-                ScanSkeleton(scope: model.scope.uiName)
+                ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.groups.isEmpty {
                 EmptyState(symbol: "checklist", title: L("没有重复文件"),
                            hint: LF("%1$@以上的都查过了，调低还能再找些小的，但更慢",
@@ -147,6 +150,9 @@ struct DupView: View {
                 PageLedger(tiers: tiers, rows: model.groups.count, note: ledgerNote)
                 List(model.groups) { g in
                     dupRow(g)
+                        // 只有整组勾上的行才报起点：这一页几十组，全挂 GeometryReader 是白量。
+                        .heroAnchorGlobal(TrashFlightController.rowAnchor(g.id.uuidString),
+                                          enabled: groupSelected(g))
                 }
                 .ledgerCard()
             }
@@ -156,9 +162,14 @@ struct DupView: View {
             CleanBar(count: model.selectedCount, bytes: selectedBytes,
                      bytesText: human(selectedBytes, inRulerOf: model.waste),
                      errorText: err, hint: L("每组保留日期最新的那份，勾不上"),
-                     selection: model.selectAll) { confirm = true }
+                     selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没比出组来），光靠它这一次钩子会早退；
+        // 组数从 0 变成 N 是「比完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.groups.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
         // 那句只在有副本被摘出去时才在页上，所以这一按也只在它在的时候有效——
         // 拍不出空名单，也就拍不出一张骗人的名单。
@@ -178,11 +189,17 @@ struct DupView: View {
     ///
     /// 原来这一行的展示级数字是一颗「可收回 X」徽章，右侧那一列反倒没有数——
     /// 别的页都在右边报数，只有这一页报在徽章里，一整列比不出大小。
+    /// 一组里除保留那份之外**全都**勾上了才算这一行勾上——行上的勾选框和行锚点用的是同一个判据。
+    private func groupSelected(_ g: DupGroup) -> Bool {
+        let extras = g.files.dropFirst()
+        return !extras.isEmpty && extras.allSatisfy { model.selection.contains($0.path) }
+    }
+
     private func dupRow(_ g: DupGroup) -> some View {
         let extras = Array(g.files.dropFirst())
         return ItemRow(
             selected: Binding(
-                get: { !extras.isEmpty && extras.allSatisfy { model.selection.contains($0.path) } },
+                get: { groupSelected(g) },
                 set: { on in
                     let paths = extras.map(\.path)
                     if on { model.selection.formUnion(paths) }
@@ -204,8 +221,30 @@ struct DupView: View {
             }
         }
     }
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    /// 候选组取有多余副本的前两组，勾的是那几份多余副本（保留那份从来不给勾）。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.groups.filter { $0.files.count > 1 }.prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.id.uuidString, bytes: $0.waste) },
+                                   selected: groupSelected(first)) {
+            for g in open { model.selection.formUnion(g.files.dropFirst().map(\.path)) }
+        }
+    }
+
     private func doClean() {
         err = nil
+        // 一组一行：起点是那一组此刻在屏幕上的位置，体积是这一组要带走的那几份之和。
+        var perGroup: [(key: String, bytes: Int64)] = []
+        for g in model.groups {
+            let n = g.files.dropFirst().reduce(Int64(0)) {
+                $0 + (model.selection.contains($1.path) ? g.size : 0)
+            }
+            if n > 0 { perGroup.append((key: g.id.uuidString, bytes: n)) }
+        }
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: perGroup,
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
         for path in model.selection {
@@ -442,9 +481,12 @@ private func orphanRisk(_ it: OrphanItem) -> String {
 struct OrphansView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: OrphansModel
     @State private var confirm = false
     @State private var err: String? = nil
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -473,7 +515,7 @@ struct OrphansView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.items.isEmpty {
-                ScanSkeleton()
+                ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "app.badge.checkmark", title: L("没有卸载残留"),
                            hint: L("每个犄角旮旯都对得上号，挺干净"))
@@ -500,6 +542,9 @@ struct OrphansView: View {
                         }
                         PathLine(path: it.path.path)
                     }
+                    // 只有勾上的行才报起点：这一页几十处，全挂 GeometryReader 是白量。
+                    .heroAnchorGlobal(TrashFlightController.rowAnchor(it.path.path),
+                                      enabled: it.selected)
                 }
                 .ledgerCard()
             }
@@ -509,9 +554,14 @@ struct OrphansView: View {
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
                      errorText: err, hint: L("删了会丢数据的那几项本来就不给全选"),
-                     selection: model.selectAll) { confirm = true }
+                     selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没扫出残留来），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「盘完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
@@ -538,17 +588,37 @@ struct OrphansView: View {
 
     private var ledgerNote: String? { L("删了会丢数据的那几项不在全选范围内，得逐条自己判。") }
 
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    /// 候选行取「删了没影响」那档的前两处——钩子不写真账，但起点得是真会飞的那几行。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.items.filter { $0.level != "warn" }.prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.path.path, bytes: $0.size ?? 0) },
+                                   selected: first.selected) {
+            for path in open.map(\.path.path) {
+                if let i = model.items.firstIndex(where: { $0.path.path == path }) {
+                    model.items[i].selected = true
+                }
+            }
+        }
+    }
+
     private func doClean() {
         err = nil
+        let targets = model.selected
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: targets.map { (key: $0.path.path, bytes: $0.size ?? 0) },
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
-        for it in model.selected {
+        for it in targets {
             do {
                 let t = try trashItem(it.path)
                 store.record(TrashRecord(original: it.path, inTrash: t, size: it.size ?? 0, displayName: it.name))
                 ok += 1
             } catch { errs.append(failLine(it.name, error)) }
         }
+        // 行会被剔掉，筹码已经在 `launch` 那一下量好了起点，从它原来的位置上起飞。
         model.items.removeAll { !FileManager.default.fileExists(atPath: $0.path.path) }
         for i in model.items.indices { model.items[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }

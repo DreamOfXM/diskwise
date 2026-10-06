@@ -61,9 +61,12 @@ final class NMModel: ObservableObject {
 struct NMView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: NMModel
     @State private var confirm = false
     @State private var err: String? = nil
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -94,7 +97,7 @@ struct NMView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.items.isEmpty {
-                ScanSkeleton()
+                ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "shippingbox", title: L("没找到 node_modules"),
                            hint: L("这台机器大概不写前端"))
@@ -116,6 +119,9 @@ struct NMView: View {
                         ExplainLine(key: L("怎么恢复"), value: restoreHint(it.manager))
                         PathLine(path: it.project)
                     }
+                    // 只有勾上的行才报起点：这一页上百行，全挂 GeometryReader 是白量。
+                    .heroAnchorGlobal(TrashFlightController.rowAnchor(it.project),
+                                      enabled: it.selected)
                 }
                 .ledgerCard()
             }
@@ -124,9 +130,14 @@ struct NMView: View {
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.totalBytes),
-                     errorText: err, selection: model.selectAll) { confirm = true }
+                     errorText: err, selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没扫出项目来），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「扫完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@的依赖（%2$@）移入废纸篓。",
@@ -165,12 +176,30 @@ struct NMView: View {
         return parts.joined(separator: " · ")
     }
 
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.items.prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.project, bytes: $0.size) },
+                                   selected: first.selected) {
+            for p in open.map(\.project) {
+                if let i = model.items.firstIndex(where: { $0.project == p }) {
+                    model.items[i].selected = true
+                }
+            }
+        }
+    }
+
     private func doClean() {
         err = nil
+        let targets = model.selected
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: targets.map { (key: $0.project, bytes: $0.size) },
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
         // 删项目下的 node_modules（可能多个）
-        for it in model.selected {
+        for it in targets {
             let projName = URL(fileURLWithPath: it.project).lastPathComponent
             let nmURL = URL(fileURLWithPath: it.project).appendingPathComponent("node_modules")
             let targets = (try? FileManager.default.contentsOfDirectory(atPath: it.project)
@@ -203,6 +232,8 @@ final class DockerModel: ObservableObject {
     @Published var items: [DockerItem] = []
     @Published var scanning = false
     @Published private(set) var started = false
+    /// 现场读数：这一趟要问引擎一把，再逐家量虚拟机磁盘的实占，几秒钟里得说清走到哪儿了。
+    private(set) var progress = ScanProgress(counted: .entries)
     private var task: Task<Void, Never>? = nil
 
     /// 页头那个「共 X」：只加**段**，不加段下面的明细。
@@ -219,8 +250,16 @@ final class DockerModel: ObservableObject {
         scanning = true
         started = true
         items = []
+        progress = ScanProgress(counted: .entries)
+        let prog = progress
+        // 短名在这儿取：Core 不认识 `.strings`，而这一格的短名得跟着界面语言走。
+        // 它跟「一行一个运行时」那几格用的词不能撞——引擎那家自己也在运行时之列，
+        // 两格都写 `orbstack` 的话，清单就答不出「现在走到的是哪一件活」。
+        let engineLabel = L("引擎报的总量")
         task = Task {
-            let list = await Task.detached { await scanDocker() }.value
+            let list = await Task.detached {
+                await scanDocker(engineLabel: engineLabel, progress: prog)
+            }.value
             if !Task.isCancelled {
                 self.items = list
                 self.scanning = false
@@ -370,7 +409,7 @@ struct DockerView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.items.isEmpty {
-                ScanSkeleton()
+                ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.items.isEmpty {
                 EmptyState(symbol: "cube", title: L("没找到容器运行时"),
                            hint: L("这台机器上没有 Docker Desktop、OrbStack、Podman、colima 的数据目录"))

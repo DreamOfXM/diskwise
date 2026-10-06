@@ -132,9 +132,12 @@ final class BigFilesModel: ObservableObject {
 struct BigFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: BigFilesModel
     @State private var confirm = false
     @State private var err: String? = nil
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -180,7 +183,7 @@ struct BigFilesView: View {
             .padding(.bottom, 12)
 
             if model.scanning && model.rows.isEmpty {
-                ScanSkeleton(scope: model.scope.uiName)
+                ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.rows.isEmpty {
                 EmptyState(symbol: "doc", title: L("还没扫到大文件"),
                            hint: L("点右上角重新扫描，或回总览换个目录深挖"))
@@ -217,6 +220,9 @@ struct BigFilesView: View {
                             }
                         }
                     }
+                    // 只有勾上的行才报起点：这一列几十行，全挂 GeometryReader 是白量。
+                    .heroAnchorGlobal(TrashFlightController.rowAnchor(r.id.uuidString),
+                                      enabled: r.selected)
                 }
                 .ledgerCard()
                 // 这一列的知识库覆盖总账。徽章只在认得时挂，于是「没徽章」里混着
@@ -229,9 +235,14 @@ struct BigFilesView: View {
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
-                     errorText: err, selection: model.selectAll) { confirm = true }
+                     errorText: err, selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没扫出行来），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「扫完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.rows.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear {
             // 总览跳过来的定向扫描只消费一次
             if let dir = store.bigScanDir {
@@ -277,11 +288,28 @@ struct BigFilesView: View {
 
     private var verdictNote: String? { fileVerdictNote(model.rows, ruler: listedTotal) }
 
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    /// 候选行只取清得动的前两条——钩子不写真账，但起点得是真会飞的那几行。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.rows.filter(\.deletable).prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.id.uuidString, bytes: $0.size) },
+                                   selected: first.selected) {
+            for id in open.map(\.id) {
+                if let i = model.rows.firstIndex(where: { $0.id == id }) { model.rows[i].selected = true }
+            }
+        }
+    }
+
     private func doClean() {
         err = nil
+        let targets = model.selected
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: targets.map { (key: $0.id.uuidString, bytes: $0.size) },
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
-        for r in model.selected {
+        for r in targets {
             do {
                 let t = try trashItem(r.url)
                 store.record(TrashRecord(original: r.url, inTrash: t, size: r.size, displayName: r.name))
@@ -291,6 +319,7 @@ struct BigFilesView: View {
                 model.rows[i].selected = false
             }
         }
+        // 行会被剔掉，筹码已经在 `launch` 那一下量好了起点，从它原来的位置上起飞。
         model.pruneMissing()
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "个文件", failed: errs.count)
@@ -362,25 +391,25 @@ final class OldFilesModel: ObservableObject {
 struct OldFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: OldFilesModel
     @State private var confirm = false
     @State private var err: String? = nil
+    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
+    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
+                // 筛选控件挂在页头右端，跟标题并列。这一条窄语言放得下（中文 692 pt / 内容区 774 pt），
+                // 长译文由 `wrapsControls` 那一档把控件退到第二行右对齐——所以它不会顶出窗口边，
+                // 也不会把副标题挤断。控件离开控制条之后，下面那行只剩读数自己。
                 PageHeader(symbol: "clock", title: L("很久没动"),
                            subtitle: L("扫过的地方里，好久没碰的东西"),
-                           variant: .display)
-                ControlStrip {
-                    if model.scanning {
-                        LoadingRow(text: L("正在看哪些文件落灰…"), progress: model.progress)
-                    } else {
-                        Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"), human(model.totalBytes)))
-                    }
+                           variant: .display,
+                           wrapsControls: true) {
                     ThemeBadge(text: LF("范围：%@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
-                } trailing: {
                     ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) {
                         model.scan(scope: store.scope)
                     }
@@ -392,13 +421,27 @@ struct OldFilesView: View {
                                 rescan: { model.scan(scope: store.scope) },
                                 stop: { model.stop() })
                 }
+                // 页头已经把控件收走了，这一行只剩读数自己 —— 撑满它，
+                // 右缘才跟上面的页头、下面的账卡落在同一条竖线上。
+                Group {
+                    if model.scanning {
+                        LoadingRow(text: L("正在看哪些文件落灰…"), progress: model.progress,
+                                   fillsRow: true)
+                    } else {
+                        Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"),
+                                human(model.totalBytes)))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.inkSecondary)
             }
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
 
             if model.scanning && model.rows.isEmpty {
-                ScanSkeleton(scope: model.scope.uiName)
+                ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.rows.isEmpty {
                 EmptyState(symbol: "sparkle", title: L("没有落灰的文件"),
                            hint: L("扫过的地方很干净，保持住"))
@@ -435,6 +478,9 @@ struct OldFilesView: View {
                             }
                         }
                     }
+                    // 只有勾上的行才报起点：这一列几十行，全挂 GeometryReader 是白量。
+                    .heroAnchorGlobal(TrashFlightController.rowAnchor(r.id.uuidString),
+                                      enabled: r.selected)
                 }
                 .ledgerCard()
                 // 这一列的知识库覆盖总账。徽章只在认得时挂，于是「没徽章」里混着
@@ -447,9 +493,14 @@ struct OldFilesView: View {
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: model.totalBytes),
-                     errorText: err, selection: model.selectAll) { confirm = true }
+                     errorText: err, selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
+        .flightField(flights: $flight.flights, anchors: $flight.anchors)
+        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 页刚进来时 `anchors` 只出现过一次（那时还没扫出行来），光靠它这一次钩子会早退；
+        // 行数从 0 变成 N 是「扫完了」的信号，补在这里，钩子才有第二次机会。
+        .onChange(of: model.rows.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
@@ -482,17 +533,35 @@ struct OldFilesView: View {
 
     private var verdictNote: String? { fileVerdictNote(model.rows, ruler: model.totalBytes) }
 
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
+    /// 候选行只取清得动的前两条——钩子不写真账，但起点得是真会飞的那几行。
+    private func fireSnapshotFlightIfAsked() {
+        let open = Array(model.rows.filter(\.deletable).prefix(2))
+        guard let first = open.first else { return }
+        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.id.uuidString, bytes: $0.size) },
+                                   selected: first.selected) {
+            for id in open.map(\.id) {
+                if let i = model.rows.firstIndex(where: { $0.id == id }) { model.rows[i].selected = true }
+            }
+        }
+    }
+
     private func doClean() {
         err = nil
+        let targets = model.selected
+        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
+        flight.launch(rows: targets.map { (key: $0.id.uuidString, bytes: $0.size) },
+                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
-        for r in model.selected {
+        for r in targets {
             do {
                 let t = try trashItem(r.url)
                 store.record(TrashRecord(original: r.url, inTrash: t, size: r.size, displayName: r.name))
                 ok += 1
             } catch { errs.append(failLine(r.name, error)) }
         }
+        // 行会被剔掉，筹码已经在 `launch` 那一下量好了起点，从它原来的位置上起飞。
         let before = model.rows.count
         model.rows.removeAll { !FileManager.default.fileExists(atPath: $0.url.path) }
         model.lose(before - model.rows.count)

@@ -240,6 +240,143 @@ private struct SkeletonRow: View {
     }
 }
 
+/// 扫描清单：这一趟要走的地方，**先列出来，走到哪亮到哪**。
+///
+/// 为什么要它：列表是扫完才一次性回填的，整盘范围能走几分钟，而这几分钟里内容区原先只有
+/// 一片灰格子（`ScanSkeleton`）——它证明不了任何东西，也说不出「还差多少」。清单把这一趟的
+/// **分母**先摆出来：要走几处、走完几处、每一处量出来多少。这也是「把工作可视化」落到本工具
+/// 上的样子：清单本身是真的（它就是要走的那几处），不是片头动画。
+///
+/// 跟页头那颗 `LoadingRow` 分工明确：那句回答「它还在不在走」（正在看哪个目录、已检查多少），
+/// 这张清单回答「它打算走哪几处、走到第几处了、每一处多少」。
+///
+/// 骨架屏没有撤：清单是一趟**预列**出来的，只有各扫描函数自己知道要走哪儿；没预列的那些
+/// （比如缓存页那趟先展开通配符）照旧画灰格子。
+struct ScanChecklist: View {
+    @Environment(\.theme) private var theme
+    var progress: ScanProgress
+    /// 有范围的那几页（大文件 / 落灰 / 重复）在卡底下多印一句范围话，跟骨架屏那一版一致。
+    var scope: String? = nil
+
+    /// 一次露几格。清单可能有几十格（卸载残留光「量体积」那段就四十多格），全铺出来
+    /// 这一屏就成了表格——而它要给的现场感恰恰是「一行一行往前走」。
+    static let window = 7
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 同 `LoadingRow`：TimelineView 自己按节拍重画，不去打扰模型——遍历那边每走过
+            // 一个条目都 `@Published` 一次的话，UI 会被淹死。
+            TimelineView(.periodic(from: .now, by: 0.4)) { _ in card }
+            if let scope {
+                ListNote(text: LF("范围「%@」，要把每个目录走一遍才出列表。", scope))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var card: some View {
+        let all = progress.stations()
+        // 清单是**先列后走**的，而列之前那段（整盘范围要先找齐根）还没有格子。
+        // 那几百毫秒里印一句「已量完 0/0 处」是在说一件没有的事——上面那句「正在看…」
+        // 已经说清在动了，这一格先不出现。
+        if all.isEmpty {
+            EmptyView()
+        } else {
+            cardBody(all)
+        }
+    }
+
+    private func cardBody(_ all: [ScanProgress.Station]) -> some View {
+        let done = all.filter { $0.state == .done }.count
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(LF("已量完 %1$d/%2$d 处", done, all.count))
+                    .font(theme.bodyFont(.caption).weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.inkSecondary)
+                Spacer(minLength: 8)
+                // 这一格报的是个**确定的分数**，所以用条子不用转圈：转圈是「不知道还要多久」
+                // 的图标，摆在确定的数旁边只是噪声，而且它和页头那颗转圈说的是同一件事。
+                // 条子还顺手把「94 处里走了几处」变成一眼看得出的长度。
+                ProportionBar(fraction: all.isEmpty ? 0 : Double(done) / Double(all.count),
+                             height: 3, trackWidth: 120)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 11)
+            .padding(.bottom, 7)
+
+            VStack(spacing: 0) {
+                ForEach(visible(all)) { s in row(s) }
+            }
+            .padding(.bottom, 11)
+        }
+        .ledgerCard()
+    }
+
+    /// 以「正在走的这一格」为中心的定高窗口。
+    ///
+    /// 不用滚动视图：清单一边走一边滚，用户根本没空读进去；窗口跟着当前那一格挪，
+    /// 眼睛只要盯住中间那一行。格子少于一屏就原样全列，不摆空位。
+    private func visible(_ all: [ScanProgress.Station]) -> [ScanProgress.Station] {
+        guard all.count > Self.window else { return all }
+        let focus = all.firstIndex { $0.state == .active }
+            ?? all.firstIndex { $0.state == .pending }
+            ?? all.count - 1
+        let half = Self.window / 2
+        let lo = max(0, min(focus - half, all.count - Self.window))
+        return Array(all[lo..<(lo + Self.window)])
+    }
+
+    private func row(_ s: ScanProgress.Station) -> some View {
+        HStack(spacing: 9) {
+            marker(s.state)
+            Text(s.label)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(s.state == .pending ? theme.palette.inkTertiary : theme.palette.ink)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            // 没有字节数的格子（盘点已装 App、找孤儿那两段）量完也不印 0：报一个永远不动的 0
+            // 是在演示一个不存在的能力，跟页头读数里「0 B 不印」是同一条规矩。
+            if s.state == .done && s.bytes > 0 {
+                Text(human(s.bytes))
+                    .font(theme.numeric(.caption2))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.inkSecondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 3)
+        .help(s.detail)
+    }
+
+    /// 三态各一副面孔，**都是静止的**：走完打勾、正在走半圈、还没轮到空圈。
+    ///
+    /// 这一格答的是**状态**——走到哪一处了，而状态是静止的。转圈是「不知道还要多久」的图标，
+    /// 摆在旁边那列确定的字节数旁边就是噪声；更别说一波六个并行量时这一列会同时转六个圈。
+    /// 「它还在动」由页头那颗 `LoadingRow` 的转圈配真实读数回答（正在看哪个目录、
+    /// 已检查多少个、用时多久），那是另一件事，归那一边说。
+    @ViewBuilder private func marker(_ st: ScanProgress.Station.State) -> some View {
+        switch st {
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.palette.tint)
+                .frame(width: 14)
+        case .active:
+            Image(systemName: "circle.lefthalf.filled")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.palette.tint)
+                .frame(width: 14)
+        case .pending:
+            Image(systemName: "circle")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .frame(width: 14)
+        }
+    }
+}
+
 /// 列表页的一行，解剖与总览英雄卡那几行同一副（`docs/DESIGN.md` §6）：
 /// 一块容器 + 一道 1px 分段线 + 两档数字 + 彩色只给动得了的。
 ///
@@ -819,6 +956,9 @@ struct CleanBar: View {
     /// 清理条右侧那句口径话：这一页的合计是怎么算出来的（并集、每组留一份、会丢数据那档不批量勾）
     var hint: String? = nil
     var selection: SelectAll? = nil
+    /// 置位就在那颗「移进废纸篓」按钮上报一个落点。见 `TrashFlight`：筹码得落在这颗
+    /// **真的会动手**的按钮上，不是随便一个角落。量的是屏幕全局坐标，由飞行图层换算。
+    var flightTarget: Bool = false
     var onClean: () -> Void
 
     var body: some View {
@@ -874,6 +1014,7 @@ struct CleanBar: View {
                 ThemeButton(kind: .primary, symbol: "trash",
                             title: ctaTitle, isDisabled: count == 0, action: onClean)
                     .accessibilityLabel(LF("把选中的 %1$d 项移入废纸篓，随时可撤销", count))
+                    .heroAnchorGlobalIf(TrashFlight.targetAnchor, enabled: flightTarget)
             }
             .padding(.horizontal, 28)
             .padding(.top, 12)
@@ -935,9 +1076,13 @@ struct ControlStrip<Content: View, Trailing: View>: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) { content() }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 10) { Spacer(minLength: 0); trailing() }
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            // 换行这一档告诉内容：这一行只剩你自己了。读数卡据此撑满整行，
+            // 上下的右缘才对得齐（见 `controlStripWrapped`）。
+            .environment(\.controlStripWrapped, true)
         }
         .font(theme.bodyFont(.callout))
         .foregroundStyle(theme.palette.inkSecondary)
