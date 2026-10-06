@@ -216,18 +216,21 @@ brew install --cask diskwise
 tap の詳細と、固定しているチェックサムの更新方法は
 [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise) にあります。
 
-Homebrew が入れるのは Releases ページにあるのと同じファイルなので、初回起動は Gatekeeper を通ります。
-macOS が一度止めるので、**システム設定 → プライバシーとセキュリティ → このまま開く** で許可してください
-（macOS 13–14 では右クリック → 開く でも同じです）。**Mac App Store** から入れればこの手順は不要です。
+Homebrew が入れるのは Releases ページにあるのと同じファイルです。v1.7 以降は Developer ID 証明書で
+署名し Apple に公証されているので、Gatekeeper に止められずダブルクリックで開けます。v1.7 より前の
+ビルドは ad-hoc 署名のため初回起動を一度止められます。macOS が止めたら **システム設定 →
+プライバシーとセキュリティ → このまま開く** で許可してください（macOS 13–14 では右クリック → 開く
+でも同じです）。**Mac App Store** から入れればこの手順は不要です。
 
 ### DMG
 
 1. [Releases](https://github.com/DreamOfXM/diskwise/releases) から
    `DiskWise-<バージョン>[-universal].dmg` をダウンロードします。
 2. 開いて **DiskWise.app** を *アプリケーション* にドラッグします。
-3. 初回起動は一度止められます。**システム設定 → プライバシーとセキュリティ → このまま開く** で許可
-   すれば、以降は普通に開きます（macOS 13–14 では右クリック → 開く が使えます。Sequoia はこの近道を
-   廃止しました）。
+3. ダブルクリックすれば開きます。v1.7 以降は署名と公証が済んでいるので macOS は止めません。v1.7
+   より前のビルドは初回に一度止められ、**システム設定 → プライバシーとセキュリティ → このまま開く**
+   で許可すれば、以降は普通に開きます（macOS 13–14 では右クリック → 開く が使えます。Sequoia はこの
+   近道を廃止しました）。
 
 `ARCH=universal` で作ったリリースは `…-universal.dmg` という名前で、Apple Silicon と Intel の両方の
 スライスを 1 ファイルに含みます。Apple Silicon のみのものは `DiskWise-<バージョン>.dmg` です。チェック
@@ -290,9 +293,11 @@ arm64 のみ（`DiskWise-<バージョン>.dmg`、名前に `-universal` なし�
 今も既定で Apple Silicon のみで、両方得るには `ARCH=universal` を渡します。
 
 **なぜ初回起動で macOS が警告を出すのですか？**
-直接ダウンロードしたものだけが、しかも初回だけです：**システム設定 → プライバシーとセキュリティ →
-このまま開く** で許可すれば以降は普通に起動します。macOS 13–14 では右クリック → 開く でも同じです
-（Sequoia はこの近道を廃止しました）。App Store 版は止められません。
+v1.7 以降は出しません: v1.7 以降の公開物はすべて Developer ID 証明書で署名し Apple に公証済みなので、
+Gatekeeper をそのまま通ります。それ以前の ad-hoc ビルドは初回だけ止められます:
+**システム設定 → プライバシーとセキュリティ → このまま開く** で許可すれば以降は普通に起動します。
+macOS 13–14 では右クリック → 開く でも同じです（Sequoia はこの近道を廃止しました）。App Store 版は
+止められません。
 
 ## 既知の制限
 

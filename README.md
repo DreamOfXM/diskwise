@@ -218,18 +218,20 @@ brew install --cask diskwise
 
 Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
 
-Homebrew installs the same file the Releases page carries, so the first launch still goes through
-Gatekeeper: macOS stops it once, and you approve it in **System Settings → Privacy & Security →
-Open Anyway** (on macOS 13–14, right-click → Open does the same job). Getting it from the
-**Mac App Store** skips that step entirely.
+Homebrew installs the same file the Releases page carries. From v1.7 it is signed with a Developer ID
+certificate and notarized by Apple, so it opens on a double-click and never reaches that step. Releases
+before v1.7 were built ad-hoc, so macOS stops the first launch once and you approve it in
+**System Settings → Privacy & Security → Open Anyway** (on macOS 13–14, right-click → Open does the
+same job). Getting it from the **Mac App Store** skips that step entirely.
 
 ### DMG
 
 1. Download `DiskWise-<version>[-universal].dmg` from
    [Releases](https://github.com/DreamOfXM/diskwise/releases).
 2. Open it and drag **DiskWise.app** to *Applications*.
-3. The first launch gets stopped once. Approve it in **System Settings → Privacy & Security →
-   Open Anyway** and the app opens normally from then on (on macOS 13–14, right-click → Open
+3. Double-click it. From v1.7 that just works — the app is Developer ID signed and notarized. On a
+   pre-v1.7 build the first launch gets stopped once; approve it in **System Settings → Privacy &
+   Security → Open Anyway** and the app opens normally from then on (on macOS 13–14, right-click → Open
    works instead; Sequoia removed that shortcut).
 
 Releases built with `ARCH=universal` are named `…-universal.dmg` and carry both the Apple
@@ -294,10 +296,11 @@ users on those versions need to build from source instead (it takes a minute and
 `bash build_app/build.sh` still defaults to Apple Silicon; pass `ARCH=universal` to get both.
 
 **Why does macOS complain on first launch?**
-Only the direct download does, and only the first time: approve it in
-**System Settings → Privacy & Security → Open Anyway** and it launches normally afterwards; on
-macOS 13–14 right-click → Open does the same job, a shortcut Sequoia removed. The App Store build
-never gets stopped.
+From v1.7 it doesn't: every release from that version onward is signed with a Developer ID certificate
+and notarized by Apple, so Gatekeeper lets it open. The ad-hoc builds before it get stopped once —
+approve it in **System Settings → Privacy & Security → Open Anyway** and it launches normally
+afterwards; on macOS 13–14 right-click → Open does the same job, a shortcut Sequoia removed. The App
+Store build never gets stopped.
 
 ## Known limits
 

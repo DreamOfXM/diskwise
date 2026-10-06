@@ -215,17 +215,19 @@ brew install --cask diskwise
 tap의 세부 사항과 고정된 체크섬을 올리는 방법은
 [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise) 에 있습니다.
 
-Homebrew가 설치하는 것은 Releases 페이지에 있는 것과 같은 파일이라, 첫 실행은 여전히 Gatekeeper를
-지납니다. macOS가 한 번 막으면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기** 에서 허용하십시오
-(macOS 13–14에서는 우클릭 → 열기 도 같은 일을 합니다). **Mac App Store** 에서 받으면 이 단계가 아예
-없습니다.
+Homebrew가 설치하는 것은 Releases 페이지에 있는 것과 같은 파일입니다. v1.7부터는 Developer ID 인증서로
+서명하고 Apple 공증을 받았으니 Gatekeeper에 막히지 않고 더블 클릭으로 열립니다. v1.7 이전 빌드는 ad-hoc
+서명이라 첫 실행에서 한 번 막힙니다. macOS가 막으면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이
+열기** 에서 허용하십시오(macOS 13–14에서는 우클릭 → 열기 도 같은 일을 합니다). **Mac App Store** 에서
+받으면 이 단계가 아예 없습니다.
 
 ### DMG
 
 1. [Releases](https://github.com/DreamOfXM/diskwise/releases) 에서
    `DiskWise-<버전>[-universal].dmg` 를 내려받습니다.
 2. 열어서 **DiskWise.app** 을 *응용 프로그램* 으로 끌어다 놓습니다.
-3. 첫 실행이 한 번 막힙니다. **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기** 에서 허용하면
+3. 더블 클릭하면 열립니다. v1.7부터는 서명과 공증이 끝나 있어 macOS가 막지 않습니다. v1.7 이전 빌드는
+   첫 실행이 한 번 막힙니다. **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기** 에서 허용하면
    그다음부터는 정상적으로 열립니다(macOS 13–14에서는 우클릭 → 열기 가 대신 통했지만 Sequoia가 이
    지름길을 없앴습니다).
 
@@ -289,9 +291,11 @@ v1.3부터 공개한 DMG는 모두 `ARCH=universal` 로 만들어 arm64와 x86_6
 둘 다 얻으려면 `ARCH=universal` 을 넘깁니다.
 
 **왜 첫 실행에서 macOS가 경고하나요?**
-직접 내려받은 것만, 그것도 처음 한 번만 그렇습니다: **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이
-열기** 에서 허용하면 이후로는 정상입니다. macOS 13–14에서는 우클릭 → 열기 도 같았지만 Sequoia가 이
-지름길을 없앴습니다. App Store 빌드는 막히지 않습니다.
+v1.7부터는 경고하지 않습니다: v1.7 이후 배포분은 전부 Developer ID 인증서 서명과 Apple 공증이 들어가
+있어서 Gatekeeper를 그대로 통과합니다. 그 이전의 ad-hoc 빌드는 처음 한 번만 막힙니다:
+**시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기** 에서 허용하면 이후로는 정상입니다.
+macOS 13–14에서는 우클릭 → 열기 도 같았지만 Sequoia가 이 지름길을 없앴습니다. App Store 빌드는
+막히지 않습니다.
 
 ## 알려진 한계
 

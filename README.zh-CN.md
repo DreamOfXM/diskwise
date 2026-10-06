@@ -198,7 +198,8 @@ brew install --cask diskwise
 
 tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
 
-用 Homebrew 装的也是 Releases 页那个文件，所以首次打开照样要过 Gatekeeper：系统先拦一次，你到
+用 Homebrew 装的也是 Releases 页那个文件。从 v1.7 起那份用 Developer ID 证书签名并经苹果公证，
+双击即可打开，不需要任何额外放行；v1.7 之前发的是 ad-hoc 签名的包，首次打开会被系统拦一次，要到
 **系统设置 → 隐私与安全性 → 「仍要打开」**里放行（macOS 13–14 上右键 → 打开 也能顶过去）。
 从 **Mac App Store** 装的那份完全没有这一步。
 
@@ -206,7 +207,8 @@ tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://gi
 
 1. 到 [Releases](https://github.com/DreamOfXM/diskwise/releases) 下载 `DiskWise-<版本号>[-universal].dmg`
 2. 打开后把 **DiskWise.app** 拖进「应用程序」
-3. 第一次打开会被拦一下，到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行，之后就能正常双击打开
+3. 双击即可打开——v1.7 起的包已 Developer ID 签名并通过苹果公证，系统不拦；v1.7 之前的包首次会被拦
+   一下，到**系统设置 → 隐私与安全性 → 「仍要打开」**里放行，之后就能正常双击打开
    （macOS 13–14 用老办法：右键 → 打开；Sequoia 把这条捷径去掉了）
 
 `ARCH=universal` 出的包文件名带 `-universal`，同一个文件里同时有 arm64 和 x86_64 两个切片；
@@ -259,7 +261,8 @@ GitHub 或邮箱的原因。
 （不需要完整 Xcode）。本地 `build.sh` 默认仍只出 Apple Silicon，加 `ARCH=universal` 才出双切片。
 
 **为什么首次打开系统要警告？**
-只有直接下载的那份会，而且只拦第一次：到**系统设置 → 隐私与安全性 → 「仍要打开」**点一下，
+v1.7 起不会了：v1.7 之后发出去的每一个包都用 Developer ID 证书签名并经苹果公证，Gatekeeper 直接放行。
+更早那种 ad-hoc 签名的包只拦第一次：到**系统设置 → 隐私与安全性 → 「仍要打开」**点一下，
 之后就正常了；macOS 13–14 用右键 → 打开也行，Sequoia 去掉了这条。App Store 那份永远不会被拦。
 
 ## 已知不足

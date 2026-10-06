@@ -30,3 +30,18 @@ build_app/derived/
 *.key
 *.csr
 *.mobileprovision
+
+# AOCI agent host integration (machine-bound; do not commit)
+.mcp.json
+.mcp.json.backup.*
+.codex/config.toml
+.codex/config.toml.backup.*
+
+# AOCI wire (aoci-wire.sh) — machine-bound, do not commit
+.cursor/mcp.json
+.cursor/mcp.json.backup.*
+.zcode/config.json
+.zcode/config.json.backup.*
+opencode.json
+opencode.json.backup.*
+AGENTS.md.backup.*
