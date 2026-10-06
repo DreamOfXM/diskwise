@@ -4,6 +4,7 @@
 
 **A free, open-source CleanMyMac alternative for macOS.**
 
+![stars](https://img.shields.io/github/stars/DreamOfXM/diskwise?style=social)
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
