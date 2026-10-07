@@ -16,7 +16,7 @@ const ENTRIES: { locale: Locale; file: string; markup: () => string }[] = [
   { locale: "en", file: "en/index.html", markup: () => renderToStaticMarkup(<HomePage locale="en" />) },
   { locale: "ja", file: "ja/index.html", markup: () => renderToStaticMarkup(<HomePage locale="ja" />) },
   { locale: "ko", file: "ko/index.html", markup: () => renderToStaticMarkup(<HomePage locale="ko" />) },
-  ...(["cleanmymac", "daisydisk"] as const).flatMap((slug) => [
+  ...(["cleanmymac", "daisydisk", "puremac", "mole"] as const).flatMap((slug) => [
     {
       locale: "zh" as Locale,
       file: `vs/${slug}/index.html`,

@@ -30,6 +30,10 @@ export default defineConfig({
         "vs-daisydisk": resolve(__dirname, "vs/daisydisk/index.html"),
         "en-vs-cleanmymac": resolve(__dirname, "en/vs/cleanmymac/index.html"),
         "en-vs-daisydisk": resolve(__dirname, "en/vs/daisydisk/index.html"),
+        "vs-puremac": resolve(__dirname, "vs/puremac/index.html"),
+        "vs-mole": resolve(__dirname, "vs/mole/index.html"),
+        "en-vs-puremac": resolve(__dirname, "en/vs/puremac/index.html"),
+        "en-vs-mole": resolve(__dirname, "en/vs/mole/index.html"),
       },
       output: {
         entryFileNames: "assets/[name]-[hash].js",

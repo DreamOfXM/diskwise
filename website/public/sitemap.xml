@@ -67,4 +67,22 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/daisydisk/" />
   </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/vs/puremac/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/puremac/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/puremac/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/puremac/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/en/vs/puremac/</loc>
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/vs/mole/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://dreamofxm.github.io/diskwise/vs/mole/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://dreamofxm.github.io/diskwise/en/vs/mole/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://dreamofxm.github.io/diskwise/en/vs/mole/" />
+  </url>
+  <url>
+    <loc>https://dreamofxm.github.io/diskwise/en/vs/mole/</loc>
+  </url>
 </urlset>
