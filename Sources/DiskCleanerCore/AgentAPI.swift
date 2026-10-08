@@ -571,13 +571,21 @@ public func agentPlan(paths: [String], humanOverride: Bool = false,
 /// 不往真实废纸篓里丢测试垃圾——真废纸篓的往返由 CLI 手测覆盖。
 public func agentExecute(planId: String, index: VerdictIndex = .shared,
                          trash: (URL) throws -> URL = trashItem) throws -> AgentResult {
+    // plan_id 是我们自己签发的 UUID：带路径分隔符或向上的段一律当「不存在」，
+    // 不给拼路径留缝（下面的 removeItem 只会碰自己签发、且解码合法的计划文件）
+    guard !planId.isEmpty, !planId.contains("/"), !planId.contains("\\"),
+          !planId.hasPrefix(".") else {
+        throw AgentAPIError.planNotFound
+    }
     let fileURL = agentPlansDir().appendingPathComponent("\(planId).json")
     guard let data = try? Data(contentsOf: fileURL),
           let rec = try? JSONDecoder.agentAPI.decode(AgentPlanRecord.self, from: data) else {
         throw AgentAPIError.planNotFound
     }
     guard Date() < rec.expiresAt else {
-        // 过期计划就地删除：它已经不能被任何一次执行接受，留着只会堆积
+        // 过期计划就地删除：它已经不能被任何一次执行接受，留着只会堆积。
+        // 删的是自家记账文件（agent/ 下的 JSON），不进废纸篓——铁律管的是
+        // 用户数据；把内部状态丢进用户废纸篓才是错的一方。
         try? FileManager.default.removeItem(at: fileURL)
         throw AgentAPIError.planExpired
     }

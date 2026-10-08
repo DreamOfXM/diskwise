@@ -1275,6 +1275,8 @@ func agentSelfTest() async throws {
           "Agent：过期计划抛 plan_expired")
     check((try? agentExecute(planId: "not-a-plan", index: aidx, trash: fakeTrash)) == nil,
           "Agent：伪造 plan_id 抛 plan_not_found")
+    check((try? agentExecute(planId: "../evil", index: aidx, trash: fakeTrash)) == nil,
+          "Agent：plan_id 带路径段一律 plan_not_found（不拼路径）")
 
     // 15.7 条数上限：201 个可动位置一次 plan → plan_too_large
     for k in 1...201 {
