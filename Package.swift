@@ -26,6 +26,13 @@ let package = Package(
             name: "SelfTest",
             dependencies: ["DiskCleanerCore"],
             path: "Sources/SelfTest"
+        ),
+        // Agent 通道的命令行（diskwise）：CLI 子命令 + stdio MCP server 同体。
+        // 产物在 build.sh 拷进 .app 时改名为 diskwise；dev 下叫 DiskWiseCLI。
+        .executableTarget(
+            name: "DiskWiseCLI",
+            dependencies: ["DiskCleanerCore"],
+            path: "Sources/DiskWiseCLI"
         )
     ]
 )
