@@ -44,6 +44,7 @@ brew install --cask dreamofxm/diskwise/diskwise
 ## 目录
 
 - [上手三步](#上手三步)
+- [给 AI agent 用](#给-ai-agent-用)
 - [为什么选择 DiskWise](#为什么选择-diskwise)
 - [功能](#功能)
 - [界面截图](#界面截图)
@@ -64,6 +65,20 @@ brew install --cask dreamofxm/diskwise/diskwise
 2. 点账里的任意一行——它名下是哪几个目录就地摊开，环同时收成一枚小参照盘。
 3. 能整个搬走的那段弧**点两下**：第一下上膛，第二下才进废纸篓。*撤销*原样放回，清空废纸篓始终由访达执行。
 
+## 给 AI agent 用
+
+直装版附带 `diskwise` 命令行（App Store 版不带），它同时是一个 MCP
+（Model Context Protocol）服务——让 Claude Code、Cursor、Codex 替你清磁盘。
+它不能 `rm -rf`：唯一删除路径是把知识库认得且判为安全的位置移进废纸篓，
+每一步都能整单撤销，会丢数据的位置永远动不了。
+
+```sh
+claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp
+```
+
+然后直接对 agent 说「看看我 Mac 上哪里值得清」：它会扫描、出计划、把摘要
+给你过目，你点头之后才动手。配置片段、完整安全模型与命令清单见
+[docs/AGENTS-CLI.md](docs/AGENTS-CLI.md)。
 ## 为什么选择 DiskWise
 
 清理工具要进入你的家目录，劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。

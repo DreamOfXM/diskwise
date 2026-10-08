@@ -114,12 +114,14 @@ build_for_triple() {
 
 echo "==> [3/7] release 编译（架构 ${ARCH}，渠道 ${CHANNEL}）"
 BIN="$ROOT_DIR/.build/release/DiskCleaner"          # 进包的那个二进制
+CLI_BIN=""                                          # Agent 通道的可执行（直装版进包，商店版只编译不进包）
 if [ -n "$ARCH_TRIPLE" ]; then
 	SINGLE="$(build_for_triple "$ARCH_TRIPLE")"
 	BIN="$SINGLE/DiskCleaner"
 	[ -x "$BIN" ] || { echo "错误：找不到编译产物 $BIN" >&2; exit 1; }
 	lipo -info "$BIN" | sed 's/^/    /'
 	"$SINGLE/SelfTest" 2>&1 | tail -n 1 | sed 's/^/    /'
+	CLI_BIN="$SINGLE/DiskWiseCLI"
 else
 	# --arch 双值要 xcbuild（CLT 没有），所以两个 triple 各编一遍再手动合。
 	ARM_BIN_DIR="$(build_for_triple "arm64-apple-macos$MIN_MACOS")"
@@ -160,13 +162,27 @@ else
 		|| { echo "错误：合并后没有 arm64 切片，实际是 '$ARCHS_IN'" >&2; exit 1; }
 	printf '%s\n' "$ARCHS_IN" | grep -qw x86_64 \
 		|| { echo "错误：合并后没有 x86_64 切片，实际是 '$ARCHS_IN'" >&2; exit 1; }
+	# Agent CLI 同样两刀合一刀（与主程序同一对 triple）
+	lipo -create -output "$BUILD_DIR/DiskWiseCLI.universal" \
+		"$ARM_BIN_DIR/DiskWiseCLI" "$X86_BIN_DIR/DiskWiseCLI"
+	CLI_BIN="$BUILD_DIR/DiskWiseCLI.universal"
 fi
+# swift build 连 DiskWiseCLI 一起编；这里只断言产物在，进不进包由渠道决定
+[ -n "$CLI_BIN" ] && [ -x "$CLI_BIN" ] \
+	|| { echo "错误：找不到 DiskWiseCLI 编译产物（Agent CLI 的二进制）" >&2; exit 1; }
 echo "    二进制：$(du -h "$BIN" | cut -f1)"
 
 echo "==> [4/7] 组装 $APP_NAME.app"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN" "$APP_DIR/Contents/MacOS/DiskCleaner"
+# 直装版才带 CLI（拷进包时改名 diskwise）；商店沙盒版不带——沙盒里 CLI 没有
+# 家目录授权就扫不动，多一个进不去的入口不如不给
+if [ "$CHANNEL" != "appstore" ]; then
+	cp "$CLI_BIN" "$APP_DIR/Contents/MacOS/diskwise"
+	[ -x "$APP_DIR/Contents/MacOS/diskwise" ] \
+		|| { echo "错误：diskwise CLI 没进 .app" >&2; exit 1; }
+fi
 cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$RES_DIR/safety_db.json" "$APP_DIR/Contents/Resources/"
 cp "$RES_DIR/skins.json" "$APP_DIR/Contents/Resources/"
@@ -342,12 +358,24 @@ if [ "$QFILES" != "0" ]; then
 	xattr -r -d com.apple.quarantine "$APP_DIR" 2>/dev/null || true
 fi
 
+# 嵌套可执行 diskwise 必须先单独签、再签整包：codesign 不递归（--deep 被 Apple
+# 明确不推荐），而公证要求嵌套代码有自己的签名。ad-hoc 分支同样要先签——
+# 否则下面那道 codesign --verify --strict 在本机就直接失败，轮不到公证。
+if [ -f "$APP_DIR/Contents/MacOS/diskwise" ]; then
+	if [ -n "$IDENTITY" ]; then
+		codesign --force --options runtime --timestamp \
+			--sign "$IDENTITY" "$APP_DIR/Contents/MacOS/diskwise"
+	else
+		codesign --force --sign - "$APP_DIR/Contents/MacOS/diskwise"
+	fi
+fi
+
 SIGNED=0
 if [ -n "$IDENTITY" ]; then
 	SIGNED=1
 	echo "    身份：$IDENTITY"
-	# --deep 是 Apple 明确不推荐的写法；这个 .app 里没有嵌套代码，直接签整包。
-	# hardened runtime + 安全时间戳是公证的硬门槛，少一个 notarytool 直接拒。
+	# --deep 是 Apple 明确不推荐的写法；嵌套可执行 diskwise 已在上面单独签过，
+	# 这里直接签整包。hardened runtime + 安全时间戳是公证的硬门槛，少一个 notarytool 直接拒。
 	codesign --force --options runtime --timestamp \
 		--entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP_DIR"
 else
@@ -360,6 +388,10 @@ else
 	codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_DIR"
 fi
 codesign --verify --strict --verbose=2 "$APP_DIR" 2>&1 | tail -n 1 | sed 's/^/    /'
+# 冒烟：签完的 CLI 真能跑（商店包没有 CLI，跳过）
+if [ -f "$APP_DIR/Contents/MacOS/diskwise" ]; then
+	"$APP_DIR/Contents/MacOS/diskwise" --version | sed 's/^/    CLI 冒烟：/'
+fi
 # 直链版的 entitlements 是空 dict，grep 不中会带着 set -e 把整个构建掀了，所以先落变量。
 ENT_SUMMARY="$(plutil -p "$ENTITLEMENTS" | grep -E 'app-sandbox|user-selected|apple-events|application-identifier|team-identifier' || true)"
 if [ -n "$ENT_SUMMARY" ]; then

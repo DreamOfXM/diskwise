@@ -429,6 +429,27 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 只报认得的那几项，等于把不认识的默认洗成安全。`Verdict.knownBelow` 数的是
 「这个路径底下还有几处认得」，它是把「不认得」这句话说出下一步的那一半。
 
+### 4.11 Agent 通道（CLI / MCP）：同一个 Core，多一道闸
+
+`diskwise`（`Sources/DiskWiseCLI`，直装版进 `Contents/MacOS/`，商店版不带）把清理能力开放给
+终端与 MCP 客户端，全部逻辑住在 Core 的 `AgentAPI.swift`：判定管线（展开 → 保护 → 范围 →
+lstat → 判词）所有入口共用，删除最终仍走 `trashItem` 那一个函数。
+
+与 App 的三处差别，改动前必须知道：
+
+- **判得更严**：agent 只能动知识库条目本体（`Verdict.exact`），认识位置里的子路径拒
+  `not_a_known_location`；risky 对人也不放开；`--i-am-human` 只放开 unknown 与非 exact，
+  MCP 模式下没有这个口子。
+- **两步确认换形态**：plan 文件（10 分钟有效、200 项 / 200 GB 上限、每项绑定 dev/ino）＋
+  execute 逐项重校验——软链替换、原地换内容在执行时都会被拦。状态在
+  `~/Library/Application Support/DiskWise/agent/`（基于 `homeDir()`，勿写死路径）。
+- **留痕持久化**：`operations.jsonl` 只追加、永不改写；撤销 = 按日志整单 `untrash`。
+  注意它跟 App 的内存撤销栈是两本账，App 不读这里。
+
+两条工程纪律：`VerdictIndex.shared` 在首次访问时按当时的 `homeDir()` 展开 `~`，测试假家目录
+必须自建索引传参进去（SelfTest §15 的写法）；SelfTest 顶层一旦出现 `await`，第 6–8 节的
+Task＋semaphore 模式会死锁，async 正文只能包在 `Task.detached` 里跑。
+
 ---
 
 ## 5. 功能清单（侧边栏 10 页 ＋ 2 页不进侧边栏）

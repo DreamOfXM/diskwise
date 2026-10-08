@@ -45,6 +45,7 @@ every release ships the DMG's SHA-256.
 ## Contents
 
 - [Quick start](#quick-start)
+- [For AI agents](#for-ai-agents)
 - [Why this exists](#why-this-exists)
 - [What you get](#what-you-get)
 - [Screenshots](#screenshots)
@@ -68,6 +69,20 @@ The GIF at the top of this page plays this exact order:
 3. Click the arc you can move **twice**: the first click arms it, the second moves it to the Trash.
    *Undo* puts it back, and emptying the Trash stays Finder's call.
 
+## For AI agents
+
+The direct-download build ships a `diskwise` CLI (the App Store build doesn't), and it doubles as a
+[Model Context Protocol](https://modelcontextprotocol.io) server — let Claude Code, Cursor or Codex
+reclaim disk space for you. It can't `rm -rf`: the only removal path moves known-safe items to the
+Trash, every operation is undoable, and risky locations are never touchable.
+
+```sh
+claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp
+```
+
+Then just ask your agent *"see what's worth cleaning on my Mac"* — it scans, drafts a plan,
+shows you the summary, and only moves anything after you agree. Details, config snippets for
+Cursor/Codex and the full safety model: [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md).
 ## Why this exists
 
 A disk cleaner has to read a lot of your machine before it can tell you anything useful. Most of
