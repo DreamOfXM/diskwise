@@ -121,7 +121,7 @@ func printHistoryBlock(_ ops: [AgentOperation]) {
     for op in ops {
         let bytes = op.items.reduce(Int64(0)) { $0 + $1.bytes }
         let df = ISO8601DateFormatter()
-        print("  \(op.id) · \(df.string(from: op.at)) · \(op.items.count) item(s) · \(human(bytes))"
+        print("  \(op.id) · \(df.string(from: op.at)) · \(op.client ?? "unknown") · \(op.items.count) item(s) · \(human(bytes))"
               + (op.undoneAt == nil ? "" : " · undone"))
     }
 }

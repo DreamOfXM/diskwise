@@ -51,7 +51,9 @@ diskwise --version
 - 大小参数十进制（`500MB`、`2GB`、纯字节），与 App 同口径。
 
 状态目录：`~/Library/Application Support/DiskWise/agent/`（`plans/` 计划文件、
-`operations.jsonl` 操作日志）。CLI 单写者假设：同一时刻只跑一个写操作。
+`operations.jsonl` 操作日志）。每行操作记录**来源客户端**——MCP 按 initialize 里
+自报的 `clientInfo.name`（如 claude-code），终端默认 `diskwise-cli`；不带该字段的
+旧日志行视为未知来源。CLI 单写者假设：同一时刻只跑一个写操作。
 
 ## 接入 Claude Code
 

@@ -13,6 +13,10 @@ import Foundation
 
 enum MCPServer {
 
+    /// 客户端在 initialize 里自报的名字（clientInfo.name），落进操作日志回答
+    /// 「这次是谁干的」。没 initialize 就直接调、或没报名字的，记 "mcp"。
+    static var clientName = "mcp"
+
     static func run() async {
         let stdin = FileHandle.standardInput
         var buffer = Data()
@@ -51,6 +55,11 @@ enum MCPServer {
             let requested = params["protocolVersion"] as? String
             let supported = ["2025-06-18", "2025-03-26", "2024-11-05"]
             let version = (requested != nil && supported.contains(requested!)) ? requested! : "2025-06-18"
+            // 自报名字记下来：execute 时随操作落日志（来源标注见 clientName）
+            if let info = params["clientInfo"] as? [String: Any],
+               let name = info["name"] as? String, !name.isEmpty {
+                clientName = name
+            }
             reply(id: id, result: [
                 "protocolVersion": version,
                 "capabilities": ["tools": ["listChanged": false]],
@@ -222,7 +231,7 @@ enum MCPServer {
                                 structured: ["error": "invalid_params"]), true)
             }
             do {
-                let result = try agentExecute(planId: planId)
+                let result = try agentExecute(planId: planId, client: clientName)
                 var text = "Moved \(result.trashed.count) item(s), \(human(result.totalBytes)) to the Trash."
                 if !result.failed.isEmpty {
                     text += "\nRefused/failed items:"
@@ -263,7 +272,7 @@ enum MCPServer {
                 : "\(ops.count) operation(s), oldest first:\n"
                     + ops.map { op -> String in
                         let bytes = op.items.reduce(Int64(0)) { $0 + $1.bytes }
-                        return "  \(op.id) · \(op.items.count) item(s) · \(human(bytes))"
+                        return "  \(op.id) · \(op.client ?? "unknown") · \(op.items.count) item(s) · \(human(bytes))"
                             + (op.undoneAt == nil ? "" : " · undone")
                     }.joined(separator: "\n")
             return (ToolOut(text: text, structured: structify(ops)), false)

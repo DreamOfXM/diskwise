@@ -1301,6 +1301,24 @@ func agentSelfTest() async throws {
     check(undo5.count == 1 && undo5[0].status == "gone_from_trash",
           "Agent：废纸篓里已不在报 gone_from_trash")
 
+    // 15.9 来源标注：client 落操作日志；不带 client 的旧行照常解析（向后兼容）
+    try fm.createDirectory(at: afile(".cache/whisper"), withIntermediateDirectories: true)
+    try "again".write(to: afile(".cache/whisper/model.bin"), atomically: true, encoding: .utf8)
+    let plan6 = try await agentPlan(paths: ["~/.cache/whisper"], index: aidx)
+    _ = try agentExecute(planId: plan6.planId, index: aidx,
+                         client: "selftest-agent", trash: fakeTrash)
+    check(agentHistory(limit: 10).last?.client == "selftest-agent",
+          "Agent：操作日志记录来源客户端")
+    _ = try agentUndo()
+    let opsFile = agentStateDir().appendingPathComponent("operations.jsonl")
+    let legacyFH = try FileHandle(forWritingTo: opsFile)
+    try legacyFH.seekToEnd()
+    try legacyFH.write(contentsOf: Data("{\"id\":\"legacy-op\",\"at\":\"2026-01-01T00:00:00Z\",\"items\":[]}\n".utf8))
+    try legacyFH.close()
+    let histLegacy = agentHistory(limit: 10)
+    check(histLegacy.contains { $0.id == "legacy-op" && $0.client == nil && $0.undoneAt == nil },
+          "Agent：旧格式日志行（无 client 字段）照常解析")
+
     unsetenv("DISKWISE_HOME_SHIM")
     try? fm.removeItem(at: aroot)
 }

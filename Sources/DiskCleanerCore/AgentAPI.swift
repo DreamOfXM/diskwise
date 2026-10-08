@@ -159,18 +159,22 @@ public struct AgentUndoStatus: Codable {
 public struct AgentOperation: Codable {
     public let id: String
     public let at: Date
+    /// 这次操作是谁发起的：MCP 客户端在 initialize 里自报的名字，或终端 CLI。
+    /// 旧日志行没有这个字段，解码为 nil——展示层要把 nil 当「未知来源」，不是错误。
+    public let client: String?
     public let items: [AgentTrashRecord]
     /// 撤销后由追加的标记行回填；nil = 尚未撤销
     public let undoneAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, at, items
+        case id, at, client, items
         case undoneAt = "undone_at"
     }
 
-    init(id: String, at: Date, items: [AgentTrashRecord], undoneAt: Date? = nil) {
+    init(id: String, at: Date, client: String? = nil, items: [AgentTrashRecord], undoneAt: Date? = nil) {
         self.id = id
         self.at = at
+        self.client = client
         self.items = items
         self.undoneAt = undoneAt
     }
@@ -569,7 +573,9 @@ public func agentPlan(paths: [String], humanOverride: Bool = false,
 ///
 /// trash 参数默认接 Core 唯一的删除路径 trashItem；自检注入假的搬法，
 /// 不往真实废纸篓里丢测试垃圾——真废纸篓的往返由 CLI 手测覆盖。
+/// client 记进操作日志，回答「这次是谁干的」：MCP 传客户端自报名字，终端保持默认。
 public func agentExecute(planId: String, index: VerdictIndex = .shared,
+                         client: String = "diskwise-cli",
                          trash: (URL) throws -> URL = trashItem) throws -> AgentResult {
     // plan_id 是我们自己签发的 UUID：带路径分隔符或向上的段一律当「不存在」，
     // 不给拼路径留缝（下面的 removeItem 只会碰自己签发、且解码合法的计划文件）
@@ -638,7 +644,7 @@ public func agentExecute(planId: String, index: VerdictIndex = .shared,
     }
     if !trashed.isEmpty {
         let opID = UUID().uuidString
-        try appendJSONL(AgentOperation(id: opID, at: Date(), items: trashed),
+        try appendJSONL(AgentOperation(id: opID, at: Date(), client: client, items: trashed),
                         to: agentOperationsFile())
         try? FileManager.default.removeItem(at: fileURL)   // 计划已消费
         return AgentResult(operationId: opID, trashed: trashed, failed: failed,
