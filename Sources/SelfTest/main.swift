@@ -1147,5 +1147,172 @@ let twoCaches = ScanProgress.labels(for: ["\(hm)/Library/Caches", "\(hm)/Caches"
 check(twoCaches == ["~/Library/Caches", "~/Caches"],
       "家目录里重名时补成从家目录起的两段（得 \(twoCaches)）")
 
+// 15. Agent 通道（AgentAPI）：判定管线 / 两步确认 / 执行重校验 / 撤销日志
+//     整节跑在假家目录里；移废纸篓走注入的假实现（搬进 /tmp 下的目录），
+//     不往真实 ~/.Trash 丢测试垃圾——真废纸篓的往返由 CLI 手测覆盖。
+//
+//     正文必须包在 detached 任务里：顶层代码一旦出现 await，main.swift 的顶层
+//     就变成 MainActor 异步函数，上面第 6/7/8…节沿用多年的 Task+semaphore
+//     模式会集体死锁（Task 转为继承 MainActor，而主线程正阻塞在 sem.wait 上）。
+//     保持顶层同步、async 正文挪进 detached 任务（落全局执行器），旧节原样不动。
+func agentSelfTest() async throws {
+    let aroot = fm.temporaryDirectory.appendingPathComponent("dwagent-\(UUID().uuidString)")
+    let ahome = aroot.appendingPathComponent("home")
+    func afile(_ rel: String) -> URL { ahome.appendingPathComponent(rel) }
+    // safe（whisper）/ redo（ollama）/ risky（Xcode 归档）各造一处，
+    // 外加知识库外的目录与认识位置内部的子路径
+    for rel in [".cache/whisper", ".ollama/models", "Library/Developer/Xcode/Archives",
+                "my-stuff", ".cache/whisper/inner"] {
+        try fm.createDirectory(at: afile(rel), withIntermediateDirectories: true)
+        try "payload".write(to: afile(rel).appendingPathComponent("model.bin"),
+                            atomically: true, encoding: .utf8)
+    }
+    try fm.createDirectory(at: afile("Documents"), withIntermediateDirectories: true)
+    // 对抗：软链指向 ~/Documents，试图借它搬走别处的东西
+    try fm.createSymbolicLink(atPath: afile("lnk").path,
+                              withDestinationPath: afile("Documents").path)
+
+    setenv("DISKWISE_HOME_SHIM", ahome.path, 1)
+    // 关键：判词索引必须在 setenv 之后建——.shared 在首次访问时已把 ~ 展开
+    // 到当时的家目录，假家目录下的路径只有「事后自建」的索引才认得
+    let aidx = VerdictIndex(entries: loadSafetyEntries(from: _dbURL))
+
+    // 15.1 判定管线的每条出口
+    let xp = await agentExplain(path: "~/.cache/whisper", index: aidx)
+    check(xp.agentMayTrash && xp.tier == "safe" && xp.exact && xp.refusal == nil,
+          "Agent：safe 条目本体可动（\(xp.refusal?.rawValue ?? "ok")）")
+    let inner = await agentExplain(path: "~/.cache/whisper/inner", index: aidx)
+    check(!inner.agentMayTrash && inner.refusal == .notAKnownLocation && inner.humanMayTrash,
+          "Agent：认识位置的子路径拒 not_a_known_location，--i-am-human 可动")
+    let rsky = await agentExplain(path: "~/Library/Developer/Xcode/Archives", index: aidx)
+    check(!rsky.agentMayTrash && !rsky.humanMayTrash && rsky.refusal == .mayLoseData,
+          "Agent：risky 条目人与 agent 都拒 may_lose_data")
+    let unk = await agentExplain(path: "~/my-stuff", index: aidx)
+    check(!unk.agentMayTrash && unk.refusal == .unknownToKnowledgeBase && unk.humanMayTrash,
+          "Agent：知识库外路径拒 unknown_to_knowledge_base")
+    let docs = await agentExplain(path: "~/Documents", index: aidx)
+    check(docs.refusal == .protected && !docs.agentMayTrash, "Agent：~/Documents 整体 protected")
+    let usr = await agentExplain(path: "/usr/local/x", index: aidx)
+    check(usr.refusal == .outsideAllowed,
+          "Agent：/usr/local/x 报 outside_allowed（不因不存在报 not_found）")
+    let miss = await agentExplain(path: "~/no-such-dir", index: aidx)
+    check(miss.refusal == .notFound, "Agent：家目录里不存在的路径 not_found")
+    let lnk = await agentExplain(path: "~/lnk", index: aidx)
+    check(lnk.refusal == .symlink, "Agent：指向 Documents 的软链拒 symlink")
+    let dotdot = await agentExplain(path: "~/.cache/../Documents", index: aidx)
+    check(dotdot.refusal == .protected, "Agent：.. 词法折叠后按真实位置判 protected")
+    let redo = await agentExplain(path: "~/.ollama/models", index: aidx)
+    check(redo.agentMayTrash && redo.tier == "redo",
+          "Agent：redo 条目（模型权重）可动但 tier 如实标注")
+
+    // 15.2 scan：与缓存页同一个宇宙，产出的路径天然 exact
+    let devScan = await agentScan(category: .dev, minBytes: 0, index: aidx)
+    check(devScan.contains { $0.path == afile(".cache/whisper").path && $0.agentMayTrash },
+          "Agent scan(dev) 含 whisper 且可动")
+    // 断言只限定假家目录内的结果：知识库里有绝对系统路径的条目（模拟器运行时
+    // 资产那类），scan 会在真机上如实解析出来并标 outside_allowed——那是产品
+    // 行为，不该让断言依赖这台机器上装没装模拟器
+    let devFake = devScan.filter { $0.path.hasPrefix(ahome.path) }
+    check(devFake.allSatisfy { $0.exact },
+          "Agent scan 的路径全是知识库条目本体（非 exact：\(devFake.filter { !$0.exact }.map(\.path))）")
+    check(devScan.filter { !$0.path.hasPrefix(ahome.path) }
+              .allSatisfy { !$0.agentMayTrash },
+          "Agent scan：家目录与临时区之外的位置（系统区的知识库条目）一律不可动")
+    let appsScan = await agentScan(category: .apps, index: aidx)
+    check(appsScan.allSatisfy { $0.path != afile(".cache/whisper").path },
+          "Agent scan(apps) 不含 dev 条目")
+
+    // 15.3 plan → execute → undo 全链路（trash 注入假实现）
+    let fakeTrashDir = aroot.appendingPathComponent("fake-trash")
+    func fakeTrash(_ u: URL) throws -> URL {
+        try fm.createDirectory(at: fakeTrashDir, withIntermediateDirectories: true)
+        let dst = fakeTrashDir.appendingPathComponent(u.lastPathComponent)
+        try fm.moveItem(at: u, to: dst)
+        return dst
+    }
+    let plan1 = try await agentPlan(paths: ["~/.cache/whisper"], index: aidx)
+    check(plan1.items.count == 1 && plan1.totalBytes > 0, "Agent plan：1 项、字节为实测值")
+    let res1 = try agentExecute(planId: plan1.planId, index: aidx, trash: fakeTrash)
+    check(res1.trashed.count == 1 && res1.failed.isEmpty, "Agent execute：搬走 1 项零失败")
+    check(!fm.fileExists(atPath: afile(".cache/whisper/model.bin").path), "Agent：原文件已不在原处")
+    check(fm.fileExists(atPath: fakeTrashDir.appendingPathComponent("whisper/model.bin").path),
+          "Agent：文件进了（假）废纸篓")
+    check(agentHistory(limit: 10).count == 1 && agentHistory(limit: 10)[0].undoneAt == nil,
+          "Agent：操作日志记了 1 笔且未撤销")
+    let undo1 = try agentUndo()
+    check(undo1.count == 1 && undo1[0].status == "restored", "Agent undo：恢复 1 项")
+    check(fm.fileExists(atPath: afile(".cache/whisper/model.bin").path), "Agent：文件回到原处")
+    check(agentHistory(limit: 10)[0].undoneAt != nil, "Agent：撤销标记回填且不改写原行")
+    check((try? agentUndo()) == nil, "Agent：没有可撤销的操作时抛 no_undoable_operation")
+
+    // 15.4 计划生成后调包成软链：该项拒绝、其余照做（部分成功语义）
+    let plan2 = try await agentPlan(paths: ["~/.cache/whisper", "~/.ollama/models"], index: aidx)
+    try fm.removeItem(at: afile(".ollama/models"))
+    try fm.createSymbolicLink(atPath: afile(".ollama/models").path,
+                              withDestinationPath: afile("Documents").path)
+    let res2 = try agentExecute(planId: plan2.planId, index: aidx, trash: fakeTrash)
+    check(res2.trashed.count == 1 && res2.failed.contains { $0.reason == "symlink" },
+          "Agent：调包成软链的项拒绝、其余照做（trashed=\(res2.trashed.map(\.original)) failed=\(res2.failed.map(\.reason))）")
+    _ = try agentUndo()
+
+    // 15.5 inode 绑定：路径还在、判词没变，但内容被原地换过
+    let plan3 = try await agentPlan(paths: ["~/.cache/whisper"], index: aidx)
+    try fm.removeItem(at: afile(".cache/whisper"))
+    try fm.createDirectory(at: afile(".cache/whisper"), withIntermediateDirectories: true)
+    try "other".write(to: afile(".cache/whisper/model.bin"), atomically: true, encoding: .utf8)
+    let res3 = try agentExecute(planId: plan3.planId, index: aidx, trash: fakeTrash)
+    check(res3.trashed.isEmpty && res3.failed.contains { $0.reason == "changed_since_plan" },
+          "Agent：原地换内容被 inode 绑定拦下")
+
+    // 15.6 过期与伪造：直接改计划文件的 expires_at（落盘结构是公开的磁盘格式）
+    let plan4 = try await agentPlan(paths: ["~/.cache/whisper"], index: aidx)
+    let plan4URL = agentPlansDir().appendingPathComponent("\(plan4.planId).json")
+    var rec4 = try JSONDecoder.agentAPI.decode(AgentPlanRecord.self,
+                                               from: Data(contentsOf: plan4URL))
+    rec4.expiresAt = Date().addingTimeInterval(-60)
+    try JSONEncoder.agentAPI.encode(rec4).write(to: plan4URL)
+    check((try? agentExecute(planId: plan4.planId, index: aidx, trash: fakeTrash)) == nil,
+          "Agent：过期计划抛 plan_expired")
+    check((try? agentExecute(planId: "not-a-plan", index: aidx, trash: fakeTrash)) == nil,
+          "Agent：伪造 plan_id 抛 plan_not_found")
+
+    // 15.7 条数上限：201 个可动位置一次 plan → plan_too_large
+    for k in 1...201 {
+        try fm.createDirectory(at: ahome.appendingPathComponent("bulk/t\(k)"),
+                               withIntermediateDirectories: true)
+    }
+    let bulkPaths = (1...201).map { "~/bulk/t\($0)" }
+    do {
+        _ = try await agentPlan(paths: bulkPaths, humanOverride: true, index: aidx)
+        check(false, "Agent：201 项计划应抛 plan_too_large")
+    } catch AgentAPIError.planTooLarge {
+        check(true, "Agent：201 项计划抛 plan_too_large")
+    } catch {
+        check(false, "Agent：201 项计划抛了别的错：\(error)")
+    }
+
+    // 15.8 废纸篓里已不在的项：gone_from_trash，不算失败也不挡其余
+    let plan5 = try await agentPlan(paths: ["~/.cache/whisper"], index: aidx)
+    _ = try agentExecute(planId: plan5.planId, index: aidx, trash: fakeTrash)
+    try fm.removeItem(at: fakeTrashDir.appendingPathComponent("whisper"))
+    let undo5 = try agentUndo()
+    check(undo5.count == 1 && undo5[0].status == "gone_from_trash",
+          "Agent：废纸篓里已不在报 gone_from_trash")
+
+    unsetenv("DISKWISE_HOME_SHIM")
+    try? fm.removeItem(at: aroot)
+}
+let agentDone = DispatchSemaphore(value: 0)
+Task.detached {
+    do {
+        try await agentSelfTest()
+    } catch {
+        check(false, "Agent 节自身抛错：\(error)")
+        unsetenv("DISKWISE_HOME_SHIM")
+    }
+    agentDone.signal()
+}
+agentDone.wait()
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

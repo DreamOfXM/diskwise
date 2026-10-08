@@ -27,6 +27,10 @@ public struct SafetyEntry: Decodable {
     /// （`~/Library/Developer/Xcode/**` 这类），行首那一格靠它挂 App 图标。
     /// 商店版签名带 team 前缀的 App（钉钉那种）不填——对不上就不对，宁可不挂。
     public var app: String?
+    /// 跨分组的横向标签（如 ai_models）：grp 是缓存页的展示分组，tags 是
+    /// 「同一类东西跨 grp 归拢」的查询口径，CLI/MCP 的 --category 按它筛。
+    /// 旧条目没有它，解码按缺省处理，不影响已有知识库。
+    public var tags: [String]?
     /// 官方品牌标的文件名（不带扩展名）。
     ///
     /// 给那些**没有 .app 可查**的工具：`~/.ollama/models`、`~/.cache/uv` 这类只有命令行，
@@ -35,7 +39,7 @@ public struct SafetyEntry: Decodable {
     public var icon: String?
 
     private enum CodingKeys: String, CodingKey {
-        case name, what, whatif, rec, path, level, cost, grp, docs, app, icon
+        case name, what, whatif, rec, path, level, cost, grp, docs, app, icon, tags
     }
 
     public init(from decoder: Decoder) throws {
@@ -51,6 +55,7 @@ public struct SafetyEntry: Decodable {
         docs = try? c.decode(String.self, forKey: .docs)
         app = try? c.decode(String.self, forKey: .app)
         icon = try? c.decode(String.self, forKey: .icon)
+        tags = try? c.decode([String].self, forKey: .tags)
     }
 }
 
