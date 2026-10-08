@@ -1,7 +1,7 @@
 {
-  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/cost(只在 warn 上写：redo＝删了重新下载或重装就能回来 | data＝删了就真没了，重下也回不来)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
+  "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/cost(只在 warn 上写：redo＝删了重新下载或重装就能回来 | data＝删了就真没了，重下也回不来)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/tags(可选,跨分组标签,如 ai_models:CLI 的 --category 按它筛)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-10-01",
+  "updated": "2026-10-08",
   "entries": [
     {
       "name": "ChatGPT 桌面版崩溃转储",
@@ -435,7 +435,10 @@
       "cost": "redo",
       "grp": "dev",
       "icon": "ollama",
-      "docs": "https://docs.ollama.com/"
+      "docs": "https://docs.ollama.com/",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "uv 下载缓存",
@@ -492,7 +495,10 @@
       "cost": "redo",
       "grp": "dev",
       "icon": "huggingface",
-      "docs": "https://huggingface.co/docs/huggingface_hub/guides/manage-cache"
+      "docs": "https://huggingface.co/docs/huggingface_hub/guides/manage-cache",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Whisper 模型缓存",
@@ -503,7 +509,10 @@
       "level": "safe",
       "grp": "dev",
       "icon": "openai",
-      "docs": "https://github.com/openai/whisper"
+      "docs": "https://github.com/openai/whisper",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "cargo 注册表",
@@ -626,7 +635,10 @@
       "level": "warn",
       "cost": "redo",
       "grp": "dev",
-      "app": "app.omlx"
+      "app": "app.omlx",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "OrbStack 虚拟机磁盘",
@@ -691,6 +703,103 @@
       "level": "warn",
       "cost": "data",
       "grp": "dev"
+    },
+    {
+      "name": "LM Studio 模型",
+      "what": "LM Studio 下载到本地的模型权重，单个模型常常几个 GB",
+      "whatif": "删掉的模型要重新下载才能再用",
+      "rec": "无需恢复；在 LM Studio 里重新下载即可",
+      "path": "~/.lmstudio/models",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://lmstudio.ai/docs"
+    },
+    {
+      "name": "Jan 模型",
+      "what": "Jan 下载到本地的模型权重，存放在它的数据目录里",
+      "whatif": "删掉的模型要重新下载才能再用，对话记录不受影响",
+      "rec": "无需恢复；在 Jan 的模型页重新下载",
+      "path": "~/Library/Application Support/Jan/data/models",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://jan.ai/docs"
+    },
+    {
+      "name": "GPT4All 模型",
+      "what": "GPT4All 下载到本地的模型权重，主要是 GGUF 格式",
+      "whatif": "删掉的模型要重新下载才能再用",
+      "rec": "无需恢复；在 GPT4All 的下载页重新获取",
+      "path": "~/Library/Application Support/nomic.ai/GPT4All",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://docs.gpt4all.io/"
+    },
+    {
+      "name": "Draw Things 模型",
+      "what": "Draw Things 下载的生图模型，住在它的沙盒容器里",
+      "whatif": "删掉的模型要重新下载才能再用，作品不受影响",
+      "rec": "无需恢复；在 Draw Things 的模型页重新下载",
+      "path": "~/Library/Containers/com.liuliu.draw-things/Data/Documents/Models",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://drawthings.ai/"
+    },
+    {
+      "name": "DiffusionBee 模型",
+      "what": "DiffusionBee 下载的 Stable Diffusion 模型文件",
+      "whatif": "删掉的模型要重新下载才能再用",
+      "rec": "无需恢复；在 DiffusionBee 里重新下载",
+      "path": "~/.diffusionbee/downloads",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://diffusionbee.com/"
+    },
+    {
+      "name": "llama.cpp 模型缓存",
+      "what": "llama-run 等命令下载的 GGUF 模型，默认放在用户缓存目录",
+      "whatif": "删掉的模型下次运行时要重新下载",
+      "rec": "无需恢复；llama-run 会按需重新下载",
+      "path": "~/.cache/llama.cpp",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://github.com/ggml-org/llama.cpp"
+    },
+    {
+      "name": "PyTorch Hub 缓存",
+      "what": "torch.hub 下载的预训练模型与代码",
+      "whatif": "删掉后下次加载同个模型会重新下载",
+      "rec": "无需恢复；torch.hub.load 会自动重新下载",
+      "path": "~/.cache/torch",
+      "level": "safe",
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ],
+      "docs": "https://pytorch.org/docs/stable/hub.html"
     }
   ]
 }
