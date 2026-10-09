@@ -120,7 +120,7 @@ public struct AgentTrashRecord: Codable {
         case bytes, name
     }
 
-    init(original: String, inTrash: String, bytes: Int64, name: String?) {
+    public init(original: String, inTrash: String, bytes: Int64, name: String?) {
         self.original = original
         self.inTrash = inTrash
         self.bytes = bytes
@@ -154,6 +154,14 @@ public struct AgentUndoStatus: Codable {
     /// restored | gone_from_trash | failed
     public let status: String
     public let detail: String?
+
+    /// 公开给自检：`agentUndoTally` 吃的是这一叠回执，而 SelfTest 只连得到本模块，
+    /// 造不出回执就验不了「三档各几个」那笔账。
+    public init(path: String, status: String, detail: String? = nil) {
+        self.path = path
+        self.status = status
+        self.detail = detail
+    }
 }
 
 public struct AgentOperation: Codable {
@@ -171,7 +179,7 @@ public struct AgentOperation: Codable {
         case undoneAt = "undone_at"
     }
 
-    init(id: String, at: Date, client: String? = nil, items: [AgentTrashRecord], undoneAt: Date? = nil) {
+    public init(id: String, at: Date, client: String? = nil, items: [AgentTrashRecord], undoneAt: Date? = nil) {
         self.id = id
         self.at = at
         self.client = client
@@ -397,7 +405,11 @@ func readAgentOperations() -> [AgentOperation] {
     }
     return ops.map { o in
         o.undoneAt == nil && undone[o.id] != nil
-            ? AgentOperation(id: o.id, at: o.at, items: o.items, undoneAt: undone[o.id])
+            // client 必须一起带上：漏了它，撤销过的行就在页面上变成「未知来源」，
+            // 而日志里那个自报名字好端端地躺着（AgentAPI 上面对这个字段的说明就是
+            // 「旧行才需要当未知来源」）。
+            ? AgentOperation(id: o.id, at: o.at, client: o.client,
+                             items: o.items, undoneAt: undone[o.id])
             : o
     }
 }

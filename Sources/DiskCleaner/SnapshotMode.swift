@@ -237,6 +237,7 @@ enum SnapshotMode {
     /// 展开态是行自己的状态，批量拍图这一路没有键鼠点不到那颗箭头，
     /// 所以由视图自己置位——改的是同一个 `expanded`，不是另画一张展开样。
     /// 只摊第一行：整列都摊开的话这一屏只剩明细，拍不到列表本身长什么样。
+    /// AI Agent 页认的是同一颗旋钮，摊开最近那一次操作（那里第一行＝最新一笔）。
     static var expandFirstRow: Bool {
         (ProcessInfo.processInfo.environment["DISKWISE_EXPAND"] ?? "") == "1"
     }
@@ -321,6 +322,11 @@ enum SnapshotMode {
         (.feedback, "13-feedback", 2, 8),
         (.folderDrill, "14-folder-drill", 6, 60),
         (.menuLaunch, "15-menu-launch", 2, 8),
+        // AI Agent 页不扫盘：账全从操作日志读，几毫秒就落地。日志读的是 `agentStateDir()`，
+        // 也就是 `DISKWISE_HOME_SHIM` 那棵假家目录底下——要图里有行，就先在
+        // 「<假家目录>/Library/Application Support/DiskWise/agent/operations.jsonl」造几笔；
+        // 没造就拍到「还没有 agent 操作过」那一态，那也是一张要留档的图。
+        (.agent, "16-agent", 2, 8),
     ]
 
     /// DISKWISE_PICK=dup,caches：这些页各补两张——按一次底部清理条的「全选」，再按一次

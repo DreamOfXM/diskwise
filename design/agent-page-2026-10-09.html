@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DiskWise · AI Agent 页样稿（现有皮肤）· 2026-10-09</title>
+<style>
+/* 令牌全部取自 Sources/DiskCleaner/Theme/SkinCatalog.swift 的 builtIn 皮肤，
+   尺寸按 docs/screenshots/zh/07-dev-cache.png 反推（1500px 图 / 1280pt 窗 = 1.172）。
+   这一稿不引入任何新形状语言：卡片 12、控件 9、图标块 8、行高 40。 */
+:root{
+  --paper:#F6F7F9; --surface:#FFFFFF; --surfaceAlt:#F1F3F6; --content:#FCFCFD;
+  --ink:#14161A; --ink2:#5A616C; --ink3:#8A919E; --sep:#E3E6EB;
+  --tint:#2A62D6; --onTint:#fff; --tintSoft:#E8EFFC;
+  --danger:#D0342C; --safeBG:#E4F5EA; --safeFG:#1B6B3A; --warnBG:#FDF0DC; --warnFG:#8A4B08;
+  --shadow:0 1px 2px rgba(26,34,51,.08), 0 6px 18px rgba(26,34,51,.06);
+  --f:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",sans-serif;
+  --m:ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#E9EBEF;font-family:var(--f);color:var(--ink);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1360px;margin:0 auto;padding:34px 20px 90px}
+.intro{background:#fff;border-radius:14px;padding:22px 26px;box-shadow:var(--shadow);margin-bottom:30px}
+.intro h1{font-size:21px;font-weight:600;letter-spacing:-.2px}
+.intro p{font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.75}
+.intro b{color:var(--ink)}
+.shot{margin-bottom:34px}
+.cap{display:flex;align-items:baseline;gap:10px;margin:0 2px 10px}
+.cap .no{font:600 12px/1 var(--m);color:#fff;background:var(--ink);border-radius:5px;padding:5px 7px}
+.cap .t{font-size:14px;font-weight:600}
+.cap .d{font-size:12px;color:var(--ink3)}
+.frame{width:1280px;height:820px;min-height:0;background:var(--content);border-radius:11px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(20,22,26,.10),0 18px 46px rgba(26,34,51,.16);
+  display:flex;position:relative;zoom:1}
+.stage{width:1280px;flex:none;position:relative;overflow:hidden;display:flex}
+.frame.board,.frame.board .stage{height:auto}
+.zoomable{cursor:zoom-in}
+
+/* ── 窗口 chrome ── */
+.sidebar{width:232px;flex:none;background:rgba(246,247,249,.93);border-right:1px solid var(--sep);
+  display:flex;flex-direction:column}
+.chrome{height:38px;flex:none;display:flex;align-items:center;padding:0 12px;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.r{background:#EC6A5F}.dot.y{background:#F4BF4F}.dot.g{background:#61C554}
+.side-scroll{flex:1;overflow:hidden;padding:0 8px}
+.grp{font-size:10px;font-weight:600;letter-spacing:.6px;color:var(--ink3);padding:14px 8px 4px}
+.row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:9px;height:34px;
+  font-size:11px;color:var(--ink);position:relative}
+.row .tile{width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center}
+.row .tile svg{width:12px;height:12px}
+.row .nm{flex:1;white-space:nowrap;overflow:hidden}
+.row .amt{font:10px/1 var(--m);color:var(--ink3);font-variant-numeric:tabular-nums}
+.row.sel{background:var(--tintSoft);font-weight:600}
+.row.sel .amt{color:var(--ink2)}
+.row.sel::before{content:"";position:absolute;left:-1px;top:5px;bottom:5px;width:3px;border-radius:3px;background:var(--tint)}
+.newbdg{font-size:9px;font-weight:600;line-height:1;padding:3px 5px;border-radius:5px;
+  background:#fff;border:1px solid rgba(42,98,214,.32);color:var(--tint);letter-spacing:.3px}
+.side-foot{flex:none;padding:12px;font-size:10px;color:var(--ink3);border-top:1px solid var(--sep);text-align:center}
+
+/* ── 主区 ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.titlebar{height:38px;flex:none;display:flex;align-items:center;gap:9px;padding:0 14px;
+  border-bottom:1px solid rgba(227,230,235,.7);font-size:11px;color:var(--ink2)}
+.titlebar .vol{font-weight:600;color:var(--ink)}
+.titlebar .bar{width:96px;height:5px;border-radius:3px;background:var(--sep);overflow:hidden}
+.titlebar .bar i{display:block;height:100%;width:78%;background:var(--ink3)}
+.body{flex:1;overflow:hidden;padding:16px 22px 0}
+.phead{display:flex;align-items:flex-start;gap:14px;padding-bottom:14px}
+.phead .tile{width:46px;height:46px;border-radius:10px;background:var(--tint);color:var(--onTint);
+  flex:none;display:grid;place-items:center}
+.phead .tile svg{width:24px;height:24px}
+.phead h2{font-size:22px;font-weight:600;letter-spacing:-.2px;line-height:1.15}
+.phead .sub{font-size:11px;color:var(--ink2);margin-top:4px;line-height:1.5}
+.phead .sub code{font-family:var(--m);font-size:10.5px;background:rgba(20,22,26,.06);padding:1px 5px;border-radius:5px}
+.bdgright{margin-left:auto;flex:none;padding-top:6px}
+.bdg{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;
+  padding:5px 9px;border-radius:20px;background:var(--tintSoft);color:var(--tint)}
+.bdg::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--tint)}
+.bdg.off{background:var(--surfaceAlt);color:var(--ink3)}
+.bdg.off::before{background:var(--ink3)}
+.bdg.warn{background:var(--warnBG);color:var(--warnFG)}
+.bdg.warn::before{background:var(--warnFG)}
+
+.card{background:var(--surface);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px}
+.card > h3{font-size:13px;font-weight:600;letter-spacing:-.1px;padding:14px 16px 0;display:flex;align-items:center;gap:8px}
+.card > h3 .hint{font-weight:400;font-size:10.5px;color:var(--ink3)}
+.card > h3 .sp{margin-left:auto;font-weight:400;font-size:10.5px;color:var(--ink3)}
+.pad{padding:12px 16px 14px}
+
+.cmd{display:flex;align-items:center;gap:10px;background:var(--surfaceAlt);border:1px solid var(--sep);
+  border-radius:9px;padding:9px 10px;margin:12px 16px 0}
+.cmd code{font-family:var(--m);font-size:10.5px;color:var(--ink);flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd.warn{background:var(--warnBG);border-color:rgba(138,75,8,.24)}
+.cmd.warn code{color:#3A2A00}
+.cmd.off{background:var(--surfaceAlt);border-style:dashed}
+.cmd.off code{color:var(--ink3)}
+.flag{display:flex;gap:7px;align-items:flex-start;margin:9px 16px 0;font-size:10px;line-height:1.6;
+  color:var(--warnFG)}
+.flag .fdot{width:13px;height:13px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:8px;font-weight:700;background:var(--warnFG);color:#fff;margin-top:1px}
+.flag code{font-family:var(--m);font-size:9.5px;background:rgba(138,75,8,.10);padding:1px 4px;border-radius:4px}
+.btn{font-size:10.5px;font-weight:500;border:1px solid var(--sep);background:#fff;color:var(--ink);
+  border-radius:8px;padding:5px 10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn.prim{background:var(--tint);border-color:var(--tint);color:#fff}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--tint)}
+.btn.dis{opacity:.42}
+.term{margin:10px 16px 0;background:#17191F;border-radius:9px;padding:11px 13px;font-family:var(--m);font-size:10px;line-height:1.72;color:#D6DAE3}
+.term .u{color:#7FB2FF}
+.term .tool{color:#C9A6FF}
+.term .dim{color:#7B828F}
+.term .ok{color:#5FD08A}
+.term .no{color:#FF9E8A}
+.note{font-size:10px;color:var(--ink3);padding:10px 16px 14px;line-height:1.6;overflow-wrap:anywhere}
+.note code{font-family:var(--m);font-size:9.5px;background:rgba(20,22,26,.05);padding:1px 4px;border-radius:4px}
+
+/* 操作记录 */
+.op{display:flex;align-items:center;gap:11px;padding:11px 16px;border-top:1px solid var(--sep)}
+.op:first-of-type{border-top:none}
+.op .av{width:26px;height:26px;border-radius:7px;flex:none;display:grid;place-items:center;
+  font:600 11px/1 var(--m)}
+.op .txt{flex:1;min-width:0}
+.op .t1{font-size:11.5px;font-weight:600;overflow-wrap:anywhere}
+.op .t1 .cnt{font-weight:400;color:var(--ink2)}
+.op .t2{font-size:10px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op .t2 .p{font-family:var(--m)}
+.op .rt{display:flex;align-items:center;gap:10px;flex:none}
+.op .z{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.op .z i{font-size:9.5px;font-style:normal;color:var(--ink3);margin-left:2px;font-weight:400}
+.op.blocked .z{font-size:11px;font-weight:500;color:var(--ink3)}
+.pill{font-size:9.5px;font-weight:600;padding:3px 7px;border-radius:20px}
+.pill.safe{background:var(--safeBG);color:var(--safeFG)}
+.pill.dang{background:#FBE7E5;color:var(--danger)}
+.pill.undone{background:var(--surfaceAlt);color:var(--ink3)}
+
+/* 记录卡顶部的累计行（空态整行不渲染） */
+.agg{display:flex;align-items:baseline;gap:7px;padding:10px 16px;border-top:1px solid var(--sep);
+  font-size:10.5px;color:var(--ink2)}
+.agg b{font-size:12.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.agg .sep{color:var(--sep)}
+.agg .sp{margin-left:auto;font:10px/1 var(--m);color:var(--ink3)}
+/* 展开后的逐项明细：路径能直接在 Finder 里选中 */
+.op .chev{width:13px;flex:none;display:grid;place-items:center;color:var(--ink3);font-size:9px;margin-right:-4px}
+.items{padding:0 16px 10px 53px;border-top:1px solid var(--sep);background:var(--content)}
+.it{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:10px;color:var(--ink2)}
+.it .p{font-family:var(--m);font-size:10px;color:var(--ink);border-bottom:1px dashed rgba(42,98,214,.45);
+  cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .sz{margin-left:auto;font:10px/1 var(--m);color:var(--ink3);font-variant-numeric:tabular-nums;flex:none}
+.it .reveal{flex:none;font-size:9.5px;color:var(--tint);white-space:nowrap}
+
+/* 空态 */
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:34px 20px 30px}
+.empty .tile{width:44px;height:44px;border-radius:11px;background:var(--surfaceAlt);color:var(--ink3);display:grid;place-items:center}
+.empty .tile svg{width:21px;height:21px;opacity:.75}
+.empty h4{font-size:13px;font-weight:600;margin-top:12px}
+.empty p{font-size:11px;color:var(--ink2);margin-top:5px;line-height:1.7;max-width:430px}
+.empty p code{font-family:var(--m);font-size:10.5px;background:rgba(20,22,26,.06);padding:1px 5px;border-radius:5px}
+
+/* 底部条 */
+.dock{flex:none;margin:0 22px 16px;background:rgba(255,255,255,.92);border:1px solid var(--sep);
+  border-radius:12px;box-shadow:var(--shadow);padding:10px 14px;display:flex;align-items:center;gap:12px}
+.dock .k{font-size:10px;color:var(--ink3)}
+.dock .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.dock .v i{font-size:10px;font-style:normal;color:var(--ink3);font-weight:400;margin-left:2px}
+.dock .sp{margin-left:auto}
+
+/* toast */
+.toast{position:absolute;right:26px;bottom:88px;background:#17191F;color:#fff;border-radius:9px;
+  padding:9px 12px;font-size:11px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 26px rgba(20,22,26,.28)}
+.toast .ic{width:15px;height:15px;border-radius:50%;display:grid;place-items:center;font-size:9px;flex:none}
+.toast .ic.ok{background:#5FD08A;color:#0B2416}
+.toast .ic.warn{background:#F4BF4F;color:#3A2A00}
+
+/* 对比屏 */
+.compare{flex:1;padding:26px;display:flex;gap:26px;align-items:flex-start}
+.opt{width:250px;flex:none}
+.opt .hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.opt .hd .lt{font:600 12px/1 var(--m);color:#fff;background:var(--ink);border-radius:5px;padding:5px 7px}
+.opt .hd .tt{font-size:14px;font-weight:600}
+.mini{width:232px;background:rgba(246,247,249,.93);border:1px solid var(--sep);border-radius:11px;
+  padding:6px 8px 10px;box-shadow:var(--shadow)}
+.why{font-size:11px;color:var(--ink2);line-height:1.75;margin-top:12px;width:232px}
+.why b{color:var(--ink)}
+.vs{align-self:center;font:600 12px/1 var(--m);color:var(--ink3)}
+
+/* 状态屏：两栏 */
+.states{flex:1;padding:24px 26px 26px;display:flex;flex-direction:column;gap:22px}
+.states > div{min-width:0}
+.states .row2{display:flex;gap:14px;align-items:flex-start}
+.states .row2 > div{flex:1;min-width:0}
+.states h3{font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:8px;display:flex;gap:7px;align-items:center}
+.states h3 .n{font:600 10px/1 var(--m);color:#fff;background:var(--ink3);border-radius:4px;padding:3px 5px}
+
+/* 只留一屏（渲染导出用） */
+body.only .intro,body.only .cap,body.only .hint2{display:none}
+body.only .shot{display:none;margin:0}
+body.only .shot.on{display:block}
+body.only{background:transparent;padding:0}
+body.only .wrap{padding:0;margin:0;max-width:none}
+body.only .frame{box-shadow:none;border-radius:0}
+
+/* 点开放大 */
+.lb{position:fixed;inset:0;background:rgba(10,12,16,.72);display:none;z-index:50;overflow:auto;cursor:zoom-out}
+.lb.on{display:block}
+.lb .inner{padding:26px}
+.lb img{display:block;zoom:2;transform-origin:top left;background:#fff;border-radius:11px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--ink3);
+  border:1px solid var(--sep);border-radius:5px;padding:3px 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="intro">
+  <h1>AI Agent 页 · 现有皮肤 · 五屏（定稿）</h1>
+  <p>
+    对应 <b>plans/plan_2026-10-09_agent-page-in-app.md</b>。整套换肤稿（redesign v1–v7）不落地，
+    这里只画新增的那一屏：令牌取自 <b>SkinCatalog.swift</b> 的 builtIn 皮肤（卡片 12 / 控件 9 / 图标块 8 圆角，
+    主色 #2A62D6，纸面 #F6F7F9），字号按 <b>docs/screenshots/zh/07-dev-cache.png</b> 反推，
+    所以和现在 App 里任何一页并排放不会对不上。点每张图可放大到 200% 看细节。
+  </p>
+  <p class="hint2"><span class="badge">① 主屏</span> <span class="badge">② 侧栏位置（已定 A）</span> <span class="badge">③ 空态</span> <span class="badge">④ 撤销反馈</span> <span class="badge">⑤ 三种降级/明细态</span></p>
+  <p class="hint2">10-09 第一轮复核：右上徽章只断言得了的「本包已带 CLI」；「被拦住」那一栏移出本期，只在 ④ 的 c 段留作说明。</p>
+  <p class="hint2">10-09 第二轮（本页已按此定稿）：<b>1</b> 徽章与命令行的显示条件改成运行时实测包里有没有
+    <code>Contents/MacOS/diskwise</code>（渠道判断一旦和打包不一致，页面就在撒谎）；<b>2</b> App 不在
+    <code>/Applications</code> 时那行命令转警示态；<b>3</b> 撤销写死<b>整单</b>，不给单项按钮；
+    <b>4</b> 每次切回本页重读日志 + 一颗「刷新」；<b>5</b> 展开后每个路径都能在 Finder 里选中，撤不回来时给「打开废纸篓」；
+    <b>6</b> 记录卡顶部一行累计（措辞只能是「移入废纸篓」，已放回的不重复计）；<b>7</b> 侧栏那颗「新」角标<b>看过一次就永久收起</b>。</p>
+</div>
+
+<!-- ① 主屏 -->
+<div class="shot" data-shot="1">
+  <div class="cap"><span class="no">01</span><span class="t">主屏：直装版，已有 agent 操作</span><span class="d">三块自上而下，单列，不新开皮肤</span></div>
+  <div class="frame zoomable"><div class="stage">
+    <div class="sidebar">
+      <div class="chrome"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i></div>
+      <div class="side-scroll">
+        <div class="grp">看清空间</div>
+        <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">◎</span><span class="nm">空间总览</span></div>
+        <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">▤</span><span class="nm">大文件</span></div>
+        <div class="row"><span class="tile" style="background:rgba(123,79,201,.14);color:#7B4FC9">◷</span><span class="nm">很久没动</span></div>
+        <div class="row"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76">▣</span><span class="nm">重复文件</span><span class="amt">3.8 GB</span></div>
+        <div class="grp">开发机专项</div>
+        <div class="row"><span class="tile" style="background:rgba(24,136,79,.14);color:#18884F">⬡</span><span class="nm">node_modules</span></div>
+        <div class="row"><span class="tile" style="background:rgba(14,143,168,.14);color:#0E8FA8">⬢</span><span class="nm">Docker 占用</span></div>
+        <div class="row"><span class="tile" style="background:rgba(184,134,11,.14);color:#B8860B">⚒</span><span class="nm">开发缓存</span><span class="amt">18.7 GB</span></div>
+        <div class="grp">清理</div>
+        <div class="row"><span class="tile" style="background:rgba(200,55,45,.14);color:#C8372D">✦</span><span class="nm">应用缓存</span><span class="amt">5.4 GB</span></div>
+        <div class="row"><span class="tile" style="background:rgba(91,100,114,.14);color:#5B6472">▢</span><span class="nm">卸载残留</span></div>
+        <div class="row"><span class="tile" style="background:rgba(14,143,121,.14);color:#0E8F79"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.2h10M6.2 4.2V2.8h3.6v1.4M4.4 4.2l.7 8.4h5.8l.7-8.4M6.6 6.6v3.6M9.4 6.6v3.6"/></svg></span><span class="nm">废纸篓</span></div>
+        <div class="grp">AI</div>
+        <div class="row sel"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span><span class="nm">AI Agent</span><span class="newbdg">新</span></div>
+        <div class="grp">设置</div>
+        <div class="row"><span class="tile" style="background:rgba(110,123,47,.14);color:#6E7B2F">◐</span><span class="nm">外观皮肤</span></div>
+        <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">✉</span><span class="nm">问题反馈</span></div>
+        <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">⚙</span><span class="nm">菜单栏与启动</span></div>
+      </div>
+      <div class="side-foot">DiskWise v1.8</div>
+    </div>
+
+    <div class="main">
+      <div class="titlebar"><span class="vol">Macintosh HD</span><span class="bar"><i></i></span><span>可用 486.2 GB</span></div>
+      <div class="body">
+        <div class="phead">
+          <span class="tile"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span>
+          <div>
+            <h2>AI Agent</h2>
+            <div class="sub">让 AI 帮你清 Mac —— 它不能 <code>rm -rf</code>，只能把认得的东西移进废纸篓</div>
+          </div>
+          <div class="bdgright"><span class="bdg">本包已带 CLI</span></div>
+        </div>
+
+        <div class="card">
+          <h3>怎么接<span class="hint">把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账</span><span class="sp">这一行只在包里真有 CLI 时出现</span></h3>
+          <div class="cmd"><code>claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp</code><span class="btn">⧉ 复制</span></div>
+          <div class="term">
+            <div><span class="u">›</span> 看看我的 Mac 哪里能清</div>
+            <div><span class="dim">⏺</span> <span class="tool">diskwise · scan_disk</span>(category: "all")</div>
+            <div class="dim">&nbsp;&nbsp;总共 30 处 · agent 能动 23 处，合计约 57.7 GB</div>
+            <div class="no">&nbsp;&nbsp;iOS 模拟器运行时 16.6 GB 在系统区，outside_allowed，我不会动</div>
+            <div><span class="u">›</span> 把 Ollama 和 oMLX 的模型清了吧</div>
+            <div><span class="dim">⏺</span> <span class="tool">plan_cleanup</span> → 计划已生成，2 项合计 31.4 GB，进废纸篓。确认执行吗？</div>
+            <div><span class="u">›</span> 可以</div>
+            <div><span class="dim">⏺</span> <span class="tool">execute_cleanup</span> <span class="ok">✓ 31.4 GB 已移入废纸篓，可整单撤销</span></div>
+          </div>
+          <div class="note" style="padding-bottom:0">这条命令显示与否，按运行时实测 <code>Bundle.main.bundlePath</code> 下有没有那个文件决定，不按编译期渠道猜；路径同样现拼。用 Homebrew 装的用户把路径换成 <code>/opt/homebrew/bin/diskwise</code>。包里没带 CLI、或 App 不是从「应用程序」里跑的，见 ⑤ 的两块警示态。</div>
+          <div class="note">Cursor、Codex 的配置片段见 <code>docs/AGENTS-CLI.md</code>。两步确认：没有 <code>plan_id</code> 一步都动不了，执行前逐项重跑判定并核对 inode。</div>
+        </div>
+
+        <div class="card">
+          <h3>Agent 操作记录<span class="sp">读 operations.jsonl · 切回本页自动重读 · 点行首展开逐项</span></h3>
+          <div class="agg"><b>4</b> 次操作 · <b>9</b> 项 · 共 <b>50.7</b> GB 移入废纸篓 <span class="sep">|</span> 其中 6.3 GB 已放回 <span class="sp"><span class="btn ghost">↻ 刷新</span></span></div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(201,63,118,.12);color:#C93F76">C</span>
+            <span class="txt"><span class="t1">Claude Code <span class="cnt">· 2 项</span></span>
+              <span class="t2">今天 14:32 · <span class="p">~/.ollama/models</span> 17.7 GB · <span class="p">~/.omlx/models</span> 13.7 GB</span></span>
+            <span class="rt"><span class="z">31.4<i>GB</i></span><span class="btn">整单撤销</span></span>
+          </div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(42,98,214,.12);color:#2A62D6">▸</span>
+            <span class="txt"><span class="t1">Cursor <span class="cnt">· 1 项</span></span>
+              <span class="t2">昨天 09:10 · <span class="p">~/.npm</span></span></span>
+            <span class="rt"><span class="z">1.8<i>GB</i></span><span class="btn">整单撤销</span></span>
+          </div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(24,136,79,.12);color:#18884F">$</span>
+            <span class="txt"><span class="t1">diskwise CLI <span class="cnt">· 5 项</span></span>
+              <span class="t2">10 月 6 日 21:44 · <span class="p">~/Library/pnpm/store</span> · <span class="p">~/Library/Caches/JetBrains</span> 等 3 项</span></span>
+            <span class="rt"><span class="z">11.2<i>GB</i></span><span class="btn">整单撤销</span></span>
+          </div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(138,145,158,.14);color:#8A919E">?</span>
+            <span class="txt"><span class="t1">未知来源 <span class="cnt">· 1 项</span> <span class="pill undone">已撤销</span></span>
+              <span class="t2">10 月 3 日 08:02 · <span class="p">~/.gradle/caches</span> · 旧日志行没有 client 字段</span></span>
+            <span class="rt"><span class="z" style="color:var(--ink3)">6.3<i>GB</i></span><span class="btn dis">已放回</span></span>
+          </div>
+          <div class="note" style="border-top:1px solid var(--sep);padding:9px 16px 10px">清空废纸篓后记录仍在，撤销会告诉你撤不回来，不静默跳过。已放回的那一行不消失，也永远不能再点（<code>agentUndo</code> 只认未撤销的操作）。被 agent 拦下的尝试不在这里 —— 账本只记真搬成了的操作，被拒的 agent 会在对话里当场报给你。</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ② 侧栏位置 -->
+<div class="shot" data-shot="2">
+  <div class="cap"><span class="no">02</span><span class="t">侧栏位置：已定 A</span><span class="d">B 与第三条路留档，本轮不再重开</span></div>
+  <div class="frame board zoomable"><div class="stage" style="background:var(--content)">
+    <div class="compare">
+      <div class="opt">
+        <div class="hd"><span class="lt" style="background:var(--tint)">A</span><span class="tt">AI 组在「设置」之前 · 采用</span></div>
+        <div class="mini">
+          <div class="grp" style="padding-top:8px">清理</div>
+          <div class="row"><span class="tile" style="background:rgba(200,55,45,.14);color:#C8372D">✦</span><span class="nm">应用缓存</span><span class="amt">5.4 GB</span></div>
+          <div class="row"><span class="tile" style="background:rgba(91,100,114,.14);color:#5B6472">▢</span><span class="nm">卸载残留</span></div>
+          <div class="row"><span class="tile" style="background:rgba(14,143,121,.14);color:#0E8F79"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.2h10M6.2 4.2V2.8h3.6v1.4M4.4 4.2l.7 8.4h5.8l.7-8.4M6.6 6.6v3.6M9.4 6.6v3.6"/></svg></span><span class="nm">废纸篓</span></div>
+          <div class="grp">AI</div>
+          <div class="row sel"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span><span class="nm">AI Agent</span><span class="newbdg">新</span></div>
+          <div class="grp">设置</div>
+          <div class="row"><span class="tile" style="background:rgba(110,123,47,.14);color:#6E7B2F">◐</span><span class="nm">外观皮肤</span></div>
+          <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">✉</span><span class="nm">问题反馈</span></div>
+          <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">⚙</span><span class="nm">菜单栏与启动</span></div>
+        </div>
+        <div class="why"><b>读法</b>：上面三组都是「用 App 做事」，最后那组是「调 App 本身」。新能力跟着做事那一堆走，⌘, 的落点不变。<br><b>那颗「新」</b>：用户第一次进这一页就永久收起（存一个本地 flag），不做「N 天后自己消失」那套时间逻辑。</div>
+      </div>
+      <div class="vs">vs</div>
+      <div class="opt" style="opacity:.55">
+        <div class="hd"><span class="lt" style="background:var(--ink3)">已否</span><span class="tt">AI 组压在最底</span></div>
+        <div class="mini">
+          <div class="grp" style="padding-top:8px">清理</div>
+          <div class="row"><span class="tile" style="background:rgba(200,55,45,.14);color:#C8372D">✦</span><span class="nm">应用缓存</span><span class="amt">5.4 GB</span></div>
+          <div class="row"><span class="tile" style="background:rgba(91,100,114,.14);color:#5B6472">▢</span><span class="nm">卸载残留</span></div>
+          <div class="row"><span class="tile" style="background:rgba(14,143,121,.14);color:#0E8F79"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.2h10M6.2 4.2V2.8h3.6v1.4M4.4 4.2l.7 8.4h5.8l.7-8.4M6.6 6.6v3.6M9.4 6.6v3.6"/></svg></span><span class="nm">废纸篓</span></div>
+          <div class="grp">设置</div>
+          <div class="row"><span class="tile" style="background:rgba(110,123,47,.14);color:#6E7B2F">◐</span><span class="nm">外观皮肤</span></div>
+          <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">✉</span><span class="nm">问题反馈</span></div>
+          <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">⚙</span><span class="nm">菜单栏与启动</span></div>
+          <div class="grp">AI</div>
+          <div class="row sel"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span><span class="nm">AI Agent</span><span class="newbdg">新</span></div>
+        </div>
+        <div class="why"><b>代价</b>：设置组被顶到中间，而 macOS 用户的手感是「设置永远在最下面」；这版等于把那条惯例改了。</div>
+      </div>
+      <div class="opt" style="width:330px;opacity:.55">
+        <div class="hd"><span class="lt" style="background:var(--ink3)">已否</span><span class="tt">两种都不想要的第三条路</span></div>
+        <div class="mini" style="width:250px">
+          <div class="grp" style="padding-top:8px">开发机专项</div>
+          <div class="row"><span class="tile" style="background:rgba(24,136,79,.14);color:#18884F">⬡</span><span class="nm">node_modules</span></div>
+          <div class="row"><span class="tile" style="background:rgba(14,143,168,.14);color:#0E8FA8">⬢</span><span class="nm">Docker 占用</span></div>
+          <div class="row"><span class="tile" style="background:rgba(184,134,11,.14);color:#B8860B">⚒</span><span class="nm">开发缓存</span><span class="amt">18.7 GB</span></div>
+          <div class="row sel"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span><span class="nm">AI Agent</span><span class="newbdg">新</span></div>
+        </div>
+        <div class="why" style="width:250px">不新增分组，挂在「开发机专项」组末。侧栏条目数不变，但这一组的组名承诺的是「开发机」这条轴，而用 agent 清磁盘的不一定是开发机 —— 混进去就是那条组名骗人的老问题。<b>所以我不推荐这版</b>，画出来只为让你看到它长什么样。</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ③ 空态 -->
+<div class="shot" data-shot="3">
+  <div class="cap"><span class="no">03</span><span class="t">空态：还没有 agent 操作过</span><span class="d">没有真实输出就不编一行账；累计行整行不渲染，不占位也不写 0</span></div>
+  <div class="frame zoomable"><div class="stage">
+    <div class="sidebar">
+      <div class="chrome"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i></div>
+      <div class="side-scroll">
+        <div class="grp">看清空间</div>
+        <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">◎</span><span class="nm">空间总览</span></div>
+        <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">▤</span><span class="nm">大文件</span></div>
+        <div class="row"><span class="tile" style="background:rgba(123,79,201,.14);color:#7B4FC9">◷</span><span class="nm">很久没动</span></div>
+        <div class="row"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76">▣</span><span class="nm">重复文件</span><span class="amt">3.8 GB</span></div>
+        <div class="grp">开发机专项</div>
+        <div class="row"><span class="tile" style="background:rgba(24,136,79,.14);color:#18884F">⬡</span><span class="nm">node_modules</span></div>
+        <div class="row"><span class="tile" style="background:rgba(14,143,168,.14);color:#0E8FA8">⬢</span><span class="nm">Docker 占用</span></div>
+        <div class="row"><span class="tile" style="background:rgba(184,134,11,.14);color:#B8860B">⚒</span><span class="nm">开发缓存</span><span class="amt">18.7 GB</span></div>
+        <div class="grp">清理</div>
+        <div class="row"><span class="tile" style="background:rgba(200,55,45,.14);color:#C8372D">✦</span><span class="nm">应用缓存</span><span class="amt">5.4 GB</span></div>
+        <div class="row"><span class="tile" style="background:rgba(91,100,114,.14);color:#5B6472">▢</span><span class="nm">卸载残留</span></div>
+        <div class="row"><span class="tile" style="background:rgba(14,143,121,.14);color:#0E8F79"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.2h10M6.2 4.2V2.8h3.6v1.4M4.4 4.2l.7 8.4h5.8l.7-8.4M6.6 6.6v3.6M9.4 6.6v3.6"/></svg></span><span class="nm">废纸篓</span></div>
+        <div class="grp">AI</div>
+        <div class="row sel"><span class="tile" style="background:rgba(201,63,118,.14);color:#C93F76"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span><span class="nm">AI Agent</span><span class="newbdg">新</span></div>
+        <div class="grp">设置</div>
+        <div class="row"><span class="tile" style="background:rgba(110,123,47,.14);color:#6E7B2F">◐</span><span class="nm">外观皮肤</span></div>
+        <div class="row"><span class="tile" style="background:rgba(42,98,214,.14);color:#2A62D6">✉</span><span class="nm">问题反馈</span></div>
+        <div class="row"><span class="tile" style="background:rgba(224,118,42,.14);color:#E0762A">⚙</span><span class="nm">菜单栏与启动</span></div>
+      </div>
+      <div class="side-foot">DiskWise v1.8</div>
+    </div>
+    <div class="main">
+      <div class="titlebar"><span class="vol">Macintosh HD</span><span class="bar"><i></i></span><span>可用 486.2 GB</span></div>
+      <div class="body">
+        <div class="phead">
+          <span class="tile"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span>
+          <div>
+            <h2>AI Agent</h2>
+            <div class="sub">让 AI 帮你清 Mac —— 它不能 <code>rm -rf</code>，只能把认得的东西移进废纸篓</div>
+          </div>
+          <div class="bdgright"><span class="bdg">本包已带 CLI</span></div>
+        </div>
+
+        <div class="card">
+          <h3>怎么接<span class="hint">把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账</span><span class="sp">这一行只在包里真有 CLI 时出现</span></h3>
+          <div class="cmd"><code>claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp</code><span class="btn">⧉ 复制</span></div>
+          <div class="note" style="padding-bottom:0">这行路径按 App 实际安装位置现拼（<code>Bundle.main.bundlePath</code>）；用 Homebrew 装的用户把路径换成 <code>/opt/homebrew/bin/diskwise</code>。</div>
+          <div class="note">接好后在 AI 工具里说一句「看看我的 Mac 哪里能清」，它就会先给计划、等你点头，再把东西移进废纸篓。Cursor、Codex 的配置片段见 <code>docs/AGENTS-CLI.md</code>。</div>
+        </div>
+
+        <div class="card">
+          <h3>Agent 操作记录<span class="sp">读 operations.jsonl · 接上后回到本页就会刷新</span></h3>
+          <div class="empty">
+            <span class="tile"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="5.5" width="9" height="9" rx="2"/><rect x="8.4" y="8.4" width="3.2" height="3.2" rx=".8"/><path d="M8 5.5V3M12 5.5V3M8 17v-2.5M12 17v-2.5M5.5 8H3M5.5 12H3M17 8h-2.5M17 12h-2.5"/></svg></span>
+            <h4>还没有 agent 操作过</h4>
+            <p>接上之后每次执行都会在这里留一行，能整单撤销。<br>这一页只读 <code>operations.jsonl</code>，你在 App 里手动清的东西不记在这儿。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ④ 反馈态 -->
+<div class="shot" data-shot="4">
+  <div class="cap"><span class="no">04</span><span class="t">反馈：撤销成功 / 撤不回来</span><span class="d">两种结果两种读法，不静默跳过；c 那栏本期不做，画出来只为让你看到它长什么样</span></div>
+  <div class="frame board zoomable"><div class="stage" style="background:var(--content)">
+    <div class="states">
+      <div>
+        <h3><span class="n">a</span>点撤销 → 整单放回原位</h3>
+        <div class="card" style="margin:0">
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(42,98,214,.12);color:#2A62D6">▸</span>
+            <span class="txt"><span class="t1">Cursor <span class="cnt">· 1 项</span></span>
+              <span class="t2">昨天 09:10 · <span class="p">~/.npm</span></span></span>
+            <span class="rt"><span class="z">1.8<i>GB</i></span><span class="btn dis">撤销中…</span></span>
+          </div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(24,136,79,.12);color:#18884F">$</span>
+            <span class="txt"><span class="t1">diskwise CLI <span class="cnt">· 5 项</span> <span class="pill undone">已放回 5 项</span></span>
+              <span class="t2">10 月 6 日 21:44 · <span class="p">~/Library/pnpm/store</span> 等 · 放回时间今天 10:07</span></span>
+            <span class="rt"><span class="z" style="color:var(--ink3)">11.2<i>GB</i></span><span class="btn dis">已放回</span></span>
+          </div>
+          <div class="note">撤销走 <code>agentUndo</code>，和终端里 <code>diskwise undo</code> 同一条实现；日志不删行，只追加一条放回标记（账本不许涂改）。<b>只有整单</b>：接口按 <code>operation_id</code> 一次放回这一整次的所有项，没有单项恢复，界面上也就不给单项按钮。</div>
+        </div>
+        <div class="toast" style="position:static;margin-top:12px;display:inline-flex">
+          <span class="ic ok">✓</span> 11.2 GB 已放回原处 · 5 项
+        </div>
+      </div>
+      <div>
+        <h3><span class="n">b</span>废纸篓已清空 → 明说撤不回来</h3>
+        <div class="card" style="margin:0">
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(201,63,118,.12);color:#C93F76">C</span>
+            <span class="txt"><span class="t1">Claude Code <span class="cnt">· 2 项</span> <span class="pill dang">撤不回来</span></span>
+              <span class="t2">今天 14:32 · <span class="p">~/.ollama/models</span> 17.7 GB · <span class="p">~/.omlx/models</span> 13.7 GB</span></span>
+            <span class="rt"><span class="z" style="color:var(--ink3)">31.4<i>GB</i></span><span class="btn dis">撤销</span></span>
+          </div>
+          <div class="op">
+            <span class="chev">›</span>
+            <span class="av" style="background:rgba(24,136,79,.12);color:#18884F">$</span>
+            <span class="txt"><span class="t1">diskwise CLI <span class="cnt">· 3 项</span> <span class="pill safe">放回 2 项</span> <span class="pill dang">1 项撤不回</span></span>
+              <span class="t2">10 月 5 日 · <span class="p">~/.cache/huggingface</span> 已在废纸篓里被清掉</span></span>
+            <span class="rt"><span class="z" style="color:var(--ink3)">9.6<i>GB</i></span><span class="btn dis">部分放回</span></span>
+          </div>
+          <div class="note">对应 <code>gone_from_trash</code>：一项失败不中止其余恢复，回来的和撤不回的分别写在同一行上。这一档旁边给一颗「打开废纸篓」，让人自己看一眼是不是真清空了，别靠文案猜。
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><span class="btn ghost" style="border:1px solid var(--sep)">打开废纸篓</span></div>
+          </div>
+        </div>
+        <div class="toast" style="position:static;margin-top:12px;display:inline-flex">
+          <span class="ic warn">!</span> 2 项已放回 · 1 项不在废纸篓里了，撤不回来
+        </div>
+      </div>
+      <div style="opacity:.7">
+        <h3><span class="n">c</span>本期不做：被拦住的尝试（画出来只为让你看到它长什么样）</h3>
+        <div class="card" style="margin:0">
+          <div class="op blocked">
+            <span class="av" style="background:rgba(208,52,44,.10);color:#D0342C">!</span>
+            <span class="txt"><span class="t1">Claude Code 想动 <span class="p" style="font-family:var(--m)">~/Documents</span></span>
+              <span class="t2">昨天 09:02 · 受保护路径，什么都没发生</span></span>
+            <span class="rt"><span class="pill dang">已拦住</span></span>
+          </div>
+          <div class="op blocked">
+            <span class="av" style="background:rgba(208,52,44,.10);color:#D0342C">!</span>
+            <span class="txt"><span class="t1">Cursor 想动 <span class="p" style="font-family:var(--m)">~/Downloads/dmg</span></span>
+              <span class="t2">10 月 6 日 18:20 · 知识库不认识这个位置（没命中 ≠ 安全）</span></span>
+            <span class="rt"><span class="pill dang">已拦住</span></span>
+          </div>
+          <div class="op blocked">
+            <span class="av" style="background:rgba(184,134,11,.12);color:#B8860B">↺</span>
+            <span class="txt"><span class="t1">diskwise CLI 的计划过期</span>
+              <span class="t2">10 月 6 日 21:51 · 计划生成后 10 分钟没执行，作废</span></span>
+            <span class="rt"><span class="pill undone">已过期</span></span>
+          </div>
+          <div class="note"><b style="color:var(--danger)">这一条要改 Core</b>：现在只有真搬成了东西才写日志，全拒的一次运行连一行都不留（<code>AgentAPI.swift:645-654</code>）。要做这一栏，得先给账本加一类「拦住」事件。</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ⑤ 降级与明细 -->
+<div class="shot" data-shot="5">
+  <div class="cap"><span class="no">05</span><span class="t">三种必须画出来的态</span><span class="d">a 展开明细 · b 包带 CLI 但 App 不在「应用程序」· c 包里根本没有 CLI</span></div>
+  <div class="frame board zoomable"><div class="stage" style="background:var(--content)">
+    <div class="states">
+      <div>
+        <h3><span class="n">a</span>展开某一行 → 逐项路径，点一下在 Finder 里选中</h3>
+        <div class="card" style="margin:0">
+          <div class="agg"><b>4</b> 次操作 · <b>9</b> 项 · 共 <b>50.7</b> GB 移入废纸篓 <span class="sep">|</span> 其中 6.3 GB 已放回 <span class="sp"><span class="btn ghost">↻ 刷新</span></span></div>
+          <div class="op">
+            <span class="chev">⌄</span>
+            <span class="av" style="background:rgba(201,63,118,.12);color:#C93F76">C</span>
+            <span class="txt"><span class="t1">Claude Code <span class="cnt">· 2 项</span></span>
+              <span class="t2">今天 14:32 · 展开中</span></span>
+            <span class="rt"><span class="z">31.4<i>GB</i></span><span class="btn">整单撤销</span></span>
+          </div>
+          <div class="items">
+            <div class="it"><span class="p">~/.ollama/models/blobs/sha256-970d853fffb0</span><span class="sz">17.7 GB</span><span class="reveal">在 Finder 中显示</span></div>
+            <div class="it"><span class="p">~/.omlx/models/Qwen3-32B-MLX-4bit</span><span class="sz">13.7 GB</span><span class="reveal">在 Finder 中显示</span></div>
+          </div>
+          <div class="note">收起时一行最多两个路径，多的折成「等 N 项」；展开才摊全。<b>每个路径各一个落点</b>，别在行尾放一颗笼统的「显示」按钮——那一行有 5 个路径时没人知道它指向哪个。用的是 App 里别处已有的 <code>activateFileViewerSelecting</code>（<code>FolderDrillView.swift:466</code> 同款），不新造交互。</div>
+        </div>
+      </div>
+      <div>
+        <h3><span class="n">b</span>包里带 CLI，但 App 不是从「应用程序」里跑的</h3>
+        <div class="card" style="margin:0">
+          <div class="phead" style="padding:14px 16px 0">
+            <div><h2 style="font-size:13px;font-weight:600">AI Agent</h2>
+              <div class="sub" style="font-size:10.5px;margin-top:3px">让 AI 帮你清 Mac —— 它不能 <code>rm -rf</code>，只能把认得的东西移进废纸篓</div></div>
+            <div class="bdgright" style="padding-top:2px"><span class="bdg">本包已带 CLI</span></div>
+          </div>
+          <div class="cmd warn"><code>claude mcp add diskwise -- /Users/hangzhou/Desktop/DiskWise 2026-10-08 22:14.app/Contents/MacOS/diskwise mcp</code><span class="btn">⧉ 复制</span></div>
+          <div class="flag"><span class="fdot">!</span>
+            <span>这个路径随当前这份副本失效：它一旦被搬走、改名或删掉，你的 AI 工具就再也起不来 diskwise。先把 App 拖进「应用程序」再从那儿打开一次，这行命令才会换成稳定路径。</span>
+          </div>
+          <div class="note">判断条件就一句：<code>Bundle.main.bundlePath</code> 不是以 <code>/Applications/</code> 开头。命令照样给（有人就是不想装进应用程序），但下面那行必须出现。<b>不做</b>「帮你把 App 搬到应用程序」那颗按钮——移动自身 bundle 会牵扯重新签名与权限，本期不值。</div>
+        </div>
+        <h3 style="margin-top:22px"><span class="n">c</span>包里根本没有 CLI（v1.8 之前的直装包 / 旧 DMG）</h3>
+        <div class="card" style="margin:0">
+          <div class="phead" style="padding:14px 16px 0">
+            <div><h2 style="font-size:13px;font-weight:600">AI Agent</h2>
+              <div class="sub" style="font-size:10.5px;margin-top:3px">让 AI 帮你清 Mac —— 它不能 <code>rm -rf</code>，只能把认得的东西移进废纸篓</div></div>
+            <div class="bdgright" style="padding-top:2px"><span class="bdg off">本包不含 CLI</span></div>
+          </div>
+          <div class="cmd off"><code>这一版包里没有 diskwise —— 升级后这行才会出现</code></div>
+          <div class="note">这一屏的显示条件从「编译期渠道判断」改成<b>运行时实测</b> <code>&lt;bundlePath&gt;/Contents/MacOS/diskwise</code> 在不在。两个理由：打包脚本只在直装渠道拷这个文件（<code>build_app/build.sh:181-182</code>），渠道标志和实际包内容一旦不一致，页面就在撒谎；而 v1.7 及更早的包本来就没有 CLI，用户升上来之前得告诉他缺什么。引导文案两行：升到 v1.8 的直装包，或 <code>brew install --cask dreamofxm/diskwise/diskwise</code>（cask 从 1.8 起带 <code>binary</code> 一行，才有 <code>/opt/homebrew/bin/diskwise</code>）。商店版整页不出现，跟这态无关。</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+</div>
+
+<div class="lb" id="lb"></div>
+<script>
+// ?shot=N：只留那一屏，给无头截图用
+(function(){
+  var q=new URLSearchParams(location.search).get('shot');
+  if(q){
+    document.body.classList.add('only');
+    document.querySelectorAll('.shot').forEach(function(s){
+      if(s.dataset.shot===q) s.classList.add('on');
+    });
+  }
+})();
+// 点击放大到 200%（克隆整帧，不依赖外部库）
+var lb=document.getElementById('lb');
+document.querySelectorAll('.frame').forEach(function(f){
+  f.addEventListener('click',function(){
+    lb.innerHTML='';
+    var inner=document.createElement('div');
+    inner.className='inner';
+    var copy=f.cloneNode(true);
+    copy.style.cursor='zoom-out';
+    copy.style.zoom='2';
+    inner.appendChild(copy);
+    lb.appendChild(inner);
+    lb.classList.add('on');
+    lb.scrollTop=0;
+  });
+});
+function closeLB(){lb.classList.remove('on');lb.innerHTML=''}
+lb.addEventListener('click',closeLB);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeLB()});
+</script>
+</body>
+</html>

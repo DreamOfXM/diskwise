@@ -110,7 +110,9 @@ final class ScanStore: ObservableObject {
         case .orphans:     return orphans.started ? orphans.totalBytes : nil
         // 下钻页的那笔账是「当前这一层」，跟侧栏那一列（各页总量）不是一个口径，
         // 报上去只会让同一格数字随用户点进点出地跳。
-        case .overview, .trash, .appearance, .feedback, .folderDrill, .menuLaunch: return nil
+        // AI Agent 页同理不报数：那一页的账是「移进废纸篓多少」，不是「还能清多少」，
+        // 摆在同一列里会被读成又一笔待清理的空间。
+        case .overview, .trash, .appearance, .feedback, .folderDrill, .menuLaunch, .agent: return nil
         }
     }
 
@@ -312,7 +314,9 @@ enum AppPanel: Hashable, CaseIterable {
     // 插在中间会把后面每一页的图标配色整体挪一格（那是一条看不见的回归）。
     // 它也不进侧栏——下钻页是「从某一行进去」的，不是一栏常驻的目的地。
     // `menuLaunch` 同理追加在末尾（2026-09-30 的稿子①那一屏）。
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill, menuLaunch
+    // `agent` 也一样追加在最后（2026-10-09 的 AI Agent 页）：这一格的颜色是
+    // `allCases` 的下标决定 的，插在中间会把「问题反馈」之后每一页的配色整体挪一格。
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
         switch self {
@@ -330,6 +334,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .feedback: return "text.bubble"
         case .folderDrill: return "folder"
         case .menuLaunch: return "gearshape.2"
+        case .agent: return "cpu"
         }
     }
 
@@ -350,6 +355,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .feedback: return "问题反馈"
         case .folderDrill: return "文件夹详情"
         case .menuLaunch: return "菜单栏与启动"
+        case .agent: return "AI Agent"
         }
     }
 
@@ -419,6 +425,13 @@ struct ContentView: View {
                 sideSection(L("看清空间"), [.overview, .big, .old, .dup])
                 sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
                 sideSection(L("清理"), [.caches, .orphans, .trash])
+                // 「AI」这一组只有直装渠道才有：这一页讲的是把随包附带的 `diskwise`
+                // 命令行挂进 AI 工具，而商店版压根不带那个文件（见 AgentCLILocation），
+                // 挂上去只会画出一屏「本包不含 CLI」的死路。
+                // 这是「渠道差异」的正当例外：不是功能开关，是沙盒物理做不到。
+                if !Channel.isAppStore {
+                    sideSection(L("AI"), [.agent])
+                }
                 // 第四组从「关于」改叫「设置」：皮肤和反馈挂在「关于」下是同一处错位——
                 // macOS 用户按 ⌘, 找的就是这一组（稿子①，2026-09-30 拍板）。
                 sideSection(L("设置"), [.appearance, .feedback, .menuLaunch])
@@ -444,6 +457,7 @@ struct ContentView: View {
             sideHeader(title).padding(.bottom, 2)
             ForEach(panels, id: \.self) { panel in
                 SidebarRow(panel: panel, amount: scans.amount(panel),
+                           showsNew: panel == .agent && prefs.agentPageIsNew,
                            isSelected: selection == panel) {
                     // 走 store 而不是直接改 selection：点侧栏是「重新挑目的地」，
                     // 得顺手把导航历史压成只有这一站，返回按钮随之消失。
@@ -536,6 +550,7 @@ struct ContentView: View {
         case .feedback: FeedbackView()
         case .folderDrill: FolderDrillView(model: scans.folderDrill)
         case .menuLaunch: MenuBarLaunchView()
+        case .agent: AgentPageView()
         }
     }
 }
@@ -570,6 +585,8 @@ private struct SidebarRow: View {
     var panel: AppPanel
     /// 这一类量出来的容量；nil = 这一页还没扫过，那一格什么都不写。
     var amount: Int64? = nil
+    /// 这一页有没有「新」角标：只在真·新功能第一次亮相时画，进去一次就永久收起。
+    var showsNew: Bool = false
     var isSelected: Bool
     var tap: () -> Void
 
@@ -604,6 +621,9 @@ private struct SidebarRow: View {
                                                     : theme.palette.inkTertiary)
                         .fixedSize()
                 }
+                // 「新」挂在行尾，也就是各页容量读数站着的那一格：这一页没有账可报
+                // （见 ScanStore.amount），那一格空着，正好给角标。
+                if showsNew { NewBadge() }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -631,8 +651,31 @@ private struct SidebarRow: View {
     }
 }
 
-// MARK: - 侧边栏材质
+// MARK: - 「新」角标
 
+/// 侧栏上那枚「新」：**描边**小胶囊，不填主色。
+///
+/// 实心主色块在这套皮肤里是「推进 / 花钱」那颗主按钮（`SidebarRow` 上面写着同一条）。
+/// 这一颗说的话轻得多——「这里多了个页面，你还没看过」——它必须比行里的标题更安静，
+/// 不然侧栏会先被一个角标按住。底色取 `surface` 而不是侧栏那层半透明材质：
+/// 材质由窗口服务器采窗口**后面**的东西（见 `SidebarMaterial`），
+/// 描边胶囊压在透背景上会跟着极光糊成一片。
+private struct NewBadge: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(L("新"))
+            .font(theme.bodyFont(.caption2).weight(.semibold))
+            .foregroundStyle(theme.palette.tint)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(theme.palette.surface))
+            .overlay(Capsule().stroke(theme.palette.tint.opacity(0.5), lineWidth: theme.metric.stroke))
+            .fixedSize()
+    }
+}
+
+// MARK: - 侧边栏材质
 /// 侧边栏半透明，让 aurora / fiber 背景透出来
 ///
 /// 这里不能用 .thinMaterial：材质由窗口服务器合成，采的是**窗口后面**的东西，

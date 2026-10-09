@@ -795,3 +795,62 @@
 "torch.hub 下载的预训练模型与代码" = "Modèles pré-entraînés et code téléchargés par torch.hub";
 "删掉后下次加载同个模型会重新下载" = "Le prochain chargement du même modèle le retéléchargera";
 "无需恢复；torch.hub.load 会自动重新下载" = "Rien à restaurer ; torch.hub.load le retélécharge automatiquement";
+
+// ── AI Agent 页（2026-10-09）─────────────────────────────────────────────
+"%@ 不在废纸篓里了，撤不回来" = "%@ ne sont plus dans la Corbeille, retour impossible";
+"%@ 已放回" = "%@ remis en place";
+"%@ 已放回 · %@ 撤不回来" = "%@ remis en place · %@ retour impossible";
+"%@ 已放回原处 · %@" = "%@ remis à leur place d'origine · %@";
+"%@ 撤不回" = "%@ retour impossible";
+"%@ 放回失败" = "%@ échec de remise en place";
+"31.4 GB 已移入废纸篓，可整单撤销" = "31.4 GB déplacés vers la Corbeille — annuler rend toute l'exécution";
+"Agent 操作记录" = "Journal des actions de l'agent";
+"Cursor、Codex 这类工具填的是同一个 diskwise：命令填上面那个路径，参数填 mcp。两步确认跑在前面——没有 plan_id 一步都动不了，执行前逐项重跑判定。" = "Cursor, Codex et les autres utilisent le même diskwise : le chemin ci-dessus dans le champ commande, mcp dans les arguments. La validation en deux étapes passe avant tout — sans plan_id rien ne bouge, et chaque élément est rejugé avant l'exécution.";
+"iOS 模拟器运行时 16.6 GB 在系统区，outside_allowed，我不会动" = "Le runtime du simulateur iOS, 16.6 GB, est dans la zone système : outside_allowed, je n'y touche pas";
+"上面那行里的路径是按 App 实际安装位置拼出来的；用 Homebrew 装的话，把它换成 /opt/homebrew/bin/diskwise。" = "Le chemin de cette ligne est construit à partir de l'emplacement réel de l'app. Installé via Homebrew ? Remplacez-le par /opt/homebrew/bin/diskwise.";
+"什么都没放回" = "Rien n'a été remis en place";
+"共 %@ 移入废纸篓" = "%@ déplacés vers la Corbeille au total";
+"其中 %@ 已放回" = "Dont %@ remis en place";
+"刷新" = "Actualiser";
+"可以" = "Allez-y";
+"复制" = "Copier";
+"展开" = "Développer";
+"展开中" = "Déplié";
+"已撤销" = "Annulé";
+"已放回" = "Remis en place";
+"怎么接" = "Comment le brancher";
+"总共 30 处 · agent 能动 23 处，合计约 57.7 GB" = "30 emplacements au total · l'agent peut en traiter 23, soit environ 57.7 GB";
+"打开废纸篓" = "Ouvrir la Corbeille";
+"找不到那次执行的计划" = "Le plan de cette exécution est introuvable";
+"把 Ollama 和 oMLX 的模型清了吧" = "Nettoyez les modèles d'Ollama et d'oMLX";
+"把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账" = "Connectez diskwise à votre outil d'IA : il lit les mêmes comptes de disque que cette app";
+"接上之后每次执行都会在这里留一行，能整单撤销。" = "Une fois branché, chaque exécution laisse une ligne ici et s'annule d'un bloc.";
+"撤不回来" = "Retour impossible";
+"撤销中…" = "Remise en place…";
+"撤销按整单：一次执行的所有项一起放回，没有单项恢复，界面上也就不给单项按钮。这和终端里 diskwise undo 是同一条实现——日志只追加、不涂改，所以放回过的行还留在账上，只是再也点不动。" = "L'annulation porte sur l'exécution entière : tout ce qu'elle a déplacé revient d'un coup. Il n'y a pas de restauration à l'unité, donc pas de bouton à l'unité non plus. C'est la même implémentation que diskwise undo dans le Terminal — le journal s'ajoute ligne à ligne et ne se réécrit jamais, alors une ligne remise en place reste dans les comptes. Elle est seulement devenue inappuyable.";
+"收起" = "Replier";
+"放回时间 %@" = "Remis en place %@";
+"整单撤销" = "Annuler toute l'exécution";
+"新" = "Nouveau";
+"未知来源" = "Source inconnue";
+"本包不含 CLI" = "Pas de CLI dans ce paquet";
+"本包已带 CLI" = "CLI inclus dans ce paquet";
+"看看我的 Mac 哪里能清" = "Regarde ce que je peux nettoyer sur mon Mac";
+"示例对话 · 接上之后就是这个样子" = "Conversation d'exemple · voilà ce que ça donne une fois branché";
+"等 %@" = "+ %@";
+"装 v1.8 的直装包，或用 Homebrew：brew install --cask dreamofxm/diskwise/diskwise。1.8 起 cask 带 binary，装完才有 /opt/homebrew/bin/diskwise。" = "Installez le paquet direct à partir de la v1.8, ou passez par Homebrew : brew install --cask dreamofxm/diskwise/diskwise. À partir de la 1.8, le cask contient le binaire — c'est ce qui pose /opt/homebrew/bin/diskwise.";
+"计划已生成，2 项合计 31.4 GB，进废纸篓。确认执行吗？" = "Plan prêt : 2 éléments, 31.4 GB au total, direction la Corbeille. On l'exécute ?";
+"计划已过期，回终端重新 plan 一次" = "Le plan a expiré — relancez plan dans le Terminal";
+"让 AI 帮你清 Mac —— 它不能 rm -rf，只能把认得的东西移进废纸篓" = "Laissez une IA nettoyer votre Mac — elle ne peut pas faire de rm -rf, elle déplace vers la Corbeille seulement ce qu'elle reconnaît";
+"记录里的路径已经不能照着放回" = "Les chemins de cet enregistrement ne peuvent plus être remis en place tels quels";
+"还没有 agent 操作过" = "Aucun agent n'a encore rien déplacé";
+"这一版包里没有 diskwise —— 升级后这行才会出现" = "Ce paquet ne contient pas diskwise — cette ligne apparaît après la mise à niveau";
+"这一行已经放回过了，不能重复撤" = "Cette ligne est déjà remise en place — on ne l'annule pas deux fois";
+"这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿；被拦下的尝试也不记账，一次都没搬成的操作不留行。清空废纸篓之后日志仍在，那时撤销会逐项告诉你哪几项已经撤不回来，不会静默跳过。" = "Cette page lit uniquement le journal écrit par l'agent. Ce que vous nettoyez à la main dans l'app n'y figure pas, et les tentatives refusées non plus : une exécution qui n'a rien déplacé ne laisse aucune ligne. Vider la Corbeille n'efface pas le journal — l'annulation vous dit alors élément par élément ce qui ne peut plus revenir, au lieu de le passer sous silence.";
+"这个路径随当前这份副本失效：它一旦被搬走、改名或删掉，你的 AI 工具就再也起不来 diskwise。先把 App 拖进「应用程序」再从那儿打开一次，这行命令才会换成稳定路径。" = "Ce chemin ne vaut que pour cette copie de l'app : déplacée, renommée ou supprimée, votre outil d'IA ne peut plus lancer diskwise. Glissez l'app dans Applications et ouvrez-la une fois de là — cette commande prendra un chemin stable.";
+"那一次动得太多，回终端逐段撤" = "Cette exécution a trop déplacé — annulez par morceaux depuis le Terminal";
+
+// ── AI Agent 页空态补充（2026-10-10）──────────────────────────────────
+// 零行时卡片下半截只剩政策说明，所以空态另起一句短注；
+// 长的那条只在真有一行账时出现。
+"这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿。" = "Cette page lit uniquement le journal écrit par l'agent. Ce que vous nettoyez à la main dans l'app n'y figure pas.";

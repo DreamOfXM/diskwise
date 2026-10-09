@@ -1334,5 +1334,148 @@ Task.detached {
 }
 agentDone.wait()
 
+// MARK: - 16. AI Agent 页的数据层（AgentLedger）
+//
+// 那一页摆在用户眼前的每一笔数都从这几个纯函数出：整本账的累计、包里到底有没有
+// CLI、一次整单撤销回执怎么分档、这一行是谁干的。它们不碰词表也不碰界面，
+// 所以能用假数据钉死；只有最后一段走真磁盘，而且只在 /tmp。
+func ledgerSelfTest() throws {
+    let fm = FileManager.default
+    let t = Date(timeIntervalSince1970: 1_760_000_000)
+    func rec(_ original: String, _ trash: String, _ bytes: Int64) -> AgentTrashRecord {
+        AgentTrashRecord(original: original, inTrash: trash, bytes: bytes, name: nil)
+    }
+
+    // 16.1 整本账的口径：放回的那一笔单独一档，绝不从合计里减
+    let opA = AgentOperation(id: "op-a", at: t, client: "cursor",
+                             items: [rec("/Users/x/.cache/a", "/T/a", 10),
+                                     rec("/Users/x/.cache/b", "/T/b", 20)])
+    let opB = AgentOperation(id: "op-b", at: t, items: [rec("/Users/x/.cache/c", "/T/c", 30)])
+    let opC = AgentOperation(id: "op-c", at: t, client: "codex",
+                             items: [rec("/Users/x/.cache/d", "/T/d", 40)],
+                             undoneAt: t.addingTimeInterval(60))
+    let totals = agentLedgerTotals([opA, opB, opC])
+    check(totals.operations == 3 && totals.items == 4, "Agent 页账：3 次操作 / 4 项")
+    check(totals.bytes == 100, "Agent 页账：移进废纸篓的合计 100，按项相加")
+    check(totals.restoredOperations == 1 && totals.restoredItems == 1 && totals.restoredBytes == 40,
+          "Agent 页账：放回的单独记档（1 次 / 1 项 / 40）")
+    // 回归：这里曾想当然地把放回从合计里减掉，等于对用户说「那次没发生过」，
+    // 可日志里那一行还端端正正躺着。
+    check(totals.bytes - totals.restoredBytes == 60 && totals.bytes == 100,
+          "Agent 页账：合计不扣放回（扣了才是 60，页面说的必须是 100）")
+    check(totals.undoableOperations == 2, "Agent 页账：还能整单撤销的是 2 笔")
+    check(!totals.isEmpty, "Agent 页账：有记录时不判空")
+    check(agentOperationBytes(opA) == 30 && agentOperationBytes(opC) == 40,
+          "Agent 页账：单行金额 = 这一行各项相加")
+
+    // 16.2 空账：界面靠这个「整行不渲染」，不是靠数出一个 0
+    let zero = agentLedgerTotals([])
+    check(zero.isEmpty && zero.operations == 0 && zero.bytes == 0 && zero.undoableOperations == 0,
+          "Agent 页账：空日志判空（宁可不画那一行，也不写 0 次操作）")
+
+    // 16.3 包里有没有 CLI：只认磁盘，不拿渠道标志猜
+    let shipped = Set([
+        "/Applications/DiskWise.app/Contents/MacOS/diskwise",
+        "/Users/x/Downloads/DiskWise.app/Contents/MacOS/diskwise",
+        "/opt/pkg/DiskWise/MacOS/diskwise",
+    ])
+    func probe(_ bundle: String) -> AgentCLILocation {
+        agentCLILocation(bundlePath: bundle, fileExists: shipped.contains)
+    }
+    check(probe("/Applications/DiskWise.app")
+            == .present(path: "/Applications/DiskWise.app/Contents/MacOS/diskwise", stable: true),
+          "Agent 页 CLI：从「应用程序」跑起来时给出稳定路径")
+    check(probe("/Users/x/Downloads/DiskWise.app")
+            == .present(path: "/Users/x/Downloads/DiskWise.app/Contents/MacOS/diskwise", stable: false),
+          "Agent 页 CLI：桌面／下载里那份副本不算稳定（路径会随副本消失）")
+    check(probe("/opt/pkg/DiskWise") == .present(path: "/opt/pkg/DiskWise/MacOS/diskwise", stable: false),
+          "Agent 页 CLI：不以 .app 结尾的包走 MacOS/diskwise 那一支")
+    check(probe("/Applications/这一版没带 CLI.app") == .missing,
+          "Agent 页 CLI：文件不在就报缺——v1.7 及更早的包真没带，不能报「已带」")
+    check(agentCLILocation(bundlePath: "", fileExists: { _ in true }) == .missing,
+          "Agent 页 CLI：拿不到 bundle 路径时报缺，不拼半截路径给用户")
+
+    // 16.4 一次整单撤销的回执分三档，各写各的
+    let three = [rec("/U/x", "/T/x", 100), rec("/U/y", "/T/y", 200), rec("/U/z", "/T/z", 300)]
+    let tally = agentUndoTally(
+        statuses: [AgentUndoStatus(path: "/U/x", status: "restored"),
+                   AgentUndoStatus(path: "/U/y", status: "gone_from_trash"),
+                   AgentUndoStatus(path: "/U/z", status: "failed", detail: "EACCES")],
+        items: three)
+    check(tally.restored == 1 && tally.gone == 1 && tally.failed == 1 && tally.total == 3,
+          "Agent 页撤销回执：放回 / 撤不回 / 放回失败 各数各的")
+    check(tally.restoredBytes == 100, "Agent 页撤销回执：回来的字节只算真回到原位的")
+    check(tally.isPartial, "Agent 页撤销回执：既有回来的又有回不来的一并存着摊开")
+    check(!agentUndoTally(statuses: [AgentUndoStatus(path: "/U/x", status: "restored")],
+                          items: three).isPartial,
+          "Agent 页撤销回执：全数放回不标「部分」")
+    check(!agentUndoTally(statuses: [AgentUndoStatus(path: "/U/y", status: "gone_from_trash")],
+                          items: three).isPartial,
+          "Agent 页撤销回执：一个都没回来时是一档而不是一句含糊的成功/失败")
+    check(agentUndoTally(statuses: [AgentUndoStatus(path: "/U/账上没有", status: "restored")],
+                         items: three).restoredBytes == 0,
+          "Agent 页撤销回执：查不到项的字节按 0 计，宁可少说不虚报")
+    check(agentUndoTally(statuses: [], items: three) == .empty,
+          "Agent 页撤销回执：空回执不编出数字")
+
+    // 16.5 按之前先查废纸篓：不把「撤不回来」留到按下之后才说
+    let inTrashNow = Set(["/T/x", "/T/z"])
+    let presence = agentTrashPresence(AgentOperation(id: "op-p", at: t, items: three),
+                                     exists: inTrashNow.contains)
+    check(presence.present == 2 && presence.missing == 1,
+          "Agent 页按前检查：当下还躺在废纸篓里的数得出（2 在 / 1 不在）")
+    check(agentTrashPresence(opA, exists: { _ in false }).missing == 2,
+          "Agent 页按前检查：清空过废纸篓后整行都数成「不在」")
+    check(agentTrashPresence(opB, exists: { _ in true }).present == 1,
+          "Agent 页按前检查：都在时就只报 present，不猜为什么少")
+
+    // 16.6 来源名：认得出的换正名，认不出的照抄，占位值收成 nil
+    check(agentClientLabel(nil) == nil, "Agent 页来源：旧行没这个字段 → 界面写「未知来源」")
+    check(agentClientLabel("cursor") == "Cursor" && agentClientLabel("Cursor/1.2") == "Cursor",
+          "Agent 页来源：带版本号也认得出正名")
+    check(agentClientLabel("CLAUDE_CODE") == "Claude Code" && agentClientLabel("codex cli") == "Codex",
+          "Agent 页来源：大小写、下划线、空格都不影响比对")
+    check(agentClientLabel("diskwise-cli") == "diskwise CLI" && agentClientLabel("diskwise") == "diskwise CLI",
+          "Agent 页来源：终端那条路也归到同一个名字")
+    check(agentClientLabel("my-custom-agent") == "my-custom-agent",
+          "Agent 页来源：认不出的一律照抄——那是别人家的名字，不是我们的翻译对象")
+    check(agentClientLabel("unknown") == nil && agentClientLabel("  ") == nil,
+          "Agent 页来源：占位值与空白都归 nil，不画一个看着像名字的假来源")
+    check(agentClientLabel("MCP") == "MCP", "Agent 页来源：只自报了协议名的照协议名显示")
+
+    // 16.7 真日志回读：撤销标记回填时不许把来源抹掉
+    let lroot = URL(fileURLWithPath: "/tmp/diskwise-ledger-selftest-\(getpid())")
+    let logDir = lroot.appendingPathComponent("Library/Application Support/DiskWise/agent")
+    try fm.createDirectory(at: logDir, withIntermediateDirectories: true)
+    setenv("DISKWISE_HOME_SHIM", lroot.path, 1)
+    let log = logDir.appendingPathComponent("operations.jsonl")
+    try """
+    {"id":"op-1","at":"2026-10-09T00:00:00Z","client":"cursor","items":[{"original":"/Users/x/.cache/one","in_trash":"/T/one","bytes":11,"name":null}]}
+    {"id":"op-2","at":"2026-10-09T01:00:00Z","client":"codex","items":[{"original":"/Users/x/.cache/two","in_trash":"/T/two","bytes":22,"name":null}]}
+    {"id":"op-2","undone_at":"2026-10-09T02:00:00Z"}
+
+    """.write(to: log, atomically: true, encoding: .utf8)
+    let read = agentAllOperations()
+    check(read.count == 2, "Agent 页读整本日志：两次操作，标记行不额外成行")
+    let back = read.first { $0.id == "op-2" }
+    check(back?.undoneAt != nil, "Agent 页读整本日志：撤销标记按 id 回填")
+    // 回归：回填曾写成不带 client 的构造，放回过的行就在页面上变成「未知来源」，
+    // 而日志里那个自报名字好端端地躺着。
+    check(back?.client == "codex", "Agent 页读整本日志：回填时把来源一起带上（放回过的行不许变成未知来源）")
+    check(read.first { $0.id == "op-1" }?.items.first?.bytes == 11,
+          "Agent 页读整本日志：项的字节读得出来，账面不是空的")
+    check(agentLedgerTotals(read).bytes == 33 && agentLedgerTotals(read).restoredBytes == 22,
+          "Agent 页读整本日志：盘上读回的账走同一个口径")
+    unsetenv("DISKWISE_HOME_SHIM")
+    try? fm.removeItem(at: lroot)
+    check(!fm.fileExists(atPath: lroot.path), "Agent 页自检：/tmp 里的假家目录用完就删")
+}
+do {
+    try ledgerSelfTest()
+} catch {
+    check(false, "Agent 页数据层自检自身抛错：\(error)")
+    unsetenv("DISKWISE_HOME_SHIM")
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
