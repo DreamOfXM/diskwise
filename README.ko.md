@@ -48,6 +48,7 @@ brew install --cask dreamofxm/diskwise/diskwise
 ## 목차
 
 - [빠른 시작](#빠른-시작)
+- [AI 에이전트용](#ai-에이전트용)
 - [왜 만들었나](#왜-만들었나)
 - [무엇을 하는가](#무엇을-하는가)
 - [스크린샷](#스크린샷)
@@ -69,6 +70,26 @@ brew install --cask dreamofxm/diskwise/diskwise
    물러섭니다.
 3. 통째로 옮길 수 있는 호를 **두 번** 클릭합니다: 첫 번째에 장전되고, 두 번째에 휴지통으로 갑니다.
    *되돌리기* 로 원래대로 돌아오고, 휴지통을 비우는 일은 끝까지 Finder의 몫입니다.
+
+## AI 에이전트용
+
+직접 다운로드 빌드에는 `diskwise` CLI가 딸려 옵니다 (App Store 빌드에는 없음). 그리고 그 CLI는 그대로
+[Model Context Protocol](https://modelcontextprotocol.io) 서버이기도 합니다 —— Claude Code, Cursor, Codex, Qoder,
+OpenCode, Zed, ZCode, Claude Desktop 어디에서든 디스크 공간 회수를 맡길 수 있습니다. `rm -rf`는 못 합니다:
+삭제 경로는 '아는 항목만 휴지통으로 옮기는' 단 하나뿐이고, 모든 조작은 되돌릴 수 있으며, 위험한 위치에는
+애초에 손이 닿지 않습니다.
+
+Claude Code 라면 터미널에서 한 줄이면 끝입니다:
+
+```sh
+claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
+```
+
+그다음은 에이전트에게 *"내 Mac에서 정리할 만한 곳을 봐줘"*라고 묻기만 하면 됩니다 —— 훑고, 계획을 만들어
+요약을 보여주고, 동의한 뒤에야 움직입니다. 위 여덟 클라이언트는 한 줄 한 줄 검증했습니다. 로컬 stdio MCP
+서버를 띄울 수 있는 클라이언트라면 같은 두 값 —— 이 바이너리의 경로와 `mcp` 인자 —— 로 연결됩니다. 연결되지
+않는다면 그건 클라이언트 쪽 문제입니다: 이슈와 PR을 환영합니다. 나머지 일곱 클라이언트의 설정 스니펫과
+안전 모델의 전체 설명은 [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md).
 
 ## 왜 만들었나
 

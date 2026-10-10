@@ -48,6 +48,7 @@ brew install --cask dreamofxm/diskwise/diskwise
 ## 目次
 
 - [クイックスタート](#クイックスタート)
+- [AIエージェント向け](#aiエージェント向け)
 - [なぜ作ったのか](#なぜ作ったのか)
 - [できること](#できること)
 - [スクリーンショット](#スクリーンショット)
@@ -69,6 +70,26 @@ brew install --cask dreamofxm/diskwise/diskwise
    引きます。
 3. 丸ごと動かせる弧を**2 回**クリック：1 回目で武装、2 回目でゴミ箱へ。*元に戻す*で復帰し、ゴミ箱を
    空にするのは最後まで Finder の仕事です。
+
+## AIエージェント向け
+
+直販ビルドには `diskwise` CLI が同梱され（App Store 版にはありません）、それがそのまま
+[Model Context Protocol](https://modelcontextprotocol.io) サーバーにもなります —— Claude Code、Cursor、Codex、Qoder、
+OpenCode、Zed、ZCode、Claude Desktop のどれでも、ディスク領域の回収を任せられます。`rm -rf` はできません：
+削除の経路は「知っているものだけをゴミ箱へ移す」一本道で、すべての操作は取り消せ、リスクのある場所には
+そもそも手が届きません。
+
+Claude Code なら、ターミナルで 1 行だけ：
+
+```sh
+claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
+```
+
+あとはエージェントに*「この Mac で掃除する価値のあるところを見て」*と聞くだけ —— 走査し、計画を起こし、
+要約を見せて、あなたが同意してから初めて動きます。上の 8 クライアントは一行ずつ動作確認済み。
+ローカルの stdio MCP サーバーをホストできるクライアントなら、同じ 2 つの値 —— このバイナリのパスと
+`mcp` 引数 —— で繋がります。繋がらないとしたら、それはクライアント側の問題です：issue と PR を歓迎します。
+残り 7 クライアントの設定スニペットと安全モデルの詳細は [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md)。
 
 ## なぜ作ったのか
 
