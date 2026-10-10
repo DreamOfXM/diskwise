@@ -333,6 +333,10 @@ Store build never gets stopped.
 - **Large `node_modules` sweeps are slow** and don't stream results yet.
 - **It will not find every orphan.** Leftover detection is deliberately conservative.
 
+## Deep dives
+
+- [一个 UUID 引发的每秒 85 次重画：用 SwiftUI 画一枚会呼吸的磁盘环形图](docs/blog/ring-zh.md) — the Overview ring's five hard-won rules: sum-consistent rounding, the UUID identity trap (85 redraws/sec), three kinds of light, HSB lamp correction.
+
 ## Roadmap
 
 - [ ] Streaming snapshots for slow scans
