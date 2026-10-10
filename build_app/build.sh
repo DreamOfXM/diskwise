@@ -43,7 +43,7 @@ DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
-VERSION="1.7"
+VERSION="1.8"
 MIN_MACOS="13.0"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
 # 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
