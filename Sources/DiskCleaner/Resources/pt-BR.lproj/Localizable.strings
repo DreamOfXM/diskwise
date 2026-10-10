@@ -805,9 +805,7 @@
 "%@ 放回失败" = "%@ falha ao restaurar";
 "31.4 GB 已移入废纸篓，可整单撤销" = "31.4 GB movidos para a Lixeira — desfazer devolve a execução inteira";
 "Agent 操作记录" = "Registros de operações do agent";
-"Cursor、Codex 这类工具填的是同一个 diskwise：命令填上面那个路径，参数填 mcp。两步确认跑在前面——没有 plan_id 一步都动不了，执行前逐项重跑判定。" = "Cursor, Codex e ferramentas iguais usam o mesmo diskwise: no campo de comando coloque o caminho acima e, nos argumentos, mcp. A confirmação em duas etapas vem antes — sem plan_id nada se move, e cada item é julgado de novo antes de executar.";
 "iOS 模拟器运行时 16.6 GB 在系统区，outside_allowed，我不会动" = "O runtime do simulador iOS, 16.6 GB, está na área do sistema: outside_allowed, então não mexo nele";
-"上面那行里的路径是按 App 实际安装位置拼出来的；用 Homebrew 装的话，把它换成 /opt/homebrew/bin/diskwise。" = "O caminho dessa linha vem de onde o app está instalado de fato. Instalou pelo Homebrew? Troque por /opt/homebrew/bin/diskwise.";
 "什么都没放回" = "Nada voltou";
 "共 %@ 移入废纸篓" = "%@ movidos para a Lixeira no total";
 "其中 %@ 已放回" = "Desses, %@ já voltaram";
@@ -854,3 +852,25 @@
 // 零行时卡片下半截只剩政策说明，所以空态另起一句短注；
 // 长的那条只在真有一行账时出现。
 "这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿。" = "Esta página lê só o log de operações que o agent deixa. O que você limpa na mão dentro do app não entra aqui.";
+
+// ── AI Agent 页 · 八家客户端各自的接法（10-10 补，20 条） ─────────────────────────────────────────────
+"Claude 桌面版" = "Claude Desktop";
+"`codex mcp list` 只登记不握手，真连接要跑一次会话才看得出成不成——10-10 本机测的就是这两档。" = "`codex mcp list` só registra, não faz handshake. Se a conexão funciona de verdade você só vê rodando uma sessão — foi essa divisão em duas etapas que medimos localmente em 10-10.";
+"`command` 是数组（程序和参数写在同一个方括号里），环境变量那个键叫 `environment` 不叫 `env`，`type` 得是 `local`。这三处照别家的写法抄就起不来。" = "`command` é um array (programa e argumentos nos mesmos colchetes), a chave de variável de ambiente se chama `environment` e não `env`, e `type` precisa ser `local`. Copiar qualquer um desses três de outro cliente faz o servidor não subir.";
+"上面那几段里的路径都按 App 的实际安装位置现拼；切换只换外面那层方言，路径和参数 `mcp` 八家共用同一个值。用 Homebrew 装的，把它换成 `/opt/homebrew/bin/diskwise`。" = "Todos os caminhos acima são montados a partir do local real onde o app está instalado; trocar de cliente só troca o dialeto de fora — o caminho e o argumento `mcp` são o mesmo valor nos oito. Instalou com Homebrew? Troque por `/opt/homebrew/bin/diskwise`.";
+"八家之外也能接：任何支持本地 stdio MCP 的客户端都吃这两个值——命令填这个路径，参数填 `mcp`。接不上是客户端那边的问题，欢迎开 issue 或提 PR。两步确认跑在前面：没有 plan_id 一步都动不了，执行前逐项重跑判定。" = "Além destes oito, qualquer cliente que aceite um servidor MCP stdio local usa esses dois mesmos valores: command com este caminho e args com `mcp`. Se ele não conectar, o problema é do cliente — issues e PRs são bem-vindos. As duas confirmações sempre vêm antes: sem plan_id nada se move, e cada item é reavaliado antes de executar.";
+"写进 `~/.config/opencode/opencode.json`，或项目根目录的 `opencode.json`" = "Escreva em `~/.config/opencode/opencode.json`, ou no `opencode.json` da raiz do projeto";
+"写进 `~/.config/zed/settings.json` 里的 `context_servers`" = "Escreva em `context_servers` no `~/.config/zed/settings.json`";
+"写进 `~/.cursor/mcp.json`，或项目根的 `.cursor/mcp.json`" = "Escreva em `~/.cursor/mcp.json`, ou no `.cursor/mcp.json` da raiz do projeto";
+"写进 `~/.zcode/cli/config.json` 里的 `mcp.servers`（项目级是 `<项目>/.zcode/config.json`）" = "Escreva em `mcp.servers` no `~/.zcode/cli/config.json` (por projeto: `<projeto>/.zcode/config.json`)";
+"写进 `~/Library/Application Support/Claude/claude_desktop_config.json` 的 `mcpServers`" = "Escreva em `mcpServers` no `~/Library/Application Support/Claude/claude_desktop_config.json`";
+"加到项目里（`--scope project`）时，要在那个目录里进一次 `claude` 批准，服务才会真启动——10-10 实测：新目录里 add 完 `claude mcp list` 回的是「Pending approval」。" = "Se você adicionar com `--scope project`, é preciso entrar uma vez no `claude` naquele diretório para aprovar, senão o servidor não inicia — medido em 10-10: num diretório novo, logo depois do add, `claude mcp list` responde «Pending approval».";
+"命令行：`qoder mcp add`（默认只作用于当前目录，加 `--scope project` 才写进项目的 `.mcp.json`）" = "Linha de comando: `qoder mcp add` (por padrão vale só para o diretório atual; com `--scope project` ele escreve no `.mcp.json` do projeto)";
+"在终端里跑这一条" = "Rode esta linha no Terminal";
+"在终端里跑这一条，跑完重开一次会话" = "Rode esta linha no Terminal e abra uma nova sessão";
+"官方字段表要求写 `type: stdio`，它自己的示例却省着——我们写全。" = "A tabela oficial de campos pede `type: stdio`, mas o exemplo deles omite — a gente escreve completo.";
+"或在 IDE 里加：`⌘⇧,` → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段" = "Ou adicione no IDE: `⌘⇧,` → Configurações do Qoder → MCP → Meus servidores → ＋ Adicionar e cole este bloco";
+"或直接写进 `~/.codex/config.toml`" = "Ou escreva no `~/.codex/config.toml`";
+"改完要完全退出再打开，不是关窗口。" = "Depois de editar, saia por completo do app e abra de novo; fechar a janela não basta.";
+"是 `context_servers` 不是 `agent_servers`（后者是挂外部 agent 的）。" = "É `context_servers`, não `agent_servers` (esse outro é para plugar agentes externos).";
+"设置里能直接从 Claude Code / Codex / OpenCode 的配置导入；它默认不吃系统 HTTP_PROXY。" = "Nas configurações dá para importar direto do Claude Code / Codex / OpenCode; o HTTP_PROXY do sistema, por padrão, não é usado.";

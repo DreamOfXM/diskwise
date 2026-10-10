@@ -27,6 +27,8 @@ private let agentRowsShown = 20
 struct AgentPageView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    /// 「怎么接」那排胶囊的选中态住在这儿，所以这一屏必须跟着它刷新
+    @ObservedObject private var prefs = Prefs.shared
 
     /// 整本操作日志（磁盘上的真相）。视图随导航销毁，所以每次进来都重读一次。
     @State private var ops: [AgentOperation] = []
@@ -84,36 +86,129 @@ struct AgentPageView: View {
 
     // MARK: 怎么接
 
+    /// 选中的那一家。盘上存的是 rawValue 串，解不出来就回默认那家（见 `Prefs`）。
+    private var client: AgentClient {
+        AgentClient(rawValue: prefs.agentClientRaw) ?? .claudeCode
+    }
+
     @ViewBuilder private var connectCard: some View {
         AgentCard(title: L("怎么接"), hint: L("把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账")) {
             switch cli {
             case .present(let path, let stable):
-                commandRow(path: path, stable: stable)
+                // 只有真给得出可粘的东西，才画这一排胶囊：CLI 缺的那一档没有路径可填，
+                // 选中态就成了一个点开是空的开关。
+                clientTabs
+                let snippets = client.snippets(cliPath: path)
+                ForEach(Array(snippets.enumerated()), id: \.offset) { index, snippet in
+                    snippetBlock(snippet, whereLine: whereText(client, index, snippets.count),
+                                 path: path, stable: stable)
+                }
                 if !stable {
                     AgentFlag(text: L("这个路径随当前这份副本失效：它一旦被搬走、改名或删掉，你的 AI 工具就再也起不来 diskwise。先把 App 拖进「应用程序」再从那儿打开一次，这行命令才会换成稳定路径。"))
                 }
+                if let flag = clientFlag(client) {
+                    AgentFlag(text: flag)
+                }
                 demoBlock
-                AgentNote(text: L("上面那行里的路径是按 App 实际安装位置拼出来的；用 Homebrew 装的话，把它换成 /opt/homebrew/bin/diskwise。"),
+                AgentNote(text: L("上面那几段里的路径都按 App 的实际安装位置现拼；切换只换外面那层方言，路径和参数 `mcp` 八家共用同一个值。用 Homebrew 装的，把它换成 `/opt/homebrew/bin/diskwise`。"),
                           top: true)
             case .missing:
                 AgentInertCommand(text: L("这一版包里没有 diskwise —— 升级后这行才会出现"))
                 AgentNote(text: L("装 v1.8 的直装包，或用 Homebrew：brew install --cask dreamofxm/diskwise/diskwise。1.8 起 cask 带 binary，装完才有 /opt/homebrew/bin/diskwise。"),
                           top: true)
             }
-            AgentNote(text: L("Cursor、Codex 这类工具填的是同一个 diskwise：命令填上面那个路径，参数填 mcp。两步确认跑在前面——没有 plan_id 一步都动不了，执行前逐项重跑判定。"),
+            AgentNote(text: L("八家之外也能接：任何支持本地 stdio MCP 的客户端都吃这两个值——命令填这个路径，参数填 `mcp`。接不上是客户端那边的问题，欢迎开 issue 或提 PR。两步确认跑在前面：没有 plan_id 一步都动不了，执行前逐项重跑判定。"),
                       top: true)
         }
     }
 
-    /// 那一行可复制的命令。路径带空格时必须加引号，否则粘进终端就是一句断掉的话。
-    private func commandRow(path: String, stable: Bool) -> some View {
-        let quoted = path.contains(" ") ? "\"\(path)\"" : path
-        return AgentCommand(text: "claude mcp add diskwise -- \(quoted) mcp",
-                           warn: !stable) {
-            ThemeButton(kind: .compact, symbol: "doc.on.doc", title: L("复制")) {
-                copy("claude mcp add diskwise -- \(quoted) mcp")
+    /// 那排胶囊：选中哪家，下面就给哪家的写法。
+    ///
+    /// 顺序就是 `AgentClient.allCases` 的顺序，Core 里那条断言（第 17.1 节）钉着它，
+    /// 所以这里不排序也不过滤——界面上少一家、错一家，闸门会红。
+    ///
+    /// 每颗单独成一个视图：八颗的选中态写在同一个 `label` 闭包里时，编译器
+    /// 排不出类型（` unable to type-check this expression`），拆开后每层都只判一次。
+    private var clientTabs: some View {
+        AgentPillFlow(spacing: 5) {
+            ForEach(AgentClient.allCases, id: \.self) { c in
+                AgentClientPill(name: clientName(c), selected: c == client) {
+                    prefs.setAgentClient(c.rawValue)
+                }
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.top, 11)
+        .padding(.bottom, 3)
+    }
+
+    /// 胶囊上的名字。专名不进词表（翻成「克劳德代码」只会让人认不出自己在用啥），
+    /// 只有「桌面版」那家是中文写法，得能跟着界面语言换。
+    private func clientName(_ c: AgentClient) -> String {
+        c == .claudeDesktop ? L("Claude 桌面版") : c.title
+    }
+
+    /// 一段可粘的东西：上面一行说它粘到哪儿，下面那块才是复制的目标。
+    private func snippetBlock(_ snippet: AgentSnippet, whereLine: String,
+                              path: String, stable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            agentInlineCode(whereLine,
+                            plain: theme.bodyFont(.caption2), plainColor: theme.palette.inkSecondary,
+                            code: .system(size: 9.5, design: .monospaced), codeColor: theme.palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+            switch snippet.kind {
+            case .shell:
+                AgentCommand(text: snippet.text, warn: !stable) { copyButton(snippet.text) }
+            case .json, .toml:
+                AgentConfigBlock(text: snippet.text) { copyButton(snippet.text) }
+            }
+        }
+    }
+
+    /// 这一家这段粘到哪儿。文案出自 10-09 样稿第⑥屏，逐家抄的它们自己的官方文档。
+    private func whereText(_ c: AgentClient, _ index: Int, _ total: Int) -> String {
+        switch c {
+        case .claudeCode: return L("在终端里跑这一条，跑完重开一次会话")
+        case .codex:
+            return index == 0 ? L("在终端里跑这一条")
+                              : L("或直接写进 `~/.codex/config.toml`")
+        case .qoder:
+            return index == 0
+                ? L("命令行：`qoder mcp add`（默认只作用于当前目录，加 `--scope project` 才写进项目的 `.mcp.json`）")
+                : L("或在 IDE 里加：`⌘⇧,` → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段")
+        case .cursor: return L("写进 `~/.cursor/mcp.json`，或项目根的 `.cursor/mcp.json`")
+        case .openCode: return L("写进 `~/.config/opencode/opencode.json`，或项目根目录的 `opencode.json`")
+        case .zed: return L("写进 `~/.config/zed/settings.json` 里的 `context_servers`")
+        case .zcode: return L("写进 `~/.zcode/cli/config.json` 里的 `mcp.servers`（项目级是 `<项目>/.zcode/config.json`）")
+        case .claudeDesktop: return L("写进 `~/Library/Application Support/Claude/claude_desktop_config.json` 的 `mcpServers`")
+        }
+    }
+
+    /// 这一家特有的那个坑。没有坑的就返回 nil——不造一句只为填满空隙的话。
+    private func clientFlag(_ c: AgentClient) -> String? {
+        switch c {
+        case .claudeCode:
+            return L("加到项目里（`--scope project`）时，要在那个目录里进一次 `claude` 批准，服务才会真启动——10-10 实测：新目录里 add 完 `claude mcp list` 回的是「Pending approval」。")
+        case .codex:
+            return L("`codex mcp list` 只登记不握手，真连接要跑一次会话才看得出成不成——10-10 本机测的就是这两档。")
+        case .qoder: return nil
+        case .cursor:
+            return L("官方字段表要求写 `type: stdio`，它自己的示例却省着——我们写全。")
+        case .openCode:
+            return L("`command` 是数组（程序和参数写在同一个方括号里），环境变量那个键叫 `environment` 不叫 `env`，`type` 得是 `local`。这三处照别家的写法抄就起不来。")
+        case .zed:
+            return L("是 `context_servers` 不是 `agent_servers`（后者是挂外部 agent 的）。")
+        case .zcode:
+            return L("设置里能直接从 Claude Code / Codex / OpenCode 的配置导入；它默认不吃系统 HTTP_PROXY。")
+        case .claudeDesktop:
+            return L("改完要完全退出再打开，不是关窗口。")
+        }
+    }
+
+    private func copyButton(_ text: String) -> some View {
+        ThemeButton(kind: .compact, symbol: "doc.on.doc", title: L("复制")) { copy(text) }
     }
 
     /// 一段真跑过的对话（数字与 `docs/AGENTS-CLI.md` 里那次实录一致）。
@@ -659,9 +754,12 @@ struct AgentFlag: View {
             }
             .frame(width: 13, height: 13)
             .padding(.top, 1.5)
-            Text(text)
-                .font(theme.bodyFont(.caption2))
-                .foregroundStyle(theme.palette.warnFG)
+            // 反引号圈起来的那几段是键名/字段值，得跟正文分开——样稿靠一枚灰底 chip，
+            // SwiftUI 拼不成 chip（见 `agentInlineCode` 上那段说明），这里只保等宽。
+            agentInlineCode(text,
+                            plain: theme.bodyFont(.caption2), plainColor: theme.palette.warnFG,
+                            code: .system(size: 9.5, design: .monospaced),
+                            codeColor: theme.palette.warnFG)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
@@ -676,9 +774,10 @@ struct AgentNote: View {
     var top: Bool = false
 
     var body: some View {
-        Text(text)
-            .font(theme.bodyFont(.caption2))
-            .foregroundStyle(theme.palette.inkTertiary)
+        agentInlineCode(text,
+                        plain: theme.bodyFont(.caption2), plainColor: theme.palette.inkTertiary,
+                        code: .system(size: 9.5, design: .monospaced),
+                        codeColor: theme.palette.inkSecondary)
             .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.leading)
             .padding(.horizontal, 14)
@@ -708,5 +807,157 @@ struct AgentClientTile: View {
         }
         .frame(width: 26, height: 26)
         .accessibilityHidden(true)
+    }
+}
+
+/// 「怎么接」上的一颗客户端胶囊。
+///
+/// 选中态三层一起变（字色、描边、底），只变字色那一档在浅皮上几乎看不出来——
+/// 样稿 `.ctab.sel` 给的是白底＋tint 描边＋tint 字，这里照抄，只是白底取
+/// `palette.surface`（卡片本色）而不是写死 `#fff`，暗皮上才不会翻成一块刺眼。
+/// 阴影舍掉：那一档在 1px 描边上是看不出来的两层差别，而这一屏不引新形状语言。
+struct AgentClientPill: View {
+    @Environment(\.theme) private var theme
+    var name: String
+    var selected: Bool
+    var choose: () -> Void
+
+    var body: some View {
+        Button(action: choose) {
+            Text(name)
+                .font(theme.prose(size: 10, weight: .semibold))
+                .foregroundStyle(fg)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(theme.controlShape().fill(bg))
+                .overlay(theme.controlShape().stroke(edge, lineWidth: theme.metric.stroke))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var fg: Color { selected ? theme.palette.tint : theme.palette.inkSecondary }
+    private var bg: Color { selected ? theme.palette.surface
+                                     : theme.palette.surfaceAlt.opacity(0.7) }
+    private var edge: Color { selected ? theme.palette.tint : theme.palette.separator }
+}
+
+/// 多行配置那一档（JSON / TOML）：底是 `surfaceAlt`，右上角那颗才是能按的东西。
+///
+/// 版式照样稿 `.mblock`：块里那行 pre 不折行也不自动缩进，`textSelection` 开着，
+/// 因为粘进别的配置文件时人常常只取其中几行。字号**不借皮肤 face**，与那块
+/// 「终端画面」同一条口径（见 `agentTermFont`）——这是一段要粘进文本编辑器的东西，
+/// 圆体排上去只会让对齐和复制都变味。
+struct AgentConfigBlock<Trailing: View>: View {
+    @Environment(\.theme) private var theme
+    var text: String
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Spacer()
+                trailing()
+            }
+            .padding(.top, 7)
+            .padding(.trailing, 8)
+
+            Text(text)
+                .font(.system(size: 10, design: .monospaced))
+                .lineSpacing(5)
+                .foregroundStyle(theme.palette.ink)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 11)
+                .padding(.top, 4)
+                .padding(.bottom, 10)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.controlShape().fill(theme.palette.surfaceAlt.opacity(0.7)))
+        .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+    }
+}
+
+/// 一行文字里用反引号圈出的那几段，按等宽＋更深的墨排。
+///
+/// 样稿里那一格是 `code`：等宽 + 一点灰底。SwiftUI 把多段 `Text` 拼成**一句**时
+/// 不能只给其中一段铺背景（拼接后的 `Text` 已经不是视图树里的独立节点），所以
+/// 这里保住等宽与 `ink`、舍掉那层灰底——「这是个键名/路径，不是正文」的信号
+/// 由前两者承担。分词就按反引号奇偶切，不引入解析器。
+private func agentInlineCode(_ raw: String,
+                             plain: Font, plainColor: Color,
+                             code: Font, codeColor: Color) -> Text {
+    var out = AttributedString(stringLiteral: "")
+    for (i, piece) in raw.components(separatedBy: "`").enumerated() where !piece.isEmpty {
+        // 走 `stringLiteral` 那一档初始化器：`AttributedString(_:)` 收的是
+        // `String.LocalizationValue`，会把串再查一遍词表——这里的串已经过 `L()` 了，
+        // 二次查表只会让本地化口径多一层没人知道的间接。
+        var seg = AttributedString(stringLiteral: piece)
+        let isCode = !i.isMultiple(of: 2)
+        seg.font = isCode ? code : plain
+        seg.foregroundColor = isCode ? codeColor : plainColor
+        out.append(seg)
+    }
+    return Text(out)
+}
+
+/// 一行放不下就自己折。
+///
+/// 八颗胶囊在宽窗口里是一行，窄一点就是两行——样稿那里写的是 `flex-wrap`。
+/// 这一层不用 `LazyVGrid`：等宽格子会把每颗拉成一样宽，最后那行的落点也变了；
+/// 不用 `HStack`：它不折行，八颗会一路顶穿卡片右边。`Layout` 从 macOS 13 起可用，
+/// 正是本包的最低部署版本。
+struct AgentPillFlow: Layout {
+    var spacing: CGFloat = 5
+
+    struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func rows(_ subviews: Subviews, maxWidth: CGFloat) -> [Row] {
+        var out: [Row] = []
+        var cur = Row()
+        for (i, sub) in subviews.enumerated() {
+            let size = sub.sizeThatFits(.unspecified)
+            if !cur.indices.isEmpty, cur.width + spacing + size.width > maxWidth {
+                out.append(cur)
+                cur = Row()
+            }
+            cur.width += (cur.indices.isEmpty ? 0 : spacing) + size.width
+            cur.height = max(cur.height, size.height)
+            cur.indices.append(i)
+        }
+        if !cur.indices.isEmpty { out.append(cur) }
+        return out
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let limit = proposal.width ?? .infinity
+        let planned = rows(subviews, maxWidth: limit)
+        let widest = planned.map(\.width).max() ?? 0
+        let tall = planned.reduce(CGFloat(0)) { $0 + $1.height }
+            + spacing * CGFloat(max(planned.count - 1, 0))
+        return CGSize(width: min(widest, limit), height: tall)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
+                       subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(subviews, maxWidth: bounds.width) {
+            var x = bounds.minX
+            for i in row.indices {
+                let sub = subviews[i]
+                let size = sub.sizeThatFits(.unspecified)
+                sub.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
     }
 }

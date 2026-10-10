@@ -190,11 +190,10 @@ public func agentClientLabel(_ raw: String?) -> String? {
         .replacingOccurrences(of: " ", with: "-")
     if key == "unknown" { return nil }
     if key == "mcp" { return "MCP" }
-    // 按前缀认：客户端会把版本号挂在名字后面（`claude-code/1.0.60` 这类）
-    if key.hasPrefix("claude") { return "Claude Code" }
-    if key.hasPrefix("cursor") { return "Cursor" }
-    if key.hasPrefix("codex") { return "Codex" }
     if key.hasPrefix("diskwise-cli") || key == "diskwise" { return "diskwise CLI" }
+    // 八家各自的写法由配方表认（先长后短：`claude-desktop` 不能被认成 Claude Code，
+    // 两个不同的客户端在账上长同一个名字，那一行就没法信了）
+    if let client = agentClient(matchingReported: raw) { return client.title }
     return raw
 }
 

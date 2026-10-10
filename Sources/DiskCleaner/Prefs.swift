@@ -27,12 +27,21 @@ final class Prefs: ObservableObject {
     /// 盘上存的是「进过没有」（`seen`），界面读的是「还新不新」（`!seen`）——
     /// 没写过键的机器上 `bool(forKey:)` 回来 false，正好就是「没进过、还新」。
     @Published private(set) var agentPageIsNew: Bool
+    /// 「怎么接」那张卡上选中的是哪一家客户端。
+    ///
+    /// 存的是 `AgentClient.rawValue` 这一层字符串，不是枚举本身：这一层不引 Core，
+    /// 而认回来的串在界面里用 `AgentClient(rawValue:)` 解。解不出来（比如以后收了
+    /// 某一家）就回默认那家——留一个假名字在盘上，比让页面崩或画一颗选中却无内容的
+    /// 胶囊都体面。第二次进来还记得自己上次看的是哪家，是因为这页的说明很长，
+    /// 而对长说明唯一有用的读法就是「直接翻到我家那一段」。
+    @Published private(set) var agentClientRaw: String
 
     private let defaults = UserDefaults.standard
 
     private enum Keys {
         static let menuBar = "diskcleaner.menubar.enabled"
         static let agentSeen = "diskcleaner.agent.seen"
+        static let agentClient = "diskcleaner.agent.client"
     }
 
     private init() {
@@ -40,6 +49,7 @@ final class Prefs: ObservableObject {
             ? true
             : defaults.bool(forKey: Keys.menuBar)
         agentPageIsNew = !defaults.bool(forKey: Keys.agentSeen)
+        agentClientRaw = defaults.string(forKey: Keys.agentClient) ?? ""
         let status = Self.loginStatus
         loginItemEnabled = (status == .enabled || status == .requiresApproval)
         loginItemNeedsApproval = (status == .requiresApproval)
@@ -64,6 +74,13 @@ final class Prefs: ObservableObject {
         guard agentPageIsNew else { return }
         agentPageIsNew = false
         defaults.set(true, forKey: Keys.agentSeen)
+    }
+
+    /// 「怎么接」上选了哪家。存的是 rawValue，界面回读时解不出来才回默认那家。
+    func setAgentClient(_ raw: String) {
+        guard raw != agentClientRaw else { return }
+        agentClientRaw = raw
+        defaults.set(raw, forKey: Keys.agentClient)
     }
 
     func setLoginItem(_ on: Bool) {

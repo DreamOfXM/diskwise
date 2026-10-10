@@ -1477,5 +1477,165 @@ do {
     unsetenv("DISKWISE_HOME_SHIM")
 }
 
+// MARK: - 17. 八家 MCP 客户端的接法形状（AgentClientRecipes）
+
+/// 在一段配置里找第一个 `command` 的值（字符串或数组都算找到）。
+///
+/// 八家的嵌套层次各不相同（`mcpServers` / `mcp` / `mcp.servers` /
+/// `context_servers`），逐个写死取值路径的话，改一处形状就要跟着改一处断言，
+/// 而这里要问的只是「那个路径有没有被完整地塞进去」。
+private func firstCommandValue(in node: Any) -> Any? {
+    if let dict = node as? [String: Any] {
+        if let v = dict["command"] { return v }
+        for (_, v) in dict { if let found = firstCommandValue(in: v) { return found } }
+    }
+    if let arr = node as? [Any] {
+        for v in arr { if let found = firstCommandValue(in: v) { return found } }
+    }
+    return nil
+}
+
+func clientRecipeSelfTest() {
+    let measured = "/Applications/DiskWise.app/Contents/MacOS/diskwise"
+    let brew = "/opt/homebrew/bin/diskwise"
+    let spaced = "/Users/me/My Apps/DiskWise.app/Contents/MacOS/diskwise"
+    let nasty = "/Users/x/a\"b\\c/DiskWise.app"
+    func snippet(_ client: AgentClient, _ kind: AgentSnippet.Kind, path: String = measured) -> String {
+        client.snippets(cliPath: path).first { $0.kind == kind }?.text ?? ""
+    }
+    /// 「mcp」得是**那个参数**，不是命令名里凑巧的两个字母。
+    ///
+    /// `contains("mcp")` 在这里是废的：`claude mcp add diskwise -- <路径>` 把结尾
+    /// 那个参数整个删掉，串里仍有 `mcp add`，断言照样绿。而少了参数，粘进去
+    /// 起的是 GUI 而不是服务——这正是我们最容易对外发错的一种。
+    func argToken(_ s: AgentSnippet) -> Bool {
+        switch s.kind {
+        case .shell: return s.text.hasSuffix(" mcp")
+        case .toml: return s.text.contains("args = [\"mcp\"]")
+        case .json: return s.text.contains("\"mcp\"")
+        }
+    }
+
+    // 17.1 界面上那一排胶囊：八家一家不能少，顺序就是画出来的顺序，名字是专名不进词表
+    check(AgentClient.allCases.map(\.title)
+          == ["Claude Code", "Codex", "Qoder", "Cursor", "OpenCode", "Zed", "ZCode", "Claude Desktop"],
+          "接法：八家齐全、顺序即界面顺序、专名不翻译")
+
+    // 17.2 每一段的底线：不为空、含实测路径、且 `mcp` 是以**参数**的身份在场
+    //（少了那个参数，粘进去起的是 GUI 而不是服务——这一条最难在屏幕上看出来）
+    for c in AgentClient.allCases {
+        let ss = c.snippets(cliPath: measured)
+        check(!ss.isEmpty, "接法：\(c.title) 至少给一段能粘的东西")
+        for s in ss {
+            check(s.text.contains(measured), "接法：\(c.title) 的片段带的是实测路径")
+            check(argToken(s), "接法：\(c.title) 的片段里 mcp 是那个参数，不是命令名里的字")
+        }
+    }
+
+    // 17.3 换安装位置必须整段跟着换：形状里不许有 /Applications 的残渣写死
+    for c in AgentClient.allCases {
+        for s in c.snippets(cliPath: brew) {
+            check(!s.text.contains("/Applications/DiskWise.app"),
+                  "接法：\(c.title) 换到 Homebrew 路径后不留旧包残渣")
+        }
+    }
+
+    // 17.4 终端里的路径：带空白才加引号
+    check(agentQuotedForShell(spaced) == "\"\(spaced)\"",
+          "接法：路径带空格必须加引号，否则粘进终端就是一句断掉的话")
+    check(agentQuotedForShell(measured) == measured, "接法：路径没空格就不加引号")
+    let quotedSpaced = agentQuotedForShell(spaced)
+    for c in AgentClient.allCases {
+        for s in c.snippets(cliPath: spaced) where s.kind == .shell {
+            check(s.text.contains(quotedSpaced),
+                  "接法：\(c.title) 的命令行片段给带空格的路径包了引号")
+        }
+    }
+
+    // 17.5 方言逐家核对——形状由客户端自己定，抄别家的就是发一条跑不通的命令
+    check(AgentClient.claudeCode.snippets(cliPath: measured).count == 1
+          && snippet(.claudeCode, .shell).hasPrefix("claude mcp add diskwise -- "),
+          "接法：Claude Code 只给一行，且是 `claude mcp add` 的方言")
+
+    check(snippet(.codex, .shell).hasPrefix("codex mcp add diskwise -- "),
+          "接法：Codex 走它自己的 `codex mcp add`，不是 claude 那条")
+    let codexToml = snippet(.codex, .toml)
+    check(codexToml.contains("[mcp_servers.diskwise]")
+          && codexToml.contains("command = \"\(measured)\"")
+          && codexToml.contains("args = [\"mcp\"]"),
+          "接法：Codex 的配置文件段是 [mcp_servers.diskwise] + command/args")
+
+    check(AgentClient.qoder.snippets(cliPath: measured).count == 2
+          && snippet(.qoder, .shell).hasPrefix("qoder mcp add diskwise -- ")
+          && snippet(.qoder, .json).contains("\"mcpServers\""),
+          "接法：Qoder 两样都给（命令行 + IDE 那份 JSON）")
+
+    check(snippet(.cursor, .json).contains("\"type\": \"stdio\""),
+          "接法：Cursor 的字段表要求显式写 type: stdio")
+
+    let openCode = snippet(.openCode, .json)
+    check(openCode.contains("\"type\": \"local\"")
+          && openCode.contains("\"command\": [\"\(measured)\", \"mcp\"]"),
+          "接法：OpenCode 要 type: local + **数组形**的 command（字符串形它读不进去）")
+    check(!openCode.contains("\"args\"") && !openCode.contains("\"env\""),
+          "接法：OpenCode 没有 args 键、环境变量那格叫 environment 不叫 env")
+
+    let zed = snippet(.zed, .json)
+    check(zed.contains("\"context_servers\""), "接法：Zed 的键叫 context_servers")
+    check(!zed.contains("agent_servers"),
+          "接法：Zed 不是 agent_servers——抄别家的键名就是发一段静默失效的配置")
+
+    check(snippet(.zcode, .json).contains("\"servers\""),
+          "接法：ZCode 的 mcp 下面还有一层 servers")
+
+    let desktop = snippet(.claudeDesktop, .json)
+    check(desktop.contains("\"mcpServers\"") && !desktop.contains("\"type\""),
+          "接法：Claude 桌面版那层不认 type，写了也不影响但要照它的表给")
+
+    // 17.6 安装路径带引号或反斜杠时，整段 JSON 还得能被解析回原样。
+    // 转义漏一处，坏在中间肉眼看不出来，用户粘进终端才发现是一坨废的。
+    var parsed = 0
+    for c in AgentClient.allCases {
+        for s in c.snippets(cliPath: nasty) where s.kind == .json {
+            guard let obj = try? JSONSerialization.jsonObject(with: Data(s.text.utf8)) else {
+                check(false, "接法：\(c.title) 的 JSON 在带引号的安装路径下解析不了（转义漏了）")
+                continue
+            }
+            guard let raw = firstCommandValue(in: obj) else {
+                check(false, "接法：\(c.title) 的 JSON 里找不到 command 这一格")
+                continue
+            }
+            var got = raw as? String
+            if got == nil { got = (raw as? [Any])?.first as? String }
+            check(got == nasty, "接法：\(c.title) 的 JSON 里 command 解回来还是那个路径")
+            parsed += 1
+        }
+    }
+    check(parsed == 6,
+          "接法：六段 JSON（qoder/cursor/openCode/zed/zcode/Claude 桌面版）全过 round-trip")
+
+    // 17.7 上账时的归类：先长后短，认不出的照抄
+    check(agentClient(matchingReported: "claude-desktop") == .claudeDesktop
+          && agentClient(matchingReported: "claude") == .claudeCode,
+          "接法：归类表先长后短——桌面版不许被叫成 Claude Code")
+    let labels: [(String, String)] = [
+        ("claude-desktop/1.2", "Claude Desktop"),
+        ("opencode", "OpenCode"),
+        ("sst-opencode", "OpenCode"),
+        ("Qoder/1.9", "Qoder"),
+        ("ZED", "Zed"),
+        ("z_code", "ZCode"),
+        ("cursor", "Cursor"),
+    ]
+    for (raw, want) in labels {
+        check(agentClientLabel(raw) == want, "接法：自报 \(raw) 在账本上写作 \(want)")
+    }
+    check(agentClientLabel("mcp-test-client") == "mcp-test-client",
+          "接法：没核对过的自报名照抄——那是别人家的名字，不是我们的翻译对象")
+}
+do {
+    clientRecipeSelfTest()
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

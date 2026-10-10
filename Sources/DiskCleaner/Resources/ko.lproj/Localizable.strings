@@ -802,9 +802,7 @@
 "%@ 放回失败" = "%@ 되돌리기 실패";
 "31.4 GB 已移入废纸篓，可整单撤销" = "31.4 GB를 휴지통으로 옮겼습니다 — 실행 단위로 한꺼번에 되돌릴 수 있습니다";
 "Agent 操作记录" = "Agent 작업 기록";
-"Cursor、Codex 这类工具填的是同一个 diskwise：命令填上面那个路径，参数填 mcp。两步确认跑在前面——没有 plan_id 一步都动不了，执行前逐项重跑判定。" = "Cursor, Codex 같은 도구도 같은 diskwise를 씁니다. 명령에는 위 경로를, 인수에는 mcp를 넣으세요. 두 단계 확인이 먼저입니다 — plan_id가 없으면 아무것도 움직이지 않고, 실행 전에 항목마다 판단을 다시 합니다.";
 "iOS 模拟器运行时 16.6 GB 在系统区，outside_allowed，我不会动" = "iOS 시뮬레이터 런타임 16.6 GB는 시스템 영역에 있습니다. outside_allowed라 건드리지 않습니다";
-"上面那行里的路径是按 App 实际安装位置拼出来的；用 Homebrew 装的话，把它换成 /opt/homebrew/bin/diskwise。" = "위 경로는 앱의 실제 설치 위치에 맞춰 만든 것입니다. Homebrew로 설치했다면 /opt/homebrew/bin/diskwise로 바꾸세요.";
 "什么都没放回" = "아무것도 되돌아오지 않았습니다";
 "共 %@ 移入废纸篓" = "총 %@를 휴지통으로 옮겼습니다";
 "其中 %@ 已放回" = "그중 %@를 되돌렸습니다";
@@ -851,3 +849,25 @@
 // 零行时卡片下半截只剩政策说明，所以空态另起一句短注；
 // 长的那条只在真有一行账时出现。
 "这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿。" = "이 페이지는 agent가 남긴 작업 로그만 읽습니다. 앱에서 손으로 정리한 것은 여기에 기록되지 않습니다.";
+
+// ── AI Agent 页 · 八家客户端各自的接法（10-10 补，20 条） ─────────────────────────────────────────────
+"Claude 桌面版" = "Claude Desktop";
+"`codex mcp list` 只登记不握手，真连接要跑一次会话才看得出成不成——10-10 本机测的就是这两档。" = "`codex mcp list`는 등록만 하고 악수를 하지 않습니다. 실제로 연결되는지는 세션을 한 번 실행해야 알 수 있습니다 — 10-10 실측에서도 이 두 단계로 갈렸습니다.";
+"`command` 是数组（程序和参数写在同一个方括号里），环境变量那个键叫 `environment` 不叫 `env`，`type` 得是 `local`。这三处照别家的写法抄就起不来。" = "`command`는 배열입니다(프로그램과 인자를 같은 대괄호 안에 적습니다). 환경 변수 키는 `env`가 아니라 `environment`, `type`은 `local`이어야 합니다. 이 세 곳을 다른 클라이언트의 표기를 그대로 옮기면 시작되지 않습니다.";
+"上面那几段里的路径都按 App 的实际安装位置现拼；切换只换外面那层方言，路径和参数 `mcp` 八家共用同一个值。用 Homebrew 装的，把它换成 `/opt/homebrew/bin/diskwise`。" = "위의 모든 경로는 앱이 실제로 설치된 위치에서 조립됩니다. 클라이언트를 바꿔도 바뀌는 것은 바깥쪽 방언뿐이고, 경로와 인자 `mcp`는 여덟 곳이 같은 값을 씁니다. Homebrew로 설치했다면 `/opt/homebrew/bin/diskwise`로 바꾸세요.";
+"八家之外也能接：任何支持本地 stdio MCP 的客户端都吃这两个值——命令填这个路径，参数填 `mcp`。接不上是客户端那边的问题，欢迎开 issue 或提 PR。两步确认跑在前面：没有 plan_id 一步都动不了，执行前逐项重跑判定。" = "여덟 곳 밖에서도 연결됩니다. 로컬 stdio MCP를 지원하는 클라이언트면 값은 같습니다 — command에 이 경로, args에 `mcp`. 연결되지 않는다면 클라이언트 쪽 문제니 issue나 PR을 환영합니다. 확인은 항상 두 단계가 먼저입니다: plan_id가 없으면 한 칸도 움직이지 않고, 실행 전에 항목마다 판정을 다시 돌립니다.";
+"写进 `~/.config/opencode/opencode.json`，或项目根目录的 `opencode.json`" = "`~/.config/opencode/opencode.json` 또는 프로젝트 최상위의 `opencode.json`에 적습니다";
+"写进 `~/.config/zed/settings.json` 里的 `context_servers`" = "`~/.config/zed/settings.json`의 `context_servers`에 적습니다";
+"写进 `~/.cursor/mcp.json`，或项目根的 `.cursor/mcp.json`" = "`~/.cursor/mcp.json` 또는 프로젝트 최상위의 `.cursor/mcp.json`에 적습니다";
+"写进 `~/.zcode/cli/config.json` 里的 `mcp.servers`（项目级是 `<项目>/.zcode/config.json`）" = "`~/.zcode/cli/config.json`의 `mcp.servers`에 적습니다(프로젝트 단위는 `<프로젝트>/.zcode/config.json`)";
+"写进 `~/Library/Application Support/Claude/claude_desktop_config.json` 的 `mcpServers`" = "`~/Library/Application Support/Claude/claude_desktop_config.json`의 `mcpServers`에 적습니다";
+"加到项目里（`--scope project`）时，要在那个目录里进一次 `claude` 批准，服务才会真启动——10-10 实测：新目录里 add 完 `claude mcp list` 回的是「Pending approval」。" = "`--scope project`로 추가했다면 해당 디렉터리에서 한 번 `claude`를 실행해 승인해야 서버가 실제로 시작됩니다 — 10-10 실측: 새 디렉터리에서 add 직후 `claude mcp list`는「Pending approval」을 돌려줍니다.";
+"命令行：`qoder mcp add`（默认只作用于当前目录，加 `--scope project` 才写进项目的 `.mcp.json`）" = "명령줄: `qoder mcp add`(기본은 현재 디렉터리에만 적용되고, `--scope project`를 붙여야 프로젝트의 `.mcp.json`에 기록됩니다)";
+"在终端里跑这一条" = "터미널에서 이 한 줄을 실행합니다";
+"在终端里跑这一条，跑完重开一次会话" = "터미널에서 이 한 줄을 실행한 뒤 세션을 다시 엽니다";
+"官方字段表要求写 `type: stdio`，它自己的示例却省着——我们写全。" = "공식 필드 표는 `type: stdio`를 요구하지만 정작 공식 예제에서는 생략됩니다 — 여기서는 다 적습니다.";
+"或在 IDE 里加：`⌘⇧,` → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段" = "또는 IDE에서 추가: `⌘⇧,` → Qoder 설정 → MCP → 내 서버 → ＋ 추가, 이 내용을 붙여넣습니다";
+"或直接写进 `~/.codex/config.toml`" = "또는 `~/.codex/config.toml`에 적습니다";
+"改完要完全退出再打开，不是关窗口。" = "바꾼 뒤에는 창을 닫는 것이 아니라 앱을 완전히 종료했다가 다시 열어야 합니다.";
+"是 `context_servers` 不是 `agent_servers`（后者是挂外部 agent 的）。" = "`agent_servers`가 아니라 `context_servers`입니다(그쪽은 외부 agent를 붙이는 키입니다).";
+"设置里能直接从 Claude Code / Codex / OpenCode 的配置导入；它默认不吃系统 HTTP_PROXY。" = "설정에서 Claude Code / Codex / OpenCode 설정을 바로 가져올 수 있습니다. 시스템 HTTP_PROXY는 기본값에서 적용되지 않습니다.";
