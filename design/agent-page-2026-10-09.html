@@ -204,6 +204,22 @@ body.only .frame{box-shadow:none;border-radius:0}
 .lb.on{display:block}
 .lb .inner{padding:26px}
 .lb img{display:block;zoom:2;transform-origin:top left;background:#fff;border-radius:11px}
+/* ⑥ 多客户端切换 */
+.ctabs{display:flex;flex-wrap:wrap;gap:5px;padding:11px 16px 3px}
+.ctab{font-size:10px;font-weight:600;color:var(--ink2);background:var(--surfaceAlt);
+  border:1px solid var(--sep);border-radius:20px;padding:4px 9px;display:inline-flex;gap:5px;align-items:center}
+.ctab.sel{background:#fff;border-color:var(--tint);color:var(--tint);box-shadow:0 1px 2px rgba(26,34,51,.07)}
+.where{display:flex;gap:6px;align-items:baseline;font-size:10px;color:var(--ink2);padding:10px 16px 0;line-height:1.55}
+.where code{font-family:var(--m);font-size:9.5px;background:rgba(20,22,26,.05);padding:1px 5px;border-radius:4px;color:var(--ink)}
+.mblock{margin:8px 16px 0;background:var(--surfaceAlt);border:1px solid var(--sep);border-radius:9px}
+.mblock pre{font-family:var(--m);font-size:10px;line-height:1.6;color:var(--ink);padding:9px 11px 10px;margin:0;
+  white-space:pre;overflow-wrap:normal}
+.mblock .mh{display:flex;justify-content:flex-end;padding:6px 8px 0}
+.mblock .mh .btn{font-size:9.5px;padding:2px 7px}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:5px 10px;font-size:10px;line-height:1.55;color:var(--ink2)}
+.kv b{color:var(--ink);font-weight:600}
+.kv code{font-family:var(--m);font-size:9.5px;background:rgba(20,22,26,.05);padding:1px 5px;border-radius:4px;color:var(--ink)}
+.kv .g{color:var(--ink3)}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--ink3);
   border:1px solid var(--sep);border-radius:5px;padding:3px 6px}
 </style>
@@ -212,14 +228,17 @@ body.only .frame{box-shadow:none;border-radius:0}
 <div class="wrap">
 
 <div class="intro">
-  <h1>AI Agent 页 · 现有皮肤 · 五屏（定稿）</h1>
+  <h1>AI Agent 页 · 现有皮肤 · 六屏（⑥ 为 10-10 追加）</h1>
   <p>
     对应 <b>plans/plan_2026-10-09_agent-page-in-app.md</b>。整套换肤稿（redesign v1–v7）不落地，
     这里只画新增的那一屏：令牌取自 <b>SkinCatalog.swift</b> 的 builtIn 皮肤（卡片 12 / 控件 9 / 图标块 8 圆角，
     主色 #2A62D6，纸面 #F6F7F9），字号按 <b>docs/screenshots/zh/07-dev-cache.png</b> 反推，
     所以和现在 App 里任何一页并排放不会对不上。点每张图可放大到 200% 看细节。
   </p>
-  <p class="hint2"><span class="badge">① 主屏</span> <span class="badge">② 侧栏位置（已定 A）</span> <span class="badge">③ 空态</span> <span class="badge">④ 撤销反馈</span> <span class="badge">⑤ 三种降级/明细态</span></p>
+  <p class="hint2"><span class="badge">① 主屏</span> <span class="badge">② 侧栏位置（已定 A）</span> <span class="badge">③ 空态</span> <span class="badge">④ 撤销反馈</span> <span class="badge">⑤ 三种降级/明细态</span> <span class="badge">⑥ 多客户端接法（10-10 追加）</span></p>
+  <p class="hint2">10-10 追加第 ⑥ 屏的原因：①里那行 <code>claude mcp add</code> 是 Claude Code 的方言，
+    当天在本机把 Qoder CLI、OpenCode 各连了一次（都 Connected），它们的写法完全不同形状——
+    只给一行的话，页面等于对其余七家给了条跑不通的指令。</p>
   <p class="hint2">10-09 第一轮复核：右上徽章只断言得了的「本包已带 CLI」；「被拦住」那一栏移出本期，只在 ④ 的 c 段留作说明。</p>
   <p class="hint2">10-09 第二轮（本页已按此定稿）：<b>1</b> 徽章与命令行的显示条件改成运行时实测包里有没有
     <code>Contents/MacOS/diskwise</code>（渠道判断一旦和打包不一致，页面就在撒谎）；<b>2</b> App 不在
@@ -567,6 +586,94 @@ body.only .frame{box-shadow:none;border-radius:0}
           <div class="cmd off"><code>这一版包里没有 diskwise —— 升级后这行才会出现</code></div>
           <div class="note">这一屏的显示条件从「编译期渠道判断」改成<b>运行时实测</b> <code>&lt;bundlePath&gt;/Contents/MacOS/diskwise</code> 在不在。两个理由：打包脚本只在直装渠道拷这个文件（<code>build_app/build.sh:181-182</code>），渠道标志和实际包内容一旦不一致，页面就在撒谎；而 v1.7 及更早的包本来就没有 CLI，用户升上来之前得告诉他缺什么。引导文案两行：升到 v1.8 的直装包，或 <code>brew install --cask dreamofxm/diskwise/diskwise</code>（cask 从 1.8 起带 <code>binary</code> 一行，才有 <code>/opt/homebrew/bin/diskwise</code>）。商店版整页不出现，跟这态无关。</div>
         </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ⑥ 多客户端：一行命令只是一家能用的 -->
+<div class="shot" data-shot="6">
+  <div class="cap"><span class="no">06</span><span class="t">「怎么接」改成按客户端切换</span><span class="d">10-10 追加：原来那行 <code>claude mcp add</code> 只有 Claude Code 认，粘进别家就是 command not found</span></div>
+  <div class="frame board zoomable"><div class="stage" style="background:var(--content)">
+    <div class="states">
+      <div>
+        <h3><span class="n">a</span>选中 Claude Code：单行命令那一档</h3>
+        <div class="card" style="margin:0">
+          <h3>怎么接<span class="hint">把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账</span></h3>
+          <div class="ctabs">
+            <span class="ctab sel">Claude Code</span><span class="ctab">Codex</span><span class="ctab">Qoder</span><span class="ctab">Cursor</span><span class="ctab">OpenCode</span><span class="ctab">Zed</span><span class="ctab">ZCode</span><span class="ctab">Claude 桌面版</span>
+          </div>
+          <div class="where">在终端里跑这一条，跑完重开一次会话</div>
+          <div class="cmd"><code>claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp</code><span class="btn">⧉ 复制</span></div>
+          <div class="flag"><span class="fdot">!</span><span>加到项目里（<code>--scope project</code>）时，要在那个目录里进一次 <code>claude</code> 批准，服务才会真启动——10-10 实测：新目录里 add 完 <code>claude mcp list</code> 回的是「⏸ Pending approval」。</span></div>
+          <div class="note" style="padding-bottom:2px">路径仍按 <code>Bundle.main.bundlePath</code> 现拼并加引号；切换只换外面那层方言，路径和参数 <code>mcp</code> 八家共用同一个值。</div>
+          <div class="note" style="padding-bottom:12px">八家之外也能接：任何支持本地 stdio MCP 的客户端都吃这两个值——命令填这个路径，参数填 <code>mcp</code>。接不上是客户端那边的问题，欢迎开 issue 或提 PR。两步确认跑在前面：没有 <code>plan_id</code> 一步都动不了，执行前逐项重跑判定。</div>
+        </div>
+      </div>
+
+      <div>
+        <h3><span class="n">b</span>选中 OpenCode：多行配置那一档（形状和别家不一样，不能只换前缀）</h3>
+        <div class="card" style="margin:0">
+          <div class="ctabs">
+            <span class="ctab">Claude Code</span><span class="ctab">Codex</span><span class="ctab">Qoder</span><span class="ctab">Cursor</span><span class="ctab sel">OpenCode</span><span class="ctab">Zed</span><span class="ctab">ZCode</span><span class="ctab">Claude 桌面版</span>
+          </div>
+          <div class="where">写进 <code>~/.config/opencode/opencode.json</code>，或项目根目录的 <code>opencode.json</code></div>
+          <div class="mblock">
+            <div class="mh"><span class="btn">⧉ 复制</span></div>
+            <pre>{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "diskwise": {
+      "type": "local",
+      "command": ["/Applications/DiskWise.app/Contents/MacOS/diskwise", "mcp"],
+      "enabled": true
+    }
+  }
+}</pre>
+          </div>
+          <div class="flag"><span class="fdot">!</span><span><code>command</code> 是数组（程序和参数写在同一个方括号里），环境变量那个键叫 <code>environment</code> 不叫 <code>env</code>，<code>type</code> 必须是 <code>"local"</code>。这三处照别家的写法抄就起不来。</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3><span class="n">c</span>选中 Qoder：一家两种接法，两块都给</h3>
+        <div class="card" style="margin:0">
+          <div class="ctabs">
+            <span class="ctab">Claude Code</span><span class="ctab">Codex</span><span class="ctab sel">Qoder</span><span class="ctab">Cursor</span><span class="ctab">OpenCode</span><span class="ctab">Zed</span><span class="ctab">ZCode</span><span class="ctab">Claude 桌面版</span>
+          </div>
+          <div class="where">命令行：<code>qoder mcp add</code>（默认只作用于当前目录，加 <code>--scope project</code> 才写进项目的 <code>.mcp.json</code>）</div>
+          <div class="cmd"><code>qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp</code><span class="btn">⧉ 复制</span></div>
+          <div class="where">或在 IDE 里加：<code>⌘⇧,</code> → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段</div>
+          <div class="mblock">
+            <div class="mh"><span class="btn">⧉ 复制</span></div>
+            <pre>{
+  "mcpServers": {
+    "diskwise": {
+      "command": "/Applications/DiskWise.app/Contents/MacOS/diskwise",
+      "args": ["mcp"]
+    }
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3><span class="n">d</span>八家各自摊开（这一段是给你对文案的附表，不进界面）</h3>
+        <div class="card" style="margin:0"><div style="padding:12px 16px 14px">
+          <div class="kv">
+            <b>Claude Code</b><span>终端 <code>claude mcp add diskwise -- "&lt;路径&gt;" mcp</code><div class="g">注意：项目作用域要进一次 <code>claude</code> 批准（10-10 实测）</div></span>
+            <b>Codex</b><span>终端 <code>codex mcp add diskwise -- "&lt;路径&gt;" mcp</code>，或 <code>~/.codex/config.toml</code> 里 <code>[mcp_servers.diskwise]</code><div class="g">注意：<code>codex mcp list</code> 只登记不握手，真连接要跑一次会话（10-10 实测）</div></span>
+            <b>Qoder</b><span>CLI <code>qoder mcp add diskwise -- "&lt;路径&gt;" mcp</code>；IDE <code>⌘⇧,</code> → MCP → 我的服务 → ＋ 添加<div class="g">实测：默认 local 作用域，<code>--scope project</code> 写 <code>.mcp.json</code>，形状与 Cursor 同</div></span>
+            <b>Cursor</b><span><code>~/.cursor/mcp.json</code>（或项目 <code>.cursor/mcp.json</code>），<code>mcpServers</code> + <code>command</code>/<code>args</code><div class="g">注意：官方字段表要求写 <code>"type": "stdio"</code>，它自己的示例却省着——我们写全</div></span>
+            <b>OpenCode</b><span><code>~/.config/opencode/opencode.json</code> 或项目 <code>opencode.json</code>，<code>mcp.&lt;名&gt;</code><div class="g">注意：<code>type</code> 必须 <code>"local"</code>、<code>command</code> 是数组、env 键叫 <code>environment</code></div></span>
+            <b>Zed</b><span><code>~/.config/zed/settings.json</code> 里的 <code>context_servers</code>，<code>command</code> 字符串 + <code>args</code> 数组<div class="g">注意：是 <code>context_servers</code> 不是 <code>agent_servers</code>（后者是挂外部 agent 的）</div></span>
+            <b>ZCode</b><span><code>~/.zcode/cli/config.json</code> 里的 <code>mcp.servers</code>（项目级是 <code>&lt;项目&gt;/.zcode/config.json</code>）<div class="g">注意：设置里能直接从 Claude Code / Codex / OpenCode 的配置导入；它默认不吃系统 HTTP_PROXY</div></span>
+            <b>Claude 桌面版</b><span><code>~/Library/Application Support/Claude/claude_desktop_config.json</code>，<code>mcpServers</code><div class="g">注意：改完要<b>完全退出</b>再打开，不是关窗口</div></span>
+          </div>
+          <div class="note" style="padding:12px 0 0">口径：八家都在自己的官方文档上核对过（10-10 抓的原文），其中 Claude Code / Qoder / OpenCode 三家在本机真连上过（<code>Connected</code>），Codex 登记成功但没跑会话，其余四家本机未装、按官方文档写。<code>docs/AGENTS-CLI.md</code> 已按这八家补齐，页面末尾那句「配置见 docs」不撒谎。</div>
+          <div class="note" style="padding:4px 0 0">卡末那句「八家之外也能接⋯⋯欢迎开 issue 或提 PR」是 10-10 定稿之后补的口径（原话：理论上所有 agent 都要支持，如果有 bug 希望 PR）。Swift 与 <code>docs/AGENTS-CLI.md</code> 用的是同一份措辞。</div>
+        </div></div>
       </div>
     </div>
   </div></div>

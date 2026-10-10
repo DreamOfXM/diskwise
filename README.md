@@ -72,17 +72,24 @@ The GIF at the top of this page plays this exact order:
 ## For AI agents
 
 The direct-download build ships a `diskwise` CLI (the App Store build doesn't), and it doubles as a
-[Model Context Protocol](https://modelcontextprotocol.io) server — let Claude Code, Cursor or Codex
-reclaim disk space for you. It can't `rm -rf`: the only removal path moves known-safe items to the
-Trash, every operation is undoable, and risky locations are never touchable.
+[Model Context Protocol](https://modelcontextprotocol.io) server — Claude Code, Cursor, Codex, Qoder,
+OpenCode, Zed, ZCode and Claude Desktop can all reclaim disk space for you. It can't `rm -rf`: the only
+removal path moves known-safe items to the Trash, every operation is undoable, and risky locations are
+never touchable.
+
+Claude Code takes one line in Terminal:
 
 ```sh
-claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp
+claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
 Then just ask your agent *"see what's worth cleaning on my Mac"* — it scans, drafts a plan,
-shows you the summary, and only moves anything after you agree. Details, config snippets for
-Cursor/Codex and the full safety model: [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md).
+shows you the summary, and only moves anything after you agree. The eight above are the ones we
+verified line by line; any client that can host a local stdio MCP server takes the same two values —
+this binary's path, and the `mcp` argument. If one of them can't connect, that's on the client:
+issues and PRs welcome. Details, snippets for the other seven
+clients and the full safety model: [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md).
+
 ## Why this exists
 
 A disk cleaner has to read a lot of your machine before it can tell you anything useful. Most of

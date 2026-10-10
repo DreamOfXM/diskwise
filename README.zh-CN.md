@@ -68,17 +68,22 @@ brew install --cask dreamofxm/diskwise/diskwise
 ## 给 AI agent 用
 
 直装版附带 `diskwise` 命令行（App Store 版不带），它同时是一个 MCP
-（Model Context Protocol）服务——让 Claude Code、Cursor、Codex 替你清磁盘。
-它不能 `rm -rf`：唯一删除路径是把知识库认得且判为安全的位置移进废纸篓，
-每一步都能整单撤销，会丢数据的位置永远动不了。
+（Model Context Protocol）服务——Claude Code、Cursor、Codex、Qoder、OpenCode、Zed、ZCode、
+Claude 桌面版都能挂上，替你清磁盘。它不能 `rm -rf`：唯一删除路径是把知识库认得且判为安全的
+位置移进废纸篓，每一步都能整单撤销，会丢数据的位置永远动不了。
+
+Claude Code 一条命令接上：
 
 ```sh
-claude mcp add diskwise -- /Applications/DiskWise.app/Contents/MacOS/diskwise mcp
+claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
 然后直接对 agent 说「看看我 Mac 上哪里值得清」：它会扫描、出计划、把摘要
-给你过目，你点头之后才动手。配置片段、完整安全模型与命令清单见
+给你过目，你点头之后才动手。上面八家是我们逐条核对过的；八家之外也能接——任何能挂本地
+stdio MCP 服务的客户端吃的都是这两个值，二进制的路径和参数 `mcp`。接不上是客户端那边的
+问题，欢迎开 issue 或提 PR。其余七家的写法、完整安全模型与命令清单见
 [docs/AGENTS-CLI.md](docs/AGENTS-CLI.md)。
+
 ## 为什么选择 DiskWise
 
 清理工具要进入你的家目录，劝你删东西。多数同类产品闭源、常驻后台进程、把 `rm -rf` 当卖点。
