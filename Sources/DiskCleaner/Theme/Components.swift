@@ -703,8 +703,9 @@ struct VolumeChip: View {
     }
 
     /// 卷名读一次就够：它不会在运行中改名，而每 5 秒去问一次沙盒外的路径不值得。
-    /// 取不到（沙盒挡了）就整段不写，不拿 "/" 或硬编码的 "Macintosh HD" 顶上去。
-    private static let volumeName: String? = {
+    /// 取不到（沙盒挡了）就整段不写，不拿 "/" 或硬编码的名字顶上去。
+    /// 唯一的例外是演示模式：那一屏的容量本来就是造的，卷名跟着钉住（见 `demoVolumeName()`）。
+    private static let volumeName: String? = demoVolumeName() ?? {
         try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey]).volumeName
     }()
 }

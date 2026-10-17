@@ -347,6 +347,13 @@ private func demoVolume() -> VolumeUsage? {
     return VolumeUsage(total: Int64(total * Double(GB)), free: Int64(free * Double(GB)))
 }
 
+/// 演示卷名：演示模式把整块盘的账都换了，标题栏那块容量牌却还在读本机的真实卷名。
+/// 落在演示语境里就是错位——中文卷名会漏进英文界面，而且一眼看出这不是干净环境。
+/// 卷名和容量是同一块牌上的两个数，钉住一个就得钉住另一个。
+public func demoVolumeName() -> String? {
+    homeIsDemo ? "Macintosh HD" : nil
+}
+
 public func volumeUsage() -> VolumeUsage? {
     if let demo = demoVolume() { return demo }
     guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: "/"),
