@@ -467,7 +467,8 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
 
 // ══ node_modules：全盘找，聚合到项目级 ══
 
-public struct NMProject: Identifiable {
+/// 一行 = 一个项目。`Sendable` 是分批出账那条路要的：这一行要跨过并发域递到主线程。
+public struct NMProject: Identifiable, Sendable {
     public let id = UUID()
     public var project: String
     public var size: Int64
@@ -500,104 +501,189 @@ private func nodePackageManager(nmDir: String, projectDir: String) -> String? {
     return nil
 }
 
+/// 项目根：向上找 `package.json`，越出家目录就停。
+///
+/// 第一段（找目录）之后、第二段（量大小）之前也要先归一次组，才知道某个项目的几处
+/// `node_modules` 是不是都量完了。两处必须走同一份逻辑，否则「先按 A 归组、后又按 B 出账」。
+private func nmProjectRoot(nmDir: String, home: String) -> String {
+    let u = URL(fileURLWithPath: nmDir)
+    var proj = u.deletingLastPathComponent().path
+    var cur = proj
+    while true {
+        if FileManager.default.fileExists(atPath: (cur as NSString).appendingPathComponent("package.json")) {
+            proj = cur
+            break
+        }
+        let parent = (cur as NSString).deletingLastPathComponent
+        if parent == cur || !(parent == home || parent.hasPrefix(home + "/")) { break }
+        cur = parent
+    }
+    return proj
+}
+
+/// 家目录的顶层子目录各是一块，`/Applications` 自己一块。
+///
+/// 演示树上 `/Applications` 就在家目录里（见 `applicationsDir()`），已经是某一块了，
+/// 不再单独列——列两遍等于把同一处依赖量两遍、那一行的数翻倍。
+/// 排除规则跟块内下钻那条一致（`.Trash`、`.git`、符号链接、跨卷）。
+private func nmChunks(home: String) -> [String] {
+    let fm = FileManager.default
+    let homeDev = deviceOf(URL(fileURLWithPath: home))
+    var out: [String] = []
+    for k in (try? fm.contentsOfDirectory(atPath: home)) ?? [] {
+        if k == ".Trash" || k == ".git" { continue }
+        let p = (home as NSString).appendingPathComponent(k)
+        var st = stat()
+        guard lstat(p, &st) == 0, (st.st_mode & S_IFMT) == S_IFDIR, st.st_dev == homeDev else { continue }
+        out.append(p)
+    }
+    let apps = applicationsDir()
+    if !apps.hasPrefix(home + "/"), fm.fileExists(atPath: apps) { out.append(apps) }
+    return out
+}
+
+/// 翻一块，返回这一块的 `node_modules`（命中即不再下钻）。
+private func walkNmChunk(_ root: String, progress: ScanProgress?) -> [String] {
+    var found: [String] = []
+    let rootDev = deviceOf(URL(fileURLWithPath: root))
+    var stack = [root]
+    while let d = stack.popLast() {
+        if Task.isCancelled { break }
+        guard let kids = try? FileManager.default.contentsOfDirectory(atPath: d) else { continue }
+        for k in kids {
+            if k == ".Trash" || k == ".git" { continue }
+            let p = (d as NSString).appendingPathComponent(k)
+            var st = stat()
+            guard lstat(p, &st) == 0, (st.st_mode & S_IFMT) == S_IFDIR else { continue }
+            if k == "node_modules" { found.append(p); continue }
+            if let dev = rootDev, st.st_dev != dev { continue }
+            stack.append(p)
+        }
+        // 这一趟数的是目录项而不是文件：整块翻下来一个 node_modules 都可能没撞上，
+        // 但「正在看 ~/Projects/foo/src」这句话是真的在往前走的证据。
+        progress?.walk(files: kids.count, bytes: 0, in: d)
+    }
+    return found
+}
+
 /// node_modules 只在用户区找，不跟着「整盘」开关走。
 ///
 /// 这不是漏扫，是算过的：依赖目录只会长在项目里，而项目在家目录。系统区里唯一像样的
 /// 一处是包管理器自己的全局目录（`/opt/homebrew/lib/node_modules` 那类），删它等于拆掉
 /// 命令行工具，而且 brew 有自己的清理方式。为了这一处把整棵 /Library 走一遍，
 /// 换来的是几分钟空转 + 一个勾不得的条目。
-public func findNodeModules(progress: ScanProgress? = nil) async -> [NMProject] {
+///
+/// 走法是**一块一块过**：家目录每个顶层子目录翻完就地量完、出账，再翻下一块。
+/// 先翻完整棵再一起量也做得到同样的总数，但界面要等到最后——本机实测（2026-10-18）
+/// 整趟 66.8 s，其中翻目录 62 s、量大小只有 5 s，那种走法第一行要等 62 s 才出现。
+/// 分块之后第一行落在第一块翻完那一刻（几秒到十几秒），总额外付出的只有那段
+/// 本来就被翻目录盖住的量数时间。
+///
+/// `onBatch` 给的是**已经量完的项目**：某个项目名下的每一处 `node_modules` 都出数之后才发，
+/// 所以界面拿到的每一行都是终值，不会先显示 3 GB 再涨成 11 GB。项目根最多向上归到家目录，
+/// 而各块互不相交，所以「这个项目在这一块里量完了没有」分块前后判据相同。
+/// 中途不发排序后的整列——行会跳。最后一批（与返回值同一批对象）才是按容量排的。
+public func findNodeModules(progress: ScanProgress? = nil,
+                             onBatch: (@Sendable ([NMProject]) -> Void)? = nil) async -> [NMProject] {
     let home = homePath()
-    let roots = [URL(fileURLWithPath: home), URL(fileURLWithPath: applicationsDir())]
-        .filter { FileManager.default.fileExists(atPath: $0.path) }
-    // 清单：第一段「翻目录」按根走，第二段「逐个量」按项目走。**预列走的顺序**——
-    // 栈是后进先出，最后一个根最先走，所以清单一开头那几格倒着列（同 `walkFiles`）。
-    let walkOrder = Array(roots.indices.reversed())
-    let rootStations = progress.map { $0.plan(walkOrder.map { roots[$0].path }) } ?? []
-    var stationOf = [Int](repeating: -1, count: roots.count)
-    if !rootStations.isEmpty { for (k, ri) in walkOrder.enumerated() { stationOf[ri] = k } }
-    // 第一段：翻目录找 node_modules（命中即不再下钻）
-    var nmDirs: [String] = []
-    // 每个根记自己的卷号：跨卷守卫要按根比
-    var stack = roots.indices.reversed().map { (roots[$0].path, deviceOf(roots[$0]), stationOf[$0]) }
-    var at = -1
-    while let (d, rootDev, stn) = stack.popLast() {
-        if Task.isCancelled { break }
-        if stn >= 0 && stn != at {
-            if at >= 0 { progress?.finish(rootStations[at], bytes: 0) }
-            at = stn
-            progress?.enter(rootStations[stn])
-        }
-        guard let kids = try? FileManager.default.contentsOfDirectory(atPath: d) else { continue }
-        for k in kids {
-            if k == ".Trash" || k == ".git" { continue }
-            let p = (d as NSString).appendingPathComponent(k)
-            var isDir: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue else { continue }
-            var st = stat()
-            if lstat(p, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK { continue }
-            if k == "node_modules" { nmDirs.append(p); continue }
-            if let dev = rootDev, st.st_dev != dev { continue }
-            stack.append((p, rootDev, stn))
-        }
-        // 这一趟数的是目录项而不是文件：整棵家目录翻下来一个 node_modules 都可能没撞上，
-        // 但「正在看 ~/Projects/foo/src」这句话是真的在往前走的证据。
-        progress?.walk(files: kids.count, bytes: 0, in: d)
+    let chunks = nmChunks(home: home)
+    // 清单第一段：块能一次列出来（就是家目录那一层 readdir），所以分母在第一步之前就有。
+    let walkStations = progress.map { $0.plan(chunks) } ?? []
+    // 家目录根上那一份 `node_modules`（`~/node_modules`）不是任何一块的子目录，先垫着，
+    // 跟着第一块一起量。绝大多数机器这里是空的。
+    var pendingDirs: [String] = []
+    var rootSt = stat()
+    let atRoot = (home as NSString).appendingPathComponent("node_modules")
+    if lstat(atRoot, &rootSt) == 0, (rootSt.st_mode & S_IFMT) == S_IFDIR { pendingDirs.append(atRoot) }
+
+    var agg: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool, mgr: String?)] = [:]
+    var settled: [NMProject] = []
+    var emitted = 0
+    var lastEmit = Date()
+    let dateFmt = DateFormatter()
+    dateFmt.dateFormat = "yyyy-MM-dd"
+
+    func flush() {
+        guard settled.count > emitted else { return }
+        emitted = settled.count
+        lastEmit = Date()
+        onBatch?(settled)
     }
-    if at >= 0 && at < rootStations.count { progress?.finish(rootStations[at], bytes: 0) }
-    // 第二段：并行统计，聚合到项目级
-    //
-    // 清单上这一段的短名取**项目目录的尾段**（不是 `node_modules`——那样每一格都叫同一个名字），
-    // 完整位置仍挂在格子上，鼠标停上去看得见到底在量哪一份。
-    let projectStations = progress.map {
-        $0.plan(nmDirs.map { ($0 as NSString).deletingLastPathComponent })
-    } ?? []
-    var projects: [String: (size: Int64, nms: Int, mtime: Date, partial: Bool, mgr: String?)] = [:]
-    await withTaskGroup(of: (proj: String, size: Int64, mt: Date, partial: Bool, mgr: String?)?.self) { group in
-        for (k, nm) in nmDirs.enumerated() {
-            group.addTask {
-                let station = k < projectStations.count ? projectStations[k] : nil
-                if let station { progress?.enter(station) }
-                defer { if let station { progress?.finish(station, bytes: 0) } }
-                if Task.isCancelled { return nil }
-                let u = URL(fileURLWithPath: nm)
-                // 项目根：向上找 package.json
-                var proj = u.deletingLastPathComponent().path
-                var cur = proj
-                while true {
-                    if FileManager.default.fileExists(atPath: (cur as NSString).appendingPathComponent("package.json")) {
-                        proj = cur
-                        break
-                    }
-                    let parent = (cur as NSString).deletingLastPathComponent
-                    if parent == cur || !(parent == home || parent.hasPrefix(home + "/")) { break }
-                    cur = parent
+
+    /// 量一组 `node_modules`，聚合到项目级，边量边把量完的行发出去。
+    func measure(_ dirs: [String]) async {
+        guard !dirs.isEmpty else { return }
+        // 清单第二段的短名取**项目目录的尾段**（不是 `node_modules`——那样每一格都叫同一个
+        // 名字），完整位置仍挂在格子上，鼠标停上去看得见到底在量哪一份。
+        let stations = progress.map {
+            $0.plan(dirs.map { ($0 as NSString).deletingLastPathComponent })
+        } ?? []
+        let projOf = dirs.map { nmProjectRoot(nmDir: $0, home: home) }
+        var pending = [String: Int]()
+        for p in projOf { pending[p, default: 0] += 1 }
+        await withTaskGroup(of: (proj: String, size: Int64, mt: Date, partial: Bool, mgr: String?)?.self) { group in
+            for (k, nm) in dirs.enumerated() {
+                let proj = projOf[k]
+                group.addTask {
+                    let station = k < stations.count ? stations[k] : nil
+                    if let station { progress?.enter(station) }
+                    defer { if let station { progress?.finish(station, bytes: 0) } }
+                    if Task.isCancelled { return nil }
+                    let u = URL(fileURLWithPath: nm)
+                    // 走 `dirSizeReport` 而不是 `dirSize`：后者只回字节，读不动的那些子目录
+                    // 会静默算进 0，界面上就是一行「这个项目的依赖只有 40 MB」的假账。
+                    // 报告里那两串路径正好是「这一行只量到了一部分」的凭据。
+                    let rep = await dirSizeReport(u)
+                    let mt = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    // 量出来了就把这一格点亮（上面那个 `defer` 只负责中途被掐掉时不留下永久「正在量」）。
+                    if let station { progress?.finish(station, bytes: rep.bytes) }
+                    return (proj, rep.bytes, mt,
+                            !rep.needFullDiskAccess.isEmpty || !rep.needAdmin.isEmpty,
+                            nodePackageManager(nmDir: nm, projectDir: proj))
                 }
-                let sz = await dirSize(u)
-                let mt = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                // 量出来了就把这一格点亮（上面那个 `defer` 只负责中途被掐掉时不留下永久「正在量」）。
-                if let station { progress?.finish(station, bytes: sz) }
-                return (proj, sz, mt, false, nodePackageManager(nmDir: nm, projectDir: proj))
+            }
+            for await r in group {
+                guard let r = r else { continue }
+                var e = agg[r.proj] ?? (0, 0, .distantPast, false, nil)
+                e.size += r.size
+                e.nms += 1
+                e.mtime = max(e.mtime, r.mt)
+                if r.partial { e.partial = true }
+                // 一个项目里可能有多处 node_modules（monorepo）：第一个认出来的管理器就够
+                if e.mgr == nil { e.mgr = r.mgr }
+                agg[r.proj] = e
+                guard let left = pending[r.proj] else { continue }
+                pending[r.proj] = left - 1
+                guard left == 1, let f = agg[r.proj] else { continue }
+                settled.append(NMProject(project: r.proj, size: f.size, nmCount: f.nms,
+                                         date: dateFmt.string(from: f.mtime),
+                                         partial: f.partial, manager: f.mgr))
+                // 节流：够 8 行、或距上次满 0.25 秒才发一批。逐文件发会让整列重画几十次，
+                // 而那正是这一版要消灭的东西。
+                if settled.count - emitted >= 8 || Date().timeIntervalSince(lastEmit) >= 0.25 { flush() }
             }
         }
-        for await r in group {
-            guard let r = r else { continue }
-            var e = projects[r.proj] ?? (0, 0, .distantPast, false, nil)
-            e.size += r.size
-            e.nms += 1
-            e.mtime = max(e.mtime, r.mt)
-            if r.partial { e.partial = true }
-            // 一个项目里可能有多处 node_modules（monorepo）：第一个认出来的管理器就够
-            if e.mgr == nil { e.mgr = r.mgr }
-            projects[r.proj] = e
-        }
+        // 一块量完就发一次，不等凑满 8 行：这一版要的就是「翻完一块就能先看」。
+        flush()
     }
-    let f = DateFormatter()
-    f.dateFormat = "yyyy-MM-dd"
-    return projects.map { (proj, e) in
-        NMProject(project: proj, size: e.size, nmCount: e.nms,
-                  date: f.string(from: e.mtime), partial: e.partial, manager: e.mgr)
-    }.sorted { $0.size > $1.size }
+
+    for (i, c) in chunks.enumerated() {
+        if Task.isCancelled { break }
+        let stn = i < walkStations.count ? walkStations[i] : nil
+        if let stn { progress?.enter(stn) }
+        pendingDirs.append(contentsOf: walkNmChunk(c, progress: progress))
+        if let stn { progress?.finish(stn, bytes: 0) }
+        await measure(pendingDirs)
+        pendingDirs = []
+    }
+    await measure(pendingDirs)     // 一块都没有（或家目录根上那份是唯一一处）时兜底
+    flush()
+    // 收尾只排一次序，发的是同一批对象：界面拿到的行和这里返回的行 `id` 一致，
+    // 勾选状态不会因为「扫完了换成另一份列表」而掉。
+    //
+    // 这里不读 `agg` 而读 `settled`：中断时 `agg` 里有只量了一半的项目，
+    // 那种数印出来是一个假的总容量。
+    return settled.sorted { $0.size > $1.size }
 }
 
 // ══ iOS 模拟器：一台一行（设备名 / 系统 / 最后启动 / 占盘）══

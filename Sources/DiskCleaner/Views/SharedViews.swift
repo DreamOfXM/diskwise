@@ -959,6 +959,9 @@ struct CleanBar: View {
     /// 置位就在那颗「移进废纸篓」按钮上报一个落点。见 `TrashFlight`：筹码得落在这颗
     /// **真的会动手**的按钮上，不是随便一个角落。量的是屏幕全局坐标，由飞行图层换算。
     var flightTarget: Bool = false
+    /// 这一页还在扫：那颗按钮不画，换成一句「等什么」。勾选照旧有效，扫完就能直接动手。
+    /// 边扫边删会让「正在量的行」和「已经搬走的行」两套状态互相盖，所以宁可等一下。
+    var busyHint: String? = nil
     var onClean: () -> Void
 
     var body: some View {
@@ -1000,21 +1003,29 @@ struct CleanBar: View {
                           : LF("选中本页列出的全部，另有 %d 项不在全选范围内", s.unselectable))
                 }
                 Spacer(minLength: 10)
-                if let h = hint {
-                    Text(h)
+                if let b = busyHint {
+                    Text(b)
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
                         .multilineTextAlignment(.trailing)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text(L("只进废纸篓，可撤销"))
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(theme.palette.inkTertiary)
+                    if let h = hint {
+                        Text(h)
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(L("只进废纸篓，可撤销"))
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                    }
+                    ThemeButton(kind: .primary, symbol: "trash",
+                                title: ctaTitle, isDisabled: count == 0, action: onClean)
+                        .accessibilityLabel(LF("把选中的 %1$d 项移入废纸篓，随时可撤销", count))
+                        .heroAnchorGlobalIf(TrashFlight.targetAnchor, enabled: flightTarget)
                 }
-                ThemeButton(kind: .primary, symbol: "trash",
-                            title: ctaTitle, isDisabled: count == 0, action: onClean)
-                    .accessibilityLabel(LF("把选中的 %1$d 项移入废纸篓，随时可撤销", count))
-                    .heroAnchorGlobalIf(TrashFlight.targetAnchor, enabled: flightTarget)
             }
             .padding(.horizontal, 28)
             .padding(.top, 12)

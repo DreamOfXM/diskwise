@@ -923,6 +923,9 @@ struct GaugeSegment {
     /// 这一行行首画不画 `▸`、点开摊出什么。nil = 这一段没有下一级可看
     /// （「空闲」「系统可清除」就是——给它们一个展开记号是在请人点一个空抽屉）。
     var drill: SegmentDrill? = nil
+    /// 环上不写这一段的数。扫描中的「其他已统计」用它：它还在长，此刻印一个
+    /// 正在跳的数会让人当成结论；等量完那一帧它自然回来（扫描态用的是另一本账）。
+    var hidesArcValue = false
 }
 
 /// 招牌画面：**一段弧 = 盘上一块真实的字节**，一整圈加起来永远等于整块盘。
@@ -1062,14 +1065,9 @@ struct SweepRing: View {
             .onAppear { run() }
         // 不按 segments.count 重放：总览是边扫边填的，段数一路 2→3→4→5，
         // 每次变化都把整圈打回零重扫，看着像坏了几次。
-        .onChange(of: scanning) { now in
-            if now {
-                // 扫描期间由那道钉在进度上的宽光束接管，不叠第二道光
-                glint = false
-                return
-            }
-            // 扫完不当场关灯：换成一道反光接着绕环。一圈量完了边界就在正上方，
-            // 节拍从 0° 重新起算，它正好接在光束停下的那一格上，不跳。
+        .onChange(of: scanning) { _ in
+            // S0：读数头与常驻弧光**同时在环上**。扫描期间只关掉弧光的那一版，
+            // 量完之前整圈只剩一道宽光束，招牌画面的「流动」在最长的那十几秒里消失。
             startSpin()
         }
         .onChange(of: armed) { path in
@@ -1138,7 +1136,10 @@ struct SweepRing: View {
             // 收成参照盘那一档（下钻时 132pt）整排都不标：带厚只剩 19pt、那段弧的弧长
             // 也只剩十几 px，六枚 11pt 的数会叠成一片字糊在环上。数全在右边那一列里。
             ForEach(Array(slices.enumerated()), id: \.offset) { _, slice in
-                if slice.span >= 0.05 && diameter >= 260 { arcLabel(slice) }
+                if slice.span >= 0.05 && diameter >= 260 && !slice.seg.hidesArcValue
+                    && !slice.seg.label.isEmpty {
+                    arcLabel(slice)
+                }
             }
 
             lights
@@ -1171,6 +1172,12 @@ struct SweepRing: View {
                         .frame(maxWidth: (diameter - 2 * band) * 0.78)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // S0 样稿里 ETA 下面还有一道细进度条：环上的弧在长，但那截暗轨
+                // 容易读成「没有这回事」；一条从左往右填满的线把「还差多少」说死。
+                if scanning {
+                    scanBar
+                        .padding(.top, 3)
+                }
                 // `.mid .now`：只有悬停（或上膛）那几秒在，用灯色而不是灰——
                 // 这一行是「你手上这一段是什么」，比旁边那两行口径更近。
                 if let now = centerNow {
@@ -1198,6 +1205,22 @@ struct SweepRing: View {
         .frame(width: diameter, height: diameter)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
+    }
+
+    /// 圆心那道细进度条。宽度按样稿跟「已读 / 总数」那行同量级，
+    /// 封在 196 pt：再宽的环也不让它长过那行字，否则读数变成图注。
+    private var scanBar: some View {
+        let progress = min(1, max(0, scanProgress))
+        return ZStack(alignment: .leading) {
+            Capsule().fill(theme.palette.separator.opacity(0.55))
+            GeometryReader { g in
+                Capsule()
+                    .fill(lamp)
+                    .frame(width: max(2, g.size.width * CGFloat(progress)))
+            }
+        }
+        .frame(width: min(196, (diameter - 2 * band) * 0.55), height: 3)
+        .animation(theme.animation, value: progress)
     }
 
     /// 内孔那一格也点得动：上膛之后点孔里任何地方＝取消。
@@ -1338,7 +1361,8 @@ struct SweepRing: View {
             entryBeam = false
             // 切回这一页时扫描早就完了，没人会再触发 `onChange(of: scanning)`：
             // 入场那道光走完就得把常驻的反光交出去，否则这一屏留下的是一张没有光带的环。
-            if !scanning { startSpin() }
+            // 扫描中也一样上发条：S0 要求读数头推进时弧光继续绕着走。
+            startSpin()
         }
     }
 
@@ -1446,11 +1470,15 @@ struct SweepRing: View {
                 switch phase {
                 case .active(let p):
                     let seg = segment(at: p)
+                    // 扫描中那截暗轨是一段 label 为空的填充弧：它只负责把圆闭合，
+                    // 不是一条「谁的账」。不映射成 nil 的话，鼠标扫过未量区会把整列
+                    // 账当成「有别处在被指」一起压暗。
+                    let label = (seg?.label).flatMap { $0.isEmpty ? nil : $0 }
                     // 只有**换段**时才回调。`mouseMoved` 每挪一个像素就来一次，上一版每次都
                     // 写页面那枚 `hovKey`，于是鼠标在环这 420×420 里划过＝每秒几十次整页
                     // body 重跑（环形账、右边那列、下面整列热点行、缓存目标全过一遍）。
                     // 他报的「鼠标放到右边的目录上经常卡顿」就是这个空转。
-                    if seg?.label != hovered { onHover?(seg?.label) }
+                    if label != hovered { onHover?(label) }
                     // 样稿 `.seg.hot{cursor:pointer}`：只有真收得走的段才配变手型，
                     // 动不了的段给个手型就是骗人来点。
                     setHand((seg?.reclaim ?? 0) > 0)
@@ -1752,7 +1780,7 @@ struct SweepRing: View {
     }
 
     private var accessibilitySummary: String {
-        let parts = segments.map { "\($0.label) \($0.sizeShown)" }
+        let parts = segments.filter { !$0.label.isEmpty }.map { "\($0.label) \($0.sizeShown)" }
         return LF("磁盘占用环形图：%@", parts.joined(separator: L10n.isHanScript ? "，" : ", "))
     }
 }

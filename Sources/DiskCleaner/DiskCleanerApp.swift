@@ -197,6 +197,10 @@ final class AppStore: ObservableObject {
     /// 值 `rescan` 是另一个用途：重跑一趟扫描，好拍「扫描途中」那一帧（光束钉在
     /// 量到的边界上这件事，只有那一帧能证明）。
     @Published var overviewRing: String? = nil
+    /// 首次清理流程的截图口令：`open` / `confirm` / `run` / `undo` / `close`。
+    /// 只有截图链路会写（`DISKWISE_CLEAN`），走的仍是页面上那几颗按钮自己的方法，
+    /// 不另画一条「看起来像确认页」的假路。
+    @Published var overviewClean: String? = nil
     /// 扫描范围。界面上没有开关：两档的账画在同一屏，人就会拿用户区的环形去对整盘的列表，
     /// 对不上就直接不信这屏的数（实测过）。所以永远走这一版能扫到的最大范围，
     /// 沙盒版给 `.disk` 只会扫一堆读不到的路径，那才是真的扫不动。
@@ -304,18 +308,39 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// 一次撤销一整批（首次清理那一步）。
+    ///
+    /// 倒序放回：这一批是同一屏上勾出来、按列表顺序搬走的，倒着退才能让「后搬进去的
+    /// 先回到原位」——同名的两处不会在放回途中互相占位。放回失败的**留在历史里**：
+    /// 那条记录还是真的，撤掉就等于对废纸篓页撒谎。返回真放回的那几条，
+    /// 调用方拿它把选择恢复成「还没清的样子」。
+    @discardableResult
+    func undoBatch(_ records: [TrashRecord]) -> (restored: [TrashRecord], failed: Int, firstError: String?) {
+        var restored: [TrashRecord] = []
+        var failed = 0
+        var firstError: String? = nil
+        for r in records.reversed() {
+            do {
+                try untrash(r)
+                restored.append(r)
+                trashHistory.removeAll { $0.inTrash.path == r.inTrash.path }
+            } catch {
+                failed += 1
+                if firstError == nil { firstError = error.localizedDescription }
+            }
+        }
+        return (restored, failed, firstError)
+    }
+
     func clearHistory() {
         trashHistory.removeAll()
     }
 }
 
 enum AppPanel: Hashable, CaseIterable {
-    // `folderDrill` 追加在最后：`tileIndex` 拿 `allCases` 的下标当取色序号，
-    // 插在中间会把后面每一页的图标配色整体挪一格（那是一条看不见的回归）。
-    // 它也不进侧栏——下钻页是「从某一行进去」的，不是一栏常驻的目的地。
-    // `menuLaunch` 同理追加在末尾（2026-09-30 的稿子①那一屏）。
-    // `agent` 也一样追加在最后（2026-10-09 的 AI Agent 页）：这一格的颜色是
-    // `allCases` 的下标决定 的，插在中间会把「问题反馈」之后每一页的配色整体挪一格。
+    // 顺序不再决定图标颜色：2026-10-19 起侧栏按分组取色（见 `sidebarGroup`），
+    // 加页或挪页不会再让别的行换色。`folderDrill` 不进侧栏——下钻页是「从某一行进去」的，
+    // 不是一栏常驻的目的地；`menuLaunch` 与 `agent` 是后来追加的两页。
     case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
@@ -361,8 +386,17 @@ enum AppPanel: Hashable, CaseIterable {
 
     var title: String { L(titleKey) }
 
-    /// 与 Theme.spectrum 的取色顺序严格对应
-    var tileIndex: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+    /// 侧栏分组序号，对应 `Theme.groupHuesLight/Dark` 的下标。
+    /// 组内所有行共用一个色相：认的是「这一栏在管哪类事」，不是「这一页叫什么」。
+    var sidebarGroup: Int {
+        switch self {
+        case .overview, .big, .old, .dup, .folderDrill: return 0
+        case .nodemodules, .docker, .devcache: return 1
+        case .caches, .orphans, .trash: return 2
+        case .agent: return 3
+        case .appearance, .feedback, .menuLaunch: return 4
+        }
+    }
 }
 
 struct ContentView: View {
@@ -599,13 +633,15 @@ private struct SidebarRow: View {
     var body: some View {
         Button(action: tap) {
             HStack(spacing: 10) {
-                // 导航图标一律浅底同色：十一个实心彩块排下来就是启动器，
-                // 而且实心主色块在我们这套形状语言里=「推进/花钱」的主按钮。
+                // 导航图标按组取色（5 组 5 色）：一组里所有页同色，深色皮上也只有
+                // 环形那支金弧是高饱和/发光的东西。仍然浅底同色——实心彩块是主按钮的形。
                 IconTile(symbol: panel.symbol, side: 22,
-                         fill: theme.tileColor(index: panel.tileIndex, dark: isDark),
+                         fill: theme.groupTileColor(group: panel.sidebarGroup, dark: isDark),
                          muted: true)
+                // 选中不再加粗：填充已经说明了「你在这一页」，再加一档字重就有两个信号
+                // 在喊同一句话。竞品 14 家里 10 家只做填充（G′，2026-10-19）。
                 Text(panel.title)
-                    .font(theme.bodyFont(.callout).weight(isSelected ? .semibold : .regular))
+                    .font(theme.bodyFont(.callout))
                     .foregroundStyle(theme.palette.ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -639,12 +675,6 @@ private struct SidebarRow: View {
         let shape = theme.controlShape()
         if isSelected {
             shape.fill(theme.palette.tintSoft)
-                .overlay(alignment: .leading) {
-                    Capsule().fill(theme.palette.tint)
-                        .frame(width: 3)
-                        .padding(.vertical, 5)
-                        .offset(x: -1)
-                }
         } else if hovering {
             shape.fill(theme.palette.surfaceAlt.opacity(0.8))
         }

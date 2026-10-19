@@ -8,13 +8,13 @@
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 `node_modules`, Xcode `DerivedData`, Docker 볼륨, 앱 캐시, 삭제하고 남은 잔여 파일을 정리하는 SwiftUI
 네이티브 디스크 정리 도구입니다. 그리고 **실제로는 아무것도 지우지 않습니다** —— 모든 삭제는 휴지통으로
 가고, *사용자* 가 휴지통을 비울 때까지 되돌릴 수 있습니다. Electron 없음, Python 사이드카 없음, 로컬
-서버 없음, 텔레메트리 없음, 구독 없음. UI는 10개 언어. DMG는 약 5 MB이고 Apple Silicon과 Intel을 한
+서버 없음, 텔레메트리 없음, 구독 없음. UI는 10개 언어. DMG는 약 8 MB이고 Apple Silicon과 Intel을 한
 파일에 담았습니다.
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | 한국어
@@ -79,6 +79,10 @@ OpenCode, Zed, ZCode, Claude Desktop 어디에서든 디스크 공간 회수를 
 삭제 경로는 '아는 항목만 휴지통으로 옮기는' 단 하나뿐이고, 모든 조작은 되돌릴 수 있으며, 위험한 위치에는
 애초에 손이 닿지 않습니다.
 
+**이 명령을 복사하기 전에 DiskWise를 '응용 프로그램' 폴더로 옮기세요.** 아래 경로는 그 위치에 있는
+사본을 가리킵니다. 데스크톱에 그대로 두거나 마운트된 DMG에서 바로 실행 중이라면, 그 사본이 움직이거나
+사라지는 순간 이 줄은 바로 끊깁니다.
+
 Claude Code 라면 터미널에서 한 줄이면 끝입니다:
 
 ```sh
@@ -125,6 +129,10 @@ WeChat, DingTalk, WeCom이 들어 있는 이유는 많은 기기에서 이 셋�
   - 빛의 띠는 지금까지 잰 경계에 정확히 멈춰 섭니다.
   - 통째로 옮길 수 있는 구획은 두 번 탭합니다: 첫 번째에 장전되고 두 번째에 휴지통으로 가며, 3초 동안
     아무것도 하지 않으면 스스로 풀립니다.
+  - 링 아래 그 버튼은 삭제가 아니라 목록을 엽니다: 옮길 수 있는 곳 하나에 한 행씩, 그 행을 지우면
+    어떤 대가를 치르는지 적혀 있고, 영향 없는 항목은 이미 체크되어 있고 다시 내려받아야 하는 항목은
+    직접 체크해야 합니다. 다음 화면이 같은 목록을 확인으로 한 번 더 펼쳐 보이고, 그 화면의 버튼만이
+    실제로 움직입니다 — 이후 결과 화면에서 이 묶음째 되돌릴 수 있습니다.
   - 목록은 하나뿐입니다. 링 옆의 대장입니다. 행을 열면 내역이 그 자리에서 펼쳐집니다 —— 그 아래의 폴더,
     *나머지 집계됨* 뒤에 있는 위치들, *측정 못 함* 뒤에 있는 볼륨들.
   - 행을 열어 둔 동안 링은 작은 참조 다이얼로 물러서고, *Finder에서 보기* 와 *파고들기* 가 그 행에
@@ -182,6 +190,12 @@ WeChat, DingTalk, WeCom이 들어 있는 이유는 많은 기기에서 이 셋�
 ## 스크린샷
 
 ※ 아래는 영어 UI로 촬영했습니다. 앱은 같은 화면을 10개 언어로 그립니다.
+
+링 아래 버튼이 여는 두 화면입니다. 먼저 고르는 목록, 그다음 선택을 그대로 읽어주는 확인 화면.
+
+| 회수 가능 목록 | 확인 |
+|---|---|
+| <img src="docs/screenshots/en/20-clean-list.png" width="410" alt="회수 가능 목록: 위치마다 한 행, 크기와 비용 배지와 체크박스. 해 없는 것은 체크된 채로, 다시 내려받을 수 있는 것은 체크되지 않은 채로 온다"> | <img src="docs/screenshots/en/21-clean-confirm.png" width="410" alt="확인: 같은 위치를 개수를 센 제목 아래 다시 늘어놓고 실제로 휴지통으로 옮기는 버튼을 보여준다"> |
 
 | 공간 개요 | 중복 파일 |
 |---|---|

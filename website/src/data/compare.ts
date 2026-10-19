@@ -52,7 +52,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       },
       quickAnswer: {
         q: "CleanMyMac 有免费的替代品吗？",
-        a: "有。DiskWise 免费、开源（Apache-2.0），原生 SwiftUI、约 5MB、无遥测无订阅，App Store 版不申请任何网络权限。分歧在两点：DiskWise 唯一的删除路径是移入废纸篓、清空前逐条可撤销；而 CleanMyMac 闭源，你无法从外部验证某一次清理具体动了哪些文件。功能面上 CleanMyMac 更宽，DiskWise 只做磁盘这一件事。",
+        a: "有。DiskWise 免费、开源（Apache-2.0），原生 SwiftUI、约 8MB、无遥测无订阅，App Store 版不申请任何网络权限。分歧在两点：DiskWise 唯一的删除路径是移入废纸篓、清空前逐条可撤销；而 CleanMyMac 闭源，你无法从外部验证某一次清理具体动了哪些文件。功能面上 CleanMyMac 更宽，DiskWise 只做磁盘这一件事。",
       },
       table: {
         headers: ["维度", "DiskWise", "CleanMyMac"],
@@ -200,7 +200,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       },
       quickAnswer: {
         q: "Is there a free alternative to CleanMyMac?",
-        a: "Yes. DiskWise is free and open source (Apache-2.0): a native SwiftUI disk cleaner, about 5 MB, no telemetry, no subscription, and its Mac App Store build requests no network entitlement at all. Two structural differences: the only deletion path in DiskWise moves items to the Trash and stays undoable until you empty it, and CleanMyMac is closed source, so you cannot verify from outside which files a given scan touched.",
+        a: "Yes. DiskWise is free and open source (Apache-2.0): a native SwiftUI disk cleaner, about 8 MB, no telemetry, no subscription, and its Mac App Store build requests no network entitlement at all. Two structural differences: the only deletion path in DiskWise moves items to the Trash and stays undoable until you empty it, and CleanMyMac is closed source, so you cannot verify from outside which files a given scan touched.",
       },
       table: {
         headers: ["", "DiskWise", "CleanMyMac"],
@@ -651,7 +651,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       },
       quickAnswer: {
         q: "PureMac 和 DiskWise 有什么区别？",
-        a: "两个都是免费、开源、原生 SwiftUI、签名公证、零遥测的 Mac 清理器。核心分歧在删除模型：PureMac 在自己的 README 里写明，应用卸载等操作走废纸篓，但定时自动清理、分类一键清理、清空废纸篓、Docker/Xcode runtime 清理等六类操作「可以永久删除数据」；DiskWise 的唯一删除路径是移入废纸篓，整个会话逐条可撤销，没有任何类别的操作会绕过它。反过来，PureMac 的功能面更宽，还有 CLI。",
+        a: "两个都是免费、开源、原生 SwiftUI、签名公证、零遥测的 Mac 清理器。核心分歧在删除模型：PureMac 在自己的 README 里写明，应用卸载等操作走废纸篓，但定时自动清理、分类一键清理、清空废纸篓、Docker/Xcode runtime 清理等六类操作「可以永久删除数据」；DiskWise 的唯一删除路径是移入废纸篓，整个会话逐条可撤销，没有任何类别的操作会绕过它。反过来，PureMac 的功能面更宽，CLI 也打通了它自己的整套清理类别。",
       },
       table: {
         headers: ["维度", "DiskWise", "PureMac"],
@@ -675,7 +675,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
             theirs: "承诺诚实扫描与中性呈现，未把逐条缓存解释列为特性",
             edge: "ours",
           },
-          { dim: "成熟度", ours: "2026-09 发布，v1.7", theirs: "2026-04 发布，半年 30 个 release、6900+ star", edge: "theirs" },
+          { dim: "成熟度", ours: "2026-09 发布，v1.9", theirs: "2026-04 发布，半年 30 个 release、6900+ star", edge: "theirs" },
           { dim: "界面语言", ours: "10 种 UI 语言，README 四语", theirs: "README 八语（含阿拉伯语）", edge: "even" },
           { dim: "签名与分发", ours: "Developer ID 签名 + 公证；brew cask / DMG / App Store", theirs: "签名 + 公证；GitHub Release", edge: "even" },
         ],
@@ -685,7 +685,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         items: [
           { t: "功能更宽", d: "十级匹配的应用卸载、系统检查、存储浏览、定时自动清理，DiskWise 刻意不做这么宽。" },
           { t: "迭代更快更成熟", d: "半年 30 个 release，6900+ star、380+ fork，社区验证更充分。" },
-          { t: "有 CLI", d: "命令行清理适合脚本化和远程场景，DiskWise 目前是纯 GUI。" },
+          { t: "CLI 覆盖的清理类别更多", d: "PureMac 的 CLI 打通它自己的整套清理类别；DiskWise 的 `diskwise` 命令行（直装版附带，App Store 版不带）只覆盖知识库认得且判为安全的那批缓存与开发占用，且必须先出计划、执行时逐项复核。" },
         ],
       },
       differences: {
@@ -737,7 +737,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       },
       quickAnswer: {
         q: "What is the difference between PureMac and DiskWise?",
-        a: 'Both are free, open-source, native SwiftUI, signed and notarized, zero telemetry. The core difference is the deletion model: PureMac\'s own README states that app uninstalls go through the Trash, but scheduled auto-clean, category cleanup, Trash emptying, Docker/Xcode runtime cleanup, snapshot deletion and CLI cleanup "can permanently delete data". DiskWise\'s only delete path moves everything to the Trash, undoable per item for the whole session — no category of operation bypasses it. In exchange, PureMac has a wider feature set and a CLI.',
+        a: 'Both are free, open-source, native SwiftUI, signed and notarized, zero telemetry. The core difference is the deletion model: PureMac\'s own README states that app uninstalls go through the Trash, but scheduled auto-clean, category cleanup, Trash emptying, Docker/Xcode runtime cleanup, snapshot deletion and CLI cleanup "can permanently delete data". DiskWise\'s only delete path moves everything to the Trash, undoable per item for the whole session — no category of operation bypasses it. In exchange, PureMac has a wider feature set and a CLI that covers its own cleanup categories.',
       },
       table: {
         headers: ["Dimension", "DiskWise", "PureMac"],
@@ -761,7 +761,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
             theirs: "Promises honest scans and neutral presentation; per-entry explanations not listed as a feature",
             edge: "ours",
           },
-          { dim: "Maturity", ours: "Released 2026-09, v1.7", theirs: "Released 2026-04, 30 releases in six months, 6,900+ stars", edge: "theirs" },
+          { dim: "Maturity", ours: "Released 2026-09, v1.9", theirs: "Released 2026-04, 30 releases in six months, 6,900+ stars", edge: "theirs" },
           { dim: "Languages", ours: "10 UI languages, 4-language README", theirs: "8-language README (Arabic first)", edge: "even" },
           { dim: "Signing & distribution", ours: "Developer ID signed + notarized; brew cask / DMG / App Store", theirs: "Signed + notarized; GitHub Release", edge: "even" },
         ],
@@ -771,7 +771,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         items: [
           { t: "Wider feature set", d: "10-level matching uninstaller, system checks, storage exploration, scheduled cleaning — DiskWise deliberately stays narrower." },
           { t: "Faster iteration, more mature", d: "30 releases in six months, 6,900+ stars and 380+ forks of community validation." },
-          { t: "Has a CLI", d: "Command-line cleaning suits scripting and remote workflows; DiskWise is GUI-only for now." },
+          { t: "More cleanup categories in the CLI", d: "PureMac's CLI covers its own full set of cleanup categories; DiskWise's `diskwise` command line (bundled with the direct-download build, not the App Store build) covers only the cache and developer locations the knowledge base knows and rates safe, and always goes through a plan first with per-item revalidation." },
         ],
       },
       differences: {
@@ -821,17 +821,17 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "DiskWise vs Mole",
         sub: "同一条起跑线上的两种形态：命令行的效率，和看得见的确定性。",
         verdict:
-          "你天天泡终端、要一条命令解决问题，Mole 的 CLI 免费开源、开发者口碑极好，是正路。你想要的是「看见整块盘、两下点击、随时反悔」的图形界面，而且免费开源——这一格此前是空的，DiskWise 就是为此做的。",
+          "你天天泡终端、要一条命令解决问题，Mole 的 CLI 免费开源、开发者口碑极好，是正路。你想要的是「看见整块盘、两下点击、随时反悔」的图形界面，而且免费开源——DiskWise 做的就是这一半，它同时也带一个只走知识库的命令行。",
       },
       quickAnswer: {
         q: "Mole 的免费开源 CLI 和 DiskWise 怎么选？",
-        a: "看交互形态。Mole 的强项是终端：一条命令、脚本化、远程可跑，CLI 免费开源；它的原生 GUI 应用另收费且闭源。DiskWise 是纯 GUI：整盘环形图、两下点击进废纸篓、逐条 Undo，全功能免费开源（Apache-2.0）。删除模型上，DiskWise 把「一切进废纸篓」做成架构级约束；命令行工具的删除行为以它的官方文档为准。",
+        a: "看你要哪种形态。Mole 的强项是终端：一条命令、脚本化、远程可跑，CLI 免费开源；它的原生 GUI 应用另收费且闭源。DiskWise 的主形态是图形界面——整盘环形图、两下点击进废纸篓、逐条 Undo，全功能免费开源（Apache-2.0）；直装版另带 `diskwise` 命令行与 MCP 服务（App Store 版不带），但它只动知识库认得且判为安全的位置，且必须先出计划。删除模型上，DiskWise 把「一切进废纸篓」做成架构级约束；命令行工具的删除行为以它的官方文档为准。",
       },
       table: {
         headers: ["维度", "DiskWise", "Mole"],
         rows: [
           { dim: "价格", ours: "免费，全功能开源（Apache-2.0）", theirs: "CLI 免费开源；原生 GUI 应用一次性付费、闭源", edge: "ours" },
-          { dim: "交互形态", ours: "原生 SwiftUI GUI：环形图 + 账本明细，两下点击", theirs: "终端 TUI：一条命令，脚本化友好", edge: "even" },
+          { dim: "交互形态", ours: "原生 SwiftUI GUI：环形图 + 账本明细，两下点击；直装版另带 diskwise 命令行与 MCP 服务", theirs: "终端 TUI：一条命令，脚本化友好", edge: "even" },
           { dim: "删除模型", ours: "唯一出口是 FileManager.trashItem：全部进废纸篓，整个会话逐条 Undo", theirs: "以命令行方式直接执行清理（详见其文档）", edge: "ours" },
           { dim: "适合谁", ours: "想看清楚再动手的人；给爸妈同事装也放心的那类", theirs: "天天在终端里的开发者", edge: "even" },
           { dim: "社区成熟度", ours: "2026-09 发布，新项目", theirs: "60k+ star，开发者社区验证充分", edge: "theirs" },
@@ -841,7 +841,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       theirsStronger: {
         title: "Mole 更强的地方",
         items: [
-          { t: "终端效率", d: "一条命令清出几十 GB，可脚本化、可自动化，GUI 给不了这个。" },
+          { t: "终端效率", d: "一条命令清出几十 GB，可脚本化、可远程。DiskWise 的命令行要先出计划、只动知识库判为安全的位置，脚本化的自由度不如它。" },
           { t: "社区与口碑", d: "60k+ star、病毒式传播的口碑，久经考验。" },
           { t: "监测能力", d: "除清理外还做分析与监控，覆盖面更广。" },
         ],
@@ -850,7 +850,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "真正的分歧",
         items: [
           { t: "形态决定信任模型", d: "终端工具的信任来自「命令是透明的」；GUI 工具的信任必须来自「界面没骗你」。DiskWise 用环形图的实测字节和废纸篓级可撤销来挣后一种信任。" },
-          { t: "免费 GUI 这一格", d: "Mole 的 GUI 收费闭源；DiskWise 的 GUI 免费开源——这是我们存在的直接理由。" },
+          { t: "GUI 花不花钱、开不开源", d: "Mole 的 GUI 应用收费且闭源；DiskWise 的 GUI 免费开源（Apache-2.0），源码整读得到。" },
         ],
       },
       switchGuide: {
@@ -864,8 +864,8 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         ],
       },
       faq: [
-        { q: "Mole 那么强，为什么还做 DiskWise？", a: "因为「免费 + 开源 + 原生 GUI」这一格空着：Mole 的 GUI 收费闭源，CleanMyMac 贵且闭源。DiskWise 把这条产品等式补齐了。" },
-        { q: "DiskWise 会有 CLI 吗？", a: "在规划里：scan 输出 JSON 一类。不会为了 CLI 引入绕过废纸篓的删除路径。" },
+        { q: "Mole 那么强，为什么还做 DiskWise？", a: "两者做的是不同的那一半：Mole 的强项在终端，它的 GUI 应用收费且闭源；DiskWise 做的是让不泡终端的人也能看清整盘占用、两下点击、随时撤销，而且整条链免费开源。CleanMyMac 则是贵且闭源的第三种。" },
+        { q: "DiskWise 有 CLI 吗？", a: "有。直装版附带 `diskwise` 命令行（scan / explain / plan / trash / undo / history）并可作为 MCP 服务挂在 Claude Code、Cursor、Codex 这类客户端上；App Store 版不带。它不会为了 CLI 引入绕过废纸篓的删除路径。" },
       ],
       sources: [
         { label: "Mole 仓库", href: "https://github.com/tw93/Mole" },
@@ -891,17 +891,17 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "DiskWise vs Mole",
         sub: "Two shapes on the same starting line: terminal efficiency versus visible certainty.",
         verdict:
-          "If you live in the terminal and want one command to fix things, Mole's free, open-source CLI is the real deal with a stellar reputation. If what you want is a GUI where you see the whole disk, delete in two clicks, and undo everything — free and open-source — that cell sat empty, and DiskWise is what fills it.",
+          "If you live in the terminal and want one command to fix things, Mole's free, open-source CLI is the real deal with a stellar reputation. If what you want is a GUI where you see the whole disk, delete in two clicks, and undo everything — free and open source — that is the half DiskWise does, and it ships a knowledge-base-only command line alongside it.",
       },
       quickAnswer: {
         q: "Mole's free CLI or DiskWise?",
-        a: "It is about the shape of the interaction. Mole's strength is the terminal: one command, scriptable, remote-friendly — the CLI is free and open source; its native GUI app is a separate paid, closed-source product. DiskWise is a pure GUI: whole-volume ring, two taps to the Trash, per-item undo, every feature free and open source (Apache-2.0). On deletion, DiskWise makes \"everything to the Trash\" an architectural constraint; for the CLI tool's behavior, its official docs are the source of truth.",
+        a: 'It is about the shape of the interaction. Mole\'s strength is the terminal: one command, scriptable, remote-friendly — the CLI is free and open source; its native GUI app is a separate paid, closed-source product. DiskWise\'s primary shape is the GUI: whole-volume ring, two taps to the Trash, per-item undo, every feature free and open source (Apache-2.0). The direct-download build also ships a `diskwise` command line and MCP server (the App Store build does not), but it only touches locations the knowledge base knows and rates safe, and always goes through a plan first. On deletion, DiskWise makes "everything to the Trash" an architectural constraint; for the CLI tool\'s behavior, its official docs are the source of truth.',
       },
       table: {
         headers: ["Dimension", "DiskWise", "Mole"],
         rows: [
           { dim: "Price", ours: "Free, fully open source (Apache-2.0)", theirs: "CLI free and open source; native GUI app is paid and closed source", edge: "ours" },
-          { dim: "Interaction", ours: "Native SwiftUI GUI: ring map + ledger, two clicks", theirs: "Terminal TUI: one command, script-friendly", edge: "even" },
+          { dim: "Interaction", ours: "Native SwiftUI GUI: ring map + ledger, two clicks; the direct-download build adds a diskwise CLI and MCP server", theirs: "Terminal TUI: one command, script-friendly", edge: "even" },
           { dim: "Deletion model", ours: "One exit only — FileManager.trashItem: everything to the Trash, per-item Undo for the session", theirs: "Cleans by executing commands directly (see its docs)", edge: "ours" },
           { dim: "Best for", ours: "People who want to see before they delete; safe to install for parents and colleagues", theirs: "Developers who live in the terminal", edge: "even" },
           { dim: "Community maturity", ours: "Released 2026-09, new project", theirs: "60k+ stars, thoroughly community-validated", edge: "theirs" },
@@ -911,7 +911,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
       theirsStronger: {
         title: "Where Mole is stronger",
         items: [
-          { t: "Terminal efficiency", d: "One command frees tens of GB — scriptable and automatable in a way a GUI never is." },
+          { t: "Terminal efficiency", d: "One command frees tens of GB — scriptable and remote-friendly. DiskWise's command line insists on a plan first and only touches knowledge-base-approved safe locations, so it is less free-form to script against." },
           { t: "Community and reputation", d: "60k+ stars and viral word of mouth, battle-tested." },
           { t: "Monitoring", d: "Beyond cleaning it analyzes and monitors — wider coverage." },
         ],
@@ -920,7 +920,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "The real disagreement",
         items: [
           { t: "Form decides the trust model", d: "A terminal tool earns trust through transparent commands; a GUI has to earn it by not lying to you. DiskWise earns it with measured-bytes ring mapping and Trash-level undoability." },
-          { t: "The free-GUI cell", d: "Mole's GUI is paid and closed; DiskWise's GUI is free and open — that is the direct reason DiskWise exists." },
+          { t: "What the GUI costs and whether it is open", d: "Mole's GUI app is paid and closed source; DiskWise's GUI is free and open source (Apache-2.0), readable end to end." },
         ],
       },
       switchGuide: {
@@ -934,8 +934,8 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         ],
       },
       faq: [
-        { q: "Mole is so good — why build DiskWise?", a: 'Because the "free + open source + native GUI" cell was empty: Mole\'s GUI is paid and closed, CleanMyMac is pricey and closed. DiskWise completes that equation.' },
-        { q: "Will DiskWise have a CLI?", a: "Planned: things like scan-to-JSON. It will never introduce a delete path that bypasses the Trash." },
+        { q: "Mole is so good — why build DiskWise?", a: 'They cover different halves. Mole\'s strength is the terminal, and its GUI app is paid and closed source. DiskWise is for people who do not live in a terminal: see the whole disk, delete in two clicks, undo anything, with the entire chain free and open source. CleanMyMac is the third option — pricey and closed.' },
+        { q: "Does DiskWise have a CLI?", a: "Yes. The direct-download build ships a diskwise command line (scan / explain / plan / trash / undo / history) that also runs as an MCP server for Claude Code, Cursor, Codex and similar clients; the App Store build does not include it. It will never introduce a delete path that bypasses the Trash." },
       ],
       sources: [
         { label: "Mole repository", href: "https://github.com/tw93/Mole" },

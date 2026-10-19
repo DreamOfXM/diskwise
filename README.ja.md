@@ -8,14 +8,14 @@
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 `node_modules`、Xcode の `DerivedData`、Docker のボリューム、アプリのキャッシュ、アンインストール
 の残骸を片づける SwiftUI ネイティブのディスククリーナーです。そして**本当の意味では何も削除しません**
 —— 削除はすべてゴミ箱行きで、*あなた* がゴミ箱を空にするまで取り消せます。Electron なし、Python の
 サイドカーなし、ローカルサーバーなし、テレメトリなし、サブスクリプションなし。UI は 10 言語。
-DMG は約 5 MB で、Apple Silicon と Intel の両方を 1 ファイルに収めています。
+DMG は約 8 MB で、Apple Silicon と Intel の両方を 1 ファイルに収めています。
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | 日本語 | [한국어](./README.ko.md)
 
@@ -79,6 +79,10 @@ OpenCode、Zed、ZCode、Claude Desktop のどれでも、ディスク領域の�
 削除の経路は「知っているものだけをゴミ箱へ移す」一本道で、すべての操作は取り消せ、リスクのある場所には
 そもそも手が届きません。
 
+**このコマンドをコピーする前に、DiskWise を「アプリケーション」フォルダに入れてください。** 下のパスが
+指するのはその場所にあるコピーです。デスクトップに置いたまま、あるいはマウント中の DMG 上で実行している
+場合、そのコピーが動いたり消えたりした瞬間にこの行は効かなくなります。
+
 Claude Code なら、ターミナルで 1 行だけ：
 
 ```sh
@@ -125,6 +129,10 @@ WeChat、DingTalk、WeCom が入っているのは、多くのマシンでこの
   - 光の帯は、いま測り終えた境界にちょうど止まります。
   - 丸ごと動かせる区画は 2 回タップ：1 回目で武装、2 回目でゴミ箱へ送られ、3 秒放置すると自分で解除
     されます。
+  - リングの下のボタンは削除ではなく一覧を開きます：動かせる場所 1 か所につき 1 行、その行が消した
+    ときの代償を書き、影響のないものはチェック済み、再ダウンロードが要るものは自分でチェックします。
+    次の画面が同じ一覧を確認としてもう一度並べ、そこにあるボタンだけが実際に動かします —— 後の結果
+    画面でこの一括を元に戻せます。
   - 一覧は 1 つだけ、リングの隣の台帳です。行を開くとその場で内訳が展開します —— その行の下の
     フォルダ、*その他集計済み* の後ろにある場所、*未測定* の後ろにあるボリューム。
   - 行を開いている間、リングは小さな参照ダイヤルに引き、*Finder で表示* と *掘り下げる* がその行に
@@ -183,6 +191,12 @@ WeChat、DingTalk、WeCom が入っているのは、多くのマシンでこの
 ## スクリーンショット
 
 ※ 以下は英語 UI で撮影したものです。アプリは同じ画面を 10 言語で描画します。
+
+リングの下のボタンが開く 2 画面です。まずチェックしていく一覧、次に選択をそのまま読み返す確認画面。
+
+| 回収できる一覧 | 確認 |
+|---|---|
+| <img src="docs/screenshots/en/20-clean-list.png" width="410" alt="回収できる一覧：場所ごとに 1 行、サイズ・代价バッジ・チェックボックス付き。影響のないものは最初からチェック済み、再ダウンロードできるものは未チェック"> | <img src="docs/screenshots/en/21-clean-confirm.png" width="410" alt="確認：同じ場所を件数の書かれた見出しの下にもう一度並べ、最後にゴミ箱へ移すボタンを示す"> |
 
 | 空間総覧 | 重複ファイル |
 |---|---|

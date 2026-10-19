@@ -346,6 +346,20 @@ enum SnapshotMode {
             .split(separator: ",").map { $0.lowercased() })
     }
 
+    /// DISKWISE_CLEAN=open|confirm|run|undo：总览那张拍完，把首次清理那条路真的走一遍，
+    /// 命中的每一站各补一张（`01-overview-clean-*.png`）。
+    ///
+    /// 走的是 `store.overviewClean` 那条与界面上按钮完全相同的命令链
+    /// （`openFirstClean` / `advanceToConfirm` / `runFirstClean` / `undoFirstClean`），
+    /// 不另置一个假 stage：否则图上摆着的界面可能根本不是点得出来的那个。
+    /// `run` 会真把演示树里的文件搬进废纸篓、`undo` 再放回来；所以它只该对着
+    /// `DISKWISE_HOME_SHIM` 那棵假家目录跑，别在真盘上开这一枪。
+    private static var cleanHook: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_CLEAN"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        return ["open", "confirm", "run", "undo"].contains(raw) ? raw : nil
+    }
+
     /// DISKWISE_MIDSCAN=nm,caches：这些页在「刚换过去、一行都还没回填」的那一刻先拍一张
     /// （`<页名>-midscan.png`）。列表是扫完才一次性回来的，`waitSettled` 会一直等到数据落地
     /// 才收工，所以加载那几分钟画的是什么，没有这一钩子就只能靠嘴说它存在。
@@ -364,6 +378,15 @@ enum SnapshotMode {
     /// 两种都证明不了「扫描中那行读数在动」，而只有拍的人知道这次挂的是哪套数据。
     private static var midscanDelay: Double {
         let raw = Double(ProcessInfo.processInfo.environment["DISKWISE_MIDSCAN_AT"] ?? "") ?? 0.35
+        return min(max(raw, 0.2), 120)
+    }
+
+    /// DISKWISE_SCAN_AT=6：`DISKWISE_RING=scan` 那一帧在画面动起来之后再等几秒拍，默认 1.2。
+    ///
+    /// 1.2 秒是按演示树调的；真机上那一秒整圈几乎还没长，账目列七行全是「排队中」，
+    /// 拍不到「正在量… · 这一条弧还没闭合」那一行——而那行是唯一能证英文没被截断的地方。
+    private static var scanDelay: Double {
+        let raw = Double(ProcessInfo.processInfo.environment["DISKWISE_SCAN_AT"] ?? "") ?? 1.2
         return min(max(raw, 0.2), 120)
     }
 
@@ -570,7 +593,7 @@ enum SnapshotMode {
                     if current != nil && current != previous { break }
                     previous = current
                 }
-                pump(1.2)
+                pump(scanDelay)
                 shoot(name + "-scanning")
                 slowScanFill = false
                 // 后面几张要在静下来的账上拍，别把半截扫描留给它们。
@@ -605,6 +628,38 @@ enum SnapshotMode {
                 // 放回之后那句「已移入废纸篓」就成了过期话，而提示条会一路挂到后面几页。
                 // 撤销时界面本来也是这么换掉它的（废纸篓页那颗按钮），这里直接收掉。
                 store.notice = nil
+            }
+            if panel == .overview, let clean = cleanHook {
+                // 候选池在缓存扫描收尾时才归位。总览那张给了 12 秒起的静帧预算，
+                // 演示树在这段时间里早就扫完了；真盘上跑这一钩子要先确认左栏的
+                // 缓存读数已经落地，否则拍到的会是一张「0 处」的候选页。
+                store.overviewClean = "open"
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 30)
+                shoot(name + "-clean-candidates")
+                if clean != "open" {
+                    store.overviewClean = "confirm"
+                    waitSettled(window, paper: paper, canvas: canvas, minSeconds: 1, maxSeconds: 10)
+                    shoot(name + "-clean-confirm")
+                }
+                if clean == "run" || clean == "undo" {
+                    store.overviewClean = "run"
+                    // 真搬是同步的；waitSettled 只是给结果页和读数落位留时间。
+                    waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 60)
+                    shoot(name + "-clean-result")
+                }
+                if clean == "undo" {
+                    store.overviewClean = "undo"
+                    waitSettled(window, paper: paper, canvas: canvas, minSeconds: 1, maxSeconds: 30)
+                    shoot(name + "-clean-undone")
+                }
+                if clean == "run" {
+                    // 只拍结果不撤销的那一趟：假家目录的废纸篓并不假，搬进去的仍在 ~/.Trash。
+                    // 拍完照放回，走的是废纸篓页「撤销」的同一条 untrash。
+                    FileHandle.standardError.write("    ↺ 放回 \(restoreAllMoved(store)) 处\n".data(using: .utf8)!)
+                }
+                store.overviewClean = "close"
+                store.notice = nil
+                pump(0.4)
             }
         }
         if let flip = languageFlip {

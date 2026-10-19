@@ -1,7 +1,7 @@
 {
   "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/cost(只在 warn 上写：redo＝删了重新下载或重装就能回来 | data＝删了就真没了，重下也回不来)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/tags(可选,跨分组标签,如 ai_models:CLI 的 --category 按它筛)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-10-08",
+  "updated": "2026-10-17",
   "entries": [
     {
       "name": "ChatGPT 桌面版崩溃转储",
@@ -800,6 +800,93 @@
         "ai_models"
       ],
       "docs": "https://pytorch.org/docs/stable/hub.html"
+    },
+    {
+      "name": "Codex 会话记录",
+      "what": "Codex CLI 按日期存下的会话回放记录，一轮对话一个 rollout-*.jsonl",
+      "whatif": "删掉后这些历史对话在 codex 里不可再查",
+      "rec": "无法恢复；历史对话只此一份",
+      "path": "~/.codex/sessions",
+      "level": "warn",
+      "cost": "data",
+      "grp": "dev",
+      "icon": "openai",
+      "docs": "https://developers.openai.com/codex/cli"
+    },
+    {
+      "name": "Codex 运行日志",
+      "what": "Codex CLI 终端界面写下的运行日志，用得越久堆得越大",
+      "whatif": "删掉只影响事后翻日志排查问题，codex 本身不受影响",
+      "rec": "无需恢复；下次运行自动重新写入",
+      "path": "~/.codex/log",
+      "level": "safe",
+      "grp": "dev",
+      "icon": "openai",
+      "docs": "https://developers.openai.com/codex/cli"
+    },
+    {
+      "name": "Codex 插件与市场检出",
+      "what": "Codex CLI 为插件和技能市场临时检出的 Git 仓库副本，连同 .git 一起存",
+      "whatif": "删掉后插件和市场要重新拉取一遍，config.toml 与已装的运行时不受影响",
+      "rec": "无需恢复；下次启动 codex 会重新检出",
+      "path": "~/.codex/.tmp",
+      "level": "warn",
+      "cost": "redo",
+      "grp": "dev",
+      "icon": "openai",
+      "docs": "https://developers.openai.com/codex/cli"
+    },
+    {
+      "name": "Claude Code 会话记录",
+      "what": "Claude Code 按项目路径存的对话记录，一个项目一个目录，里面是一轮轮 jsonl",
+      "whatif": "删掉后这些项目里的历史对话不可再查",
+      "rec": "无法恢复；历史对话只此一份",
+      "path": "~/.claude/projects",
+      "level": "warn",
+      "cost": "data",
+      "grp": "dev"
+    },
+    {
+      "name": "Qoder 会话工作区",
+      "what": "Qoder 每个会话的临时工作区：工具调用的输出、抓下来的截图与图片附件、会话日志",
+      "whatif": "删掉后旧会话里的截图和工具输出打不开，对话正文不受影响",
+      "rec": "无法恢复；正在跑的会话会另建自己那份",
+      "path": "~/.qoder/tmp",
+      "level": "warn",
+      "cost": "data",
+      "grp": "dev",
+      "app": "com.qoder.app"
+    },
+    {
+      "name": "Qoder 文件历史",
+      "what": "Qoder 给 Agent 改过的文件留的版本快照，一个会话一个目录，每个文件按 @v1 @v2 逐版存",
+      "whatif": "删掉后没法再逐版比对或回滚 Agent 改过的文件",
+      "rec": "无法恢复；此后 Agent 再改文件才会存新版本",
+      "path": "~/.qoder/file-history",
+      "level": "warn",
+      "cost": "data",
+      "grp": "dev",
+      "app": "com.qoder.app"
+    },
+    {
+      "name": "ZCode 内嵌浏览器网页缓存",
+      "what": "ZCode 内嵌浏览器各分区攒下的网页资源缓存，光一个分区就能到 1 GB",
+      "whatif": "删掉不影响任何功能，只是网页要重新下载一遍资源",
+      "rec": "无需恢复；打开过的网页会自动重新缓存",
+      "path": "~/Library/Application Support/ZCode/session/Partitions/*/Cache",
+      "level": "safe",
+      "grp": "dev",
+      "app": "dev.zcode.app"
+    },
+    {
+      "name": "ZCode 内嵌浏览器脚本缓存",
+      "what": "ZCode 内嵌浏览器编译过的脚本与样式缓存",
+      "whatif": "删掉不影响任何功能，只是网页首次打开要重新编译一遍",
+      "rec": "无需恢复；再次打开网页时自动重建",
+      "path": "~/Library/Application Support/ZCode/session/Partitions/*/Code Cache",
+      "level": "safe",
+      "grp": "dev",
+      "app": "dev.zcode.app"
     }
   ]
 }

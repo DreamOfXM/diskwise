@@ -9,13 +9,13 @@
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
 caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
 the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription, and the whole UI in ten languages. A ~5 MB DMG, one
+server, no telemetry, no subscription, and the whole UI in ten languages. A ~8 MB DMG, one
 file for Apple Silicon and Intel.
 
 English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
@@ -77,6 +77,9 @@ OpenCode, Zed, ZCode and Claude Desktop can all reclaim disk space for you. It c
 removal path moves known-safe items to the Trash, every operation is undoable, and risky locations are
 never touchable.
 
+**Put DiskWise in `/Applications` before copying this.** The path below points at that copy; a build
+left on the Desktop or run straight off the mounted DMG stops working the moment it moves or gets deleted.
+
 Claude Code takes one line in Terminal:
 
 ```sh
@@ -126,6 +129,10 @@ It is built for machines that have been used by a developer for a few years — 
   - The light band sits exactly on the edge of what's been measured so far.
   - A slice you can move away whole takes two taps: the first arms it, the second sends it to the
     Trash, and it lets go on its own after 3 seconds.
+  - The button under the ring opens a list, not a delete: one row per spot it can take, each
+    saying what removing it costs, with the harmless ones pre-ticked and the re-downloadable ones
+    left for you to tick. The next screen repeats that list as a confirmation, and only its button
+    moves anything — the result screen after it puts the whole batch back.
   - There is one list, the ledger beside the ring. Open a row and its detail unfolds right there —
     the folders under it, the places behind *Other counted*, the volumes behind *Not measured*.
   - While a row is open the ring steps back to a small reference dial, and *Reveal* and *Dig in*
@@ -181,6 +188,13 @@ It is built for machines that have been used by a developer for a few years — 
   GitHub and open a PR — no Xcode, no build, no Swift.
 
 ## Screenshots
+
+What the button under the ring opens — a list you tick, then a screen that repeats it back before
+anything moves:
+
+| Reclaimable list | Confirm |
+|---|---|
+| <img src="docs/screenshots/en/20-clean-list.png" width="410" alt="Reclaimable list: one row per location with its size, a cost badge and a tickbox; the harmless ones arrive ticked, the re-downloadable ones do not"> | <img src="docs/screenshots/en/21-clean-confirm.png" width="410" alt="Confirm: the same locations listed again under a heading that counts them, with the button that finally moves them to the Trash"> |
 
 | Overview | Duplicates |
 |---|---|

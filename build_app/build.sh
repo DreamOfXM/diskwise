@@ -43,7 +43,7 @@ DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="DiskWise"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
-VERSION="1.8"
+VERSION="1.9"
 MIN_MACOS="13.0"
 # Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
 # 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
@@ -508,7 +508,7 @@ first time. Click OK. (Change it later in
 System Settings -> Privacy & Security -> Automation.)
 
 [ Switch language ]
-Skins page -> globe control -> English / 中文. Restart required.
+Skins page -> globe control -> English / 中文. Applies at once, no restart.
 
 [ Uninstall ]
 Drag the app to the Trash. No leftovers, no background agents.
@@ -535,7 +535,7 @@ $LAUNCH_ZH
 （系统设置 → 隐私与安全性 → 自动化 里可改）。
 
 【切换语言】
-外观皮肤页 → 地球图标 → English / 中文，切换后需重启。
+外观皮肤页 → 地球图标 → English / 中文，点一下就换，不用重启。
 
 【卸载】
 把 App 拖进废纸篓即可，无残留、无后台常驻。

@@ -7,6 +7,67 @@ import AppKit
 // 这一屏是磁盘清理类产品的门面，所以给了环形仪表：
 // 一眼看清"整块盘被谁吃了"，比一根进度条有力得多。
 
+// MARK: - 首次清理：候选 → 确认 → 结果
+
+/// 首次清理走到哪一步。nil = 还在空间总览（环上那本账）。
+enum CleanStage: Equatable {
+    case candidates
+    case confirm
+    case result
+}
+
+/// 一处可以被搬进废纸篓的缓存。只收知识库标成 `safe` / `redo` 的位置：
+/// `risky` 不进这条一键路径，`unknown` 连徽章都没有，更不该被默认勾上。
+struct CleanCandidate: Identifiable, Equatable, Hashable {
+    var path: String
+    var name: String
+    var size: Int64
+    var tier: VerdictTier
+    /// 归到环上哪一段账（`reclaimBucket` 的结果，或 `reclaimRestKey`）。
+    var bucket: String
+    var bucketLabel: String
+    var whatif: String
+    var rec: String
+    var appID: String?
+    var brand: String?
+    var selected: Bool
+
+    var id: String { path }
+    var url: URL { URL(fileURLWithPath: path) }
+}
+
+/// 搬不动的一处。原因逐条留着：一条一条走 `trashItem`，失败就得点名说是谁、为什么。
+struct CleanFailure: Identifiable, Equatable {
+    var path: String
+    var name: String
+    var reason: String
+    var id: String { path }
+}
+
+/// 已经搬进废纸篓的一处。结果页的收据按它列，撤销也按它找。
+struct CleanReceipt: Identifiable, Equatable {
+    var path: String
+    var name: String
+    var size: Int64
+    var tier: VerdictTier
+    var appID: String?
+    var brand: String?
+    var id: String { path }
+}
+
+/// 一次首次清理的完整结果。`beforeAvailable` 是动手前的可用空间：
+/// 结果页那三笔账（已入废纸篓 / 当前可用 / 清空后可用）全从它和 `bytes` 推，
+/// 不在界面上各算各的——同一屏三个数必须加得起来。
+struct CleanRun: Equatable {
+    var records: [TrashRecord]
+    var receipts: [CleanReceipt]
+    var failures: [CleanFailure]
+    var bytes: Int64
+    var beforeAvailable: Int64
+
+    var afterClear: Int64 { beforeAvailable + bytes }
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class OverviewModel: ObservableObject {
@@ -30,6 +91,14 @@ final class OverviewModel: ObservableObject {
     /// 正在量的目录名。列表必须「动起来」：一趟整盘扫描里最慢的根能跑几分钟，
     /// 只在有目录量完时才刷新，画面就会长时间一片空白，看着像点了没反应。
     @Published private(set) var measuring: [String] = []
+    /// 这一轮要量的全部位置，按排队顺序。账目列靠它把「排队中」逐个换成「已量完」——
+    /// 只报 `measuring` 的话，队列里还没轮到的那几百处在这一屏上根本不存在。
+    @Published private(set) var scanTargets: [(name: String, path: String)] = []
+    /// 量完一处记一笔（路径 → 字节）。它是账目列判断「这一处轮到没有」的账本：
+    /// 量到 0 字节的也记（`nil` 才是「还没轮到」）。
+    @Published private(set) var measuredTargets: [String: Int64] = [:]
+    /// 这一轮开跑的时刻。圆心那句「还剩约 N 秒」＝已用时间 ÷ 已量比例 − 已用时间。
+    @Published private(set) var scanStartedAt: Date? = nil
     /// 这个进程实测有没有「完全磁盘访问权限」。授权是在系统设置里点的，macOS 要 App
     /// 退出重开才落到进程上，所以「扫描里报了几处 EPERM」不能当授权状态用——
     /// 那样会对着已经勾过的人说「点这个按钮去开」。每轮扫描开始时重测一次。
@@ -241,7 +310,9 @@ final class OverviewModel: ObservableObject {
         var hits: [ReclaimTarget] = []
         for it in cachesModels.flatMap(\.items) {
             guard it.entry.level != "warn" else { continue }
-            for (p, sz) in it.pathSizes where sz > 0 {
+            for (p, measured) in it.pathSizes {
+                let sz = cacheBytesNow(p, measured: measured)
+                guard sz > 0 else { continue }
                 guard isDeletable(URL(fileURLWithPath: p)) else { continue }
                 guard fm.fileExists(atPath: p) else { continue }   // 已经搬走的不许再报
                 hits.append(ReclaimTarget(path: p, size: sz))
@@ -254,6 +325,217 @@ final class OverviewModel: ObservableObject {
             map[key, default: []].append(ReclaimTarget(path: p, size: size))
         }
         cacheTargets = map
+        rebuildCleanCandidates()
+    }
+
+    /// 一处缓存此刻还在原处的字节：缓存页量到的那笔，减去已经被本工具搬走的。
+    ///
+    /// `pathSizes` 是缓存页那一趟量出来的快照。`~/Library/Caches` 这类父项的
+    /// 安全子项被搬走之后，目录本身还在，旧数里却仍含着已经不在原处的字节——
+    /// 不扣，结果页就会报出一笔「还剩」的假账（实测：搬完 7 处后仍挂着 1.9 GB）。
+    /// 只减不重测：重扫之前宁可少报，不许错报。
+    private func cacheBytesNow(_ path: String, measured: Int64) -> Int64 {
+        let p = URL(fileURLWithPath: path).standardizedFileURL.path
+        var gone: Int64 = 0
+        for m in moved {
+            let mp = URL(fileURLWithPath: m.original).standardizedFileURL.path
+            if mp == p || mp.hasPrefix(p + "/") { gone += m.bytes }
+        }
+        return max(0, measured - gone)
+    }
+
+    // MARK: 首次清理：候选池、选择、执行
+
+    /// 首次清理走到哪一步。nil = 还在总览。
+    @Published private(set) var cleanStage: CleanStage? = nil
+    /// 可以逐条勾选的缓存。和 `cacheTargets` **不是同一批**：那边只收 `safe`，
+    /// 这里还要把 `redo` 摆出来让人自己决定——只报一半，用户会在缓存页看见
+    /// 另一批能清的东西，却在这条「首次清理」的路上找不到它们。
+    @Published private(set) var cleanPool: [CleanCandidate] = []
+    @Published private(set) var cleanBusy = false
+    @Published private(set) var cleanRun: CleanRun? = nil
+
+    var cleanSelected: [CleanCandidate] { cleanPool.filter(\.selected) }
+    var cleanPoolBytes: Int64 {
+        contentsUnionSize(cleanPool.map { (path: $0.path, bytes: $0.size) })
+    }
+    var cleanSelectedBytes: Int64 {
+        contentsUnionSize(cleanSelected.map { (path: $0.path, bytes: $0.size) })
+    }
+    var cleanScanning: Bool { cachesModels.contains { $0.scanning } }
+
+    func openFirstClean() {
+        disarm()
+        cleanRun = nil
+        rebuildCleanCandidates()
+        cleanStage = .candidates
+    }
+
+    func closeFirstClean() {
+        cleanStage = nil
+        cleanRun = nil
+        cleanBusy = false
+    }
+
+    func setCleanSelected(path: String, _ on: Bool) {
+        guard let i = cleanPool.firstIndex(where: { $0.path == path }) else { return }
+        cleanPool[i].selected = on
+    }
+
+    func setAllCleanSelected(_ on: Bool) {
+        for i in cleanPool.indices { cleanPool[i].selected = on }
+    }
+
+    /// 「只勾没影响的」：把 `redo` 全部撤掉，`safe` 全部勾上。
+    /// 这不是「全选」的别名——两个按钮挨着放，做的事必须分得开。
+    func selectCleanSafeOnly() {
+        for i in cleanPool.indices { cleanPool[i].selected = cleanPool[i].tier == .safe }
+    }
+
+    func advanceToConfirm() {
+        guard !cleanSelected.isEmpty else { return }
+        cleanStage = .confirm
+    }
+
+    func backToCandidates() {
+        cleanStage = .candidates
+    }
+
+    /// 逐条重归候选池。扫描收尾、缓存体积落地、真搬走过东西都走这里。
+    ///
+    /// 去重的口径比 `cacheTargets` 多一层：`safe` 和 `redo` 各自去嵌套之后，
+    /// 还要把「`redo` 是某个 `safe` 候选的祖先或后代」的那些剔掉。`~/Library/Caches`
+    /// 是 `redo`，它底下躺着几个 `safe`——不剔的话整条 `Caches` 会把那几处吞掉，
+    /// 而按整条搬又比按处搬危险，正好和这条路径「一处一处看代价」的承诺相反。
+    func rebuildCleanCandidates() {
+        let fm = FileManager.default
+        let rows = (hotspots + restHotspots).map { $0.path }
+        var raw: [(path: String, size: Int64, item: CacheItem)] = []
+        for it in cachesModels.flatMap(\.items) {
+            let tier = it.entry.tier
+            guard tier == .safe || tier == .redo else { continue }
+            for (p, measured) in it.pathSizes {
+                let sz = cacheBytesNow(p, measured: measured)
+                guard sz > 0 else { continue }
+                let url = URL(fileURLWithPath: p)
+                guard fm.fileExists(atPath: p), isDeletable(url), !isProtected(url) else { continue }
+                raw.append((p, sz, it))
+            }
+        }
+        // 同一条路径被两条知识库条目命中时 `safe` 优先：保守的那一档是给人看的判词。
+        var byPath: [String: (size: Int64, item: CacheItem)] = [:]
+        for r in raw {
+            if let prev = byPath[r.path] {
+                if prev.item.entry.tier != .safe, r.item.entry.tier == .safe {
+                    byPath[r.path] = (r.size, r.item)
+                }
+            } else {
+                byPath[r.path] = (r.size, r.item)
+            }
+        }
+        let safePaths = dropNested(byPath.filter { $0.value.item.entry.tier == .safe }.map(\.key))
+        let safeSet = Set(safePaths)
+        let redoPaths = dropNested(byPath.filter { $0.value.item.entry.tier == .redo }.map(\.key))
+            .filter { rp in
+                !safeSet.contains { sp in
+                    sp == rp || sp.hasPrefix(rp + "/") || rp.hasPrefix(sp + "/")
+                }
+            }
+
+        let previous = Dictionary(cleanPool.map { ($0.path, $0.selected) },
+                                  uniquingKeysWith: { a, _ in a })
+        var out: [CleanCandidate] = []
+        for p in safePaths + redoPaths {
+            guard let hit = byPath[p] else { continue }
+            let entry = hit.item.entry
+            let bucket = reclaimBucket(of: p, in: rows) ?? reclaimRestKey
+            out.append(CleanCandidate(
+                // `name`/`whatif`/`rec` 存的是 safety_db 里的中文原文，那同时就是本地化 key。
+                // 缓存页取这三样时过了 `L()`（CachesView.swift:300），这一列没过的后果是
+                // 英文界面下整张候选清单的条目名蹦回中文——2026-10-19 实拍英文候选页命中。
+                // 在这里过一次而不是在各渲染处过：`CleanReceipt`/`CleanFailure` 抄的就是
+                // 这个字段，结果页和失败行也得是本地化后的那一份。
+                path: p, name: L(entry.name), size: hit.size, tier: entry.tier,
+                bucket: bucket,
+                bucketLabel: bucket == reclaimRestKey
+                    ? L("其他已统计") : displayPath(URL(fileURLWithPath: bucket)),
+                whatif: L(entry.whatif), rec: L(entry.rec),
+                appID: entry.app, brand: entry.icon,
+                selected: previous[p] ?? (entry.tier == .safe)))
+        }
+        let order = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1, $0) })
+        out.sort {
+            let a = order[$0.bucket] ?? Int.max
+            let b = order[$1.bucket] ?? Int.max
+            if a != b { return a < b }
+            if ($0.tier == .safe) != ($1.tier == .safe) { return $0.tier == .safe }
+            if $0.size != $1.size { return $0.size > $1.size }
+            return $0.path < $1.path
+        }
+        if out != cleanPool { cleanPool = out }
+    }
+
+    /// 真搬。一条一条走 `trashItem`，失败留在 `failures` 里点名。
+    ///
+    /// 搬走的当场从候选池里去掉；失败的那些留在池里，用户可以再试一次。
+    /// 记录由调用方写进 `AppStore`（模型摸不到 store），所以这里收一个闭包。
+    func performFirstClean(record: (TrashRecord) -> Void) -> CleanRun {
+        let before = usage?.available ?? 0
+        var records: [TrashRecord] = []
+        var receipts: [CleanReceipt] = []
+        var failures: [CleanFailure] = []
+        var bytes: Int64 = 0
+        cleanBusy = true
+        defer { cleanBusy = false }
+        for c in cleanSelected {
+            do {
+                let t = try trashItem(c.url)
+                let r = TrashRecord(original: c.url, inTrash: t, size: c.size,
+                                    displayName: c.url.lastPathComponent)
+                record(r)
+                records.append(r)
+                receipts.append(CleanReceipt(path: c.path, name: c.name, size: c.size,
+                                             tier: c.tier, appID: c.appID, brand: c.brand))
+                bytes += c.size
+            } catch {
+                failures.append(CleanFailure(path: c.path, name: c.name,
+                                             reason: error.localizedDescription))
+            }
+        }
+        return CleanRun(records: records, receipts: receipts, failures: failures,
+                        bytes: bytes, beforeAvailable: before)
+    }
+
+    func finishFirstClean(_ run: CleanRun) {
+        cleanRun = run
+        cleanBusy = false
+        cleanStage = .result
+        rebuildCleanCandidates()
+    }
+
+    /// 一处都没搬成：留在确认页，把原因摆在按钮旁边。不切结果页——
+    /// 结果页只该在真的搬走之后出现。
+    func noteFirstCleanFailure(_ run: CleanRun) {
+        cleanRun = run
+        cleanBusy = false
+        rebuildCleanCandidates()
+    }
+
+    /// 撤销之后回到候选页，并把刚放回原处的那几处重新勾上。
+    /// 不留在结果页：文件已经回来了，还挂着一张「已移入废纸篓」的账单就是假账。
+    func reopenCandidatesAfterUndo(_ restored: Set<String>) {
+        cleanRun = nil
+        rebuildCleanCandidates()
+        for i in cleanPool.indices where restored.contains(cleanPool[i].path) {
+            cleanPool[i].selected = true
+        }
+        cleanStage = .candidates
+    }
+
+    func reopenCandidates() {
+        cleanRun = nil
+        rebuildCleanCandidates()
+        cleanStage = .candidates
     }
 
     // MARK: 两段式确认（第一下上膛，第二下才真搬）
@@ -317,9 +599,12 @@ final class OverviewModel: ObservableObject {
         measuring = []
         needFDA = []
         needAdmin = []
+        let targets = hotspotTargets(scope)
+        scanTargets = targets.map { (name: $0.name, path: $0.path) }
+        measuredTargets = [:]
+        scanStartedAt = Date()
+        pending = targets.count
         task = Task {
-            let targets = hotspotTargets(scope)
-            pending = targets.count
             targetPaths = targets.map { $0.path }
             var sized: [(name: String, path: String, size: Int64)] = []
             var total: Int64 = 0
@@ -341,6 +626,7 @@ final class OverviewModel: ObservableObject {
                     done += 1
                     total += r.bytes
                     covered = total
+                    measuredTargets[t.path] = r.bytes
                     // 这一处的账现在是新量的了：量之前就已经搬走的那些当场作废，否则同一截
                     // 字节要扣两遍；量完之后新搬走的仍然要扣（见 Core 的 `voidedUpTo`）。
                     voidedUpTo[t.path] = moved.count
@@ -507,6 +793,10 @@ struct OverviewView: View {
     /// 所以样稿里 `link('.seg','.row')` 那套双向点亮在真机上是一起动的：
     /// 戳弧 → 那一行亮、其余退后；戳行 → 那条弧弹出来、其余压暗。
     @State private var hovKey: String?
+    /// 扫描中每秒走一次的钟。剩余秒数＝已用时间 ÷ 已量比例 − 已用时间，
+    /// 分子每秒都在涨、分母只在有目录量完时才涨——不另起这只钟，最长的那一处
+    /// 量几分钟，那句「还剩约 N 秒」就会停在几分钟前那个数上。
+    @State private var scanTick = Date()
     /// 悬停键唯一的写入口：**值真变了才写**。`@State` 写回同一个值也会把整页标脏，
     /// 而 AppKit 的 enter 事件不保证只来一次（重排、重挂都会再放一次）。
     /// 这一道守卫挡的是多余的那几次重画，挡不住自激环——那是身份问题，见 `GaugeSegment`。
@@ -523,6 +813,10 @@ struct OverviewView: View {
     /// 英雄卡里两个锚点（环心、废纸篓那一格）此刻在 `heroSpace` 里的位置。
     /// 由 `heroAnchor(_:in:)` 报上来：触发那一刻去现量，量到的可能还是上一帧的框。
     @State private var anchors: [String: CGPoint] = [:]
+
+    /// 候选页这一行摊没摊开「代价 / 路径」。一次只摊一行：这一列本来就长，
+    /// 两行同时摊着会把下一组挤出视野。
+    @State private var cleanDetail: String?
 
     /// 「本次移入废纸篓」那条虚线弧。它不落在这屏里——那些字节已经在废纸篓，
     /// 要真让位得去废纸篓页交给访达，所以点它跳的是**另一页**。
@@ -828,21 +1122,1010 @@ struct OverviewView: View {
     }
 
     var body: some View {
-        // 页头钉在滚动区外面：它是这一屏的标题，滚走了就没人知道自己在哪页。
-        // 下面仍然只有一个 ScrollView——macOS 13 的 ScrollView 会把内容的完整高度
-        // 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点。
+        Group {
+            if let stage = model.cleanStage {
+                firstCleanPage(stage)
+            } else {
+                overviewPage
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 结果页的账要跟着这一刀走；总览页自己那条 onChange 在流程开着时不在树上。
+        .onChange(of: store.trashHistory) { _ in syncMovedLedger() }
+        // 首次清理那几屏的截图口令。走的是页面上那几颗按钮自己的方法（见 `runFirstClean`），
+        // 不是另画一条「看起来像确认页」的假路。
+        .onChange(of: store.overviewClean) { token in handleCleanCommand(token) }
+        // 切走这一页就把流程收掉：半截的选择和已经搬走的东西都不该带进下一页。
+        .onDisappear {
+            model.closeFirstClean()
+            model.disarm()
+            setHover(nil)
+            arcNote = nil
+        }
+    }
+
+    private func handleCleanCommand(_ token: String?) {
+        guard let token else { return }
+        store.overviewClean = nil
+        switch token {
+        case "open":
+            model.openFirstClean()
+        case "confirm":
+            model.advanceToConfirm()
+        case "run":
+            runFirstClean()
+        case "undo":
+            undoFirstClean()
+        case "close":
+            model.closeFirstClean()
+            store.notice = nil
+        default:
+            break
+        }
+    }
+
+    /// 确认页那颗「移进废纸篓」：一次真搬。搬完把环的账、可用空间、顶部提示一起更新。
+    private func runFirstClean() {
+        guard model.cleanStage == .confirm, !model.cleanBusy, !model.cleanSelected.isEmpty
+        else { return }
+        let run = model.performFirstClean { store.record($0) }
+        if run.records.isEmpty {
+            model.noteFirstCleanFailure(run)
+            store.notice = run.failures.first.map { LF("没有搬动任何一处：%@", $0.reason) }
+                ?? L("没有可搬动的候选")
+            return
+        }
+        model.finishFirstClean(run)
+        syncMovedLedger()
+        store.notice = run.failures.isEmpty
+            ? LF("已移入废纸篓 %1$d 处，共 %2$@", run.records.count, human(run.bytes))
+            : LF("已移入 %1$d 处，%2$d 处没搬动", run.records.count, run.failures.count)
+        model.refreshUsage()
+    }
+
+    /// 结果页那颗「撤销本次移入」：倒序放回，再回到候选页（文件已经回来了，
+    /// 还挂着一张「已移入」的账单就是假账）。
+    private func undoFirstClean() {
+        guard let run = model.cleanRun else { return }
+        let r = store.undoBatch(run.records)
+        model.reopenCandidatesAfterUndo(Set(r.restored.map { $0.original.path }))
+        syncMovedLedger()
+        store.notice = r.failed == 0
+            ? LF("已撤销本次移入，放回 %d 处", r.restored.count)
+            : LF("还有 %1$d 处没放回：%2$@", r.failed, r.firstError ?? "")
+        model.refreshUsage()
+    }
+
+    // MARK: - 首次清理三屏（候选 / 确认 / 结果）
+
+    /// 三屏共用一副骨架：顶上一条「现在在哪一步」，页头，环 + 右栏，底下动作条。
+    /// 环就是总览那一枚，只换圆心三行；弧、光、动效一律不碰。
+    private func firstCleanPage(_ stage: CleanStage) -> some View {
         VStack(spacing: 0) {
-            PageHeader(symbol: "internaldrive", title: L("空间总览"),
-                       subtitle: L("先看清，再下手——每一行点开，就是它名下具体是哪几个目录"),
+            cleanBanner(stage)
+                .pagePadding()
+                .padding(.top, 10)
+
+            cleanHeader(stage)
+                .pagePadding()
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
+            cleanBody(stage)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            cleanDock(stage)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func closeCleanPage() {
+        cleanDetail = nil
+        model.closeFirstClean()
+    }
+
+    // MARK: 横幅 / 页头
+
+    private func cleanBanner(_ stage: CleanStage) -> some View {
+        let symbol: String
+        let text: String
+        let ink: Color
+        switch stage {
+        case .candidates:
+            symbol = "eye"
+            text = L("选择中 · 只做选择，不动文件；取消勾选不会删除任何东西")
+            ink = theme.palette.inkSecondary
+        case .confirm:
+            symbol = "lock.shield"
+            text = L("确认 · 还没有动任何文件；这一步只核对，不写入")
+            ink = theme.palette.inkSecondary
+        case .result:
+            // 处数与字节由这条横幅下面两样东西各自报过一遍：全局提示条（「已移入废纸篓
+            // 3 处，共 1.2 MB」）和右栏「本次动作」那一档。横幅再报第三遍，同一屏就长出
+            // 三条一模一样的话（2026-10-19 实拍）。这里只留提示条没说的那半句。
+            symbol = "checkmark.circle.fill"
+            text = L("空间还没释放——清空废纸篓后才是真的腾出来")
+            ink = theme.palette.safeFG
+        }
+        return HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(ink)
+            Text(text)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button { closeCleanPage() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L("回到总览"))
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 9)
+        .background(theme.controlShape().fill(theme.palette.surfaceAlt))
+        .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: 1))
+    }
+
+    private func cleanHeader(_ stage: CleanStage) -> some View {
+        PageHeader(symbol: "internaldrive", title: cleanTitle(stage),
+                   subtitle: cleanSubtitle(stage), variant: .display) {
+            ThemeButton(kind: .ghost, symbol: "arrow.left", title: L("返回总览")) {
+                closeCleanPage()
+            }
+        }
+    }
+
+    private func cleanTitle(_ stage: CleanStage) -> String {
+        switch stage {
+        case .candidates: return LF("可回收的 %1$@", human(model.cleanPoolBytes))
+        case .confirm: return LF("确认这 %d 处", model.cleanSelected.count)
+        case .result: return L("已移入废纸篓")
+        }
+    }
+
+    private func cleanSubtitle(_ stage: CleanStage) -> String {
+        switch stage {
+        case .candidates:
+            return LF("散在 %d 处。默认只勾没影响的；先看每一处的代价，再取消你不想清的。",
+                      model.cleanPool.count)
+        case .confirm:
+            let n = model.cleanSelected.count
+            let after = afterShown(cleanAvailable, plus: model.cleanSelectedBytes)
+            guard let after else {
+                return LF("将移入废纸篓的就是这 %d 处。可用不会当场变大——清空废纸篓后才会真正腾出来。",
+                          n)
+            }
+            return LF("将移入废纸篓的就是这 %1$d 处。可用不会当场变大——清空废纸篓之后才是 %2$@。",
+                      n, after)
+        case .result:
+            let before = model.cleanRun?.beforeAvailable ?? model.usage?.available ?? 0
+            let bytes = model.cleanRun?.bytes ?? 0
+            let after = afterShown(before, plus: bytes)
+            if let n = model.cleanRun?.failures.count, n > 0 {
+                guard let after else {
+                    return LF("其中 %d 处没搬动，原因在右边点名。字节还在盘上——去废纸篓清空后才会真正腾出来。", n)
+                }
+                return LF("其中 %1$d 处没搬动，原因在右边点名。字节还在盘上——清空废纸篓后可用才会从 %2$@ 变成 %3$@。",
+                          n, human(before), after)
+            }
+            guard let after else {
+                return L("字节还在盘上——去废纸篓清空后才会真正腾出来。")
+            }
+            return LF("字节还在盘上——去废纸篓清空，可用才会从 %1$@ 变成 %2$@。",
+                      human(before), after)
+        }
+    }
+
+    /// 「可用会从 A 变成 B」里的 B：**只有印出来的两个数真的不同才成立**。
+    ///
+    /// 1.2 MB 加在 117.3 GB 上，两边 `human()` 出来都是 117.3 GB，那句话当场变成
+    /// 「可用才会从 117.3 GB 变成 117.3 GB」（2026-10-19 实拍命中）。字节是真的涨了，
+    /// 只是不到这块盘的显示精度——此时该说的是「清空后才会腾出来」，不是报一个假变化。
+    private func afterShown(_ before: Int64, plus bytes: Int64) -> String? {
+        let a = human(before)
+        let b = human(before + bytes)
+        return a == b ? nil : b
+    }
+
+    // MARK: 环 + 右栏
+
+    private func cleanBody(_ stage: CleanStage) -> some View {
+        GeometryReader { gate in
+            let ring = cleanRingSide(gate.size)
+            HStack(alignment: .top, spacing: 30) {
+                cleanRingColumn(stage, ring: ring)
+                    .frame(width: ring)
+
+                Group {
+                    switch stage {
+                    case .candidates: cleanCandidatesColumn
+                    case .confirm: cleanConfirmColumn
+                    case .result: cleanResultColumn
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .padding(.horizontal, Self.pagePad)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .frame(width: gate.size.width, height: gate.size.height, alignment: .topLeading)
+        }
+    }
+
+    private func cleanRingSide(_ size: CGSize) -> CGFloat {
+        // 宽和高谁先不够就收谁：环最小 210（再小盘心那三行就排不下），
+        // 最大 330（样稿那一档；再大右栏就只剩一条缝）。
+        let byHeight = size.height - 8
+        let byWidth = size.width * 0.4
+        return max(210, min(330, min(byHeight, byWidth)))
+    }
+
+    @ViewBuilder
+    private func cleanRingColumn(_ stage: CleanStage, ring: CGFloat) -> some View {
+        if let u = model.usage {
+            let acct = ringAccount(u)
+            SweepRing(segments: acct.segs,
+                      centerTop: cleanCenterTop(stage),
+                      centerValue: cleanCenterValue(stage, acct),
+                      centerCap: cleanCenterCap(stage, acct, u),
+                      diameter: ring,
+                      // 这三屏里弧只负责报账，不接点选：勾选在右边那一列，
+                      // 上膛的手势留在总览，免得同一屏出现两套「再点一下」。
+                      select: nil,
+                      armed: nil,
+                      tapCenter: nil,
+                      scanning: model.scanning,
+                      scanProgress: scanFraction(u),
+                      hovered: nil,
+                      onHover: nil,
+                      centerNow: nil)
+                .frame(width: ring, height: ring)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            VStack(spacing: 9) {
+                ProgressView().controlSize(.small)
+                Text(L("正在读这块盘的账…"))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkTertiary)
+            }
+            .frame(width: ring, height: ring)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private func cleanCenterTop(_ stage: CleanStage) -> String {
+        switch stage {
+        case .candidates: return L("已选")
+        case .confirm: return L("将移走")
+        case .result: return L("可用")
+        }
+    }
+
+    private func cleanCenterValue(_ stage: CleanStage, _ acct: RingAccount) -> String {
+        switch stage {
+        case .candidates, .confirm: return human(model.cleanSelectedBytes)
+        case .result: return acct.availableShown
+        }
+    }
+
+    /// 两行分开取词再拼，不把换行写进词条：词表闸门会把换行折成空格，
+    /// 而运行时查词用的是原文的换行——一条带换行的 key 永远查不到译文。
+    ///
+    /// 每一行都得短到能在内孔里排下。上一版把「当前可用 … · 清空后 …」写成一句，
+    /// 2026-10-19 实拍确认页那一屏时 `GB` 被甩成孤零零第三行——字号早已按直径等比
+    /// （Components.swift 的 cap 那条），剩下的超长只能靠分行解决。
+    private func cleanCenterCap(_ stage: CleanStage, _ acct: RingAccount, _ u: VolumeUsage) -> String {
+        var lines: [String]
+        var after: String?
+        switch stage {
+        case .candidates:
+            lines = [LF("%1$d 处 · 占整盘 %2$@", model.cleanSelected.count, cleanPercentText),
+                     LF("当前可用 %@", acct.availableShown)]
+            after = afterShown(cleanAvailable, plus: model.cleanSelectedBytes)
+        case .confirm:
+            lines = [LF("%1$d 处 · 还没有动文件", model.cleanSelected.count),
+                     LF("当前可用 %@ 不变", acct.availableShown)]
+            after = afterShown(cleanAvailable, plus: model.cleanSelectedBytes)
+        case .result:
+            lines = [LF("整块盘 %1$@ · 已用 %2$@", acct.totalShown, acct.usedShown),
+                     LF("本次入篓 %@", human(model.cleanRun?.bytes ?? 0))]
+            after = afterShown(model.cleanRun?.beforeAvailable ?? acct.available,
+                               plus: model.cleanRun?.bytes ?? 0)
+        }
+        if let after { lines.append(LF("清空后 %@", after)) }
+        return lines.joined(separator: "\n")
+    }
+
+    private var cleanAvailable: Int64 { model.usage?.available ?? 0 }
+
+    private var cleanPercentText: String {
+        guard let total = model.usage?.total, total > 0 else { return "—" }
+        let pct = Double(model.cleanSelectedBytes) / Double(total) * 100
+        return String(format: "%.1f%%", pct)
+    }
+
+    // MARK: 候选列
+
+    private var cleanGroups: [CleanGroup] {
+        var order: [String] = []
+        var map: [String: [CleanCandidate]] = [:]
+        for c in model.cleanPool {
+            if map[c.bucket] == nil { order.append(c.bucket) }
+            map[c.bucket, default: []].append(c)
+        }
+        return order.map { key in
+            let items = map[key] ?? []
+            return CleanGroup(key: key,
+                              label: items.first?.bucketLabel ?? "",
+                              items: items,
+                              bytes: contentsUnionSize(items.map { (path: $0.path, bytes: $0.size) }))
+        }
+    }
+
+    private func cleanTierStats(_ tier: VerdictTier, in items: [CleanCandidate]) -> (n: Int, bytes: Int64) {
+        let hit = items.filter { $0.tier == tier }
+        return (hit.count, hit.reduce(Int64(0)) { $0 + $1.size })
+    }
+
+    private var cleanCandidatesColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Text(L("可回收明细"))
+                    .font(theme.prose(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.palette.ink)
+                Text(LF("%d 处", model.cleanPool.count))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                Text("·")
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                Text(human(model.cleanPoolBytes))
+                    .font(theme.numeric(size: 11.5))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.inkSecondary)
+                Spacer(minLength: 8)
+                cleanShortcut(L("只勾没影响的")) { model.selectCleanSafeOnly() }
+                cleanShortcut(L("全不选")) { model.setAllCleanSelected(false) }
+            }
+            .padding(.bottom, 5)
+
+            Text(L("默认只勾了没影响的；要重新下载的那些要你自己动手勾。"))
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 8)
+
+            if model.cleanPool.isEmpty {
+                cleanEmpty(
+                    model.cleanScanning ? L("正在量缓存…") : L("没有可回收的缓存"),
+                    model.cleanScanning
+                        ? L("量完这一列才谈得上选；这一步仍然没有动任何文件。")
+                        : L("这一圈里能动的都已经在废纸篓，或者这一轮还没量到。"))
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(cleanGroups.enumerated()), id: \.element.key) { i, g in
+                            cleanGroupHeader(g)
+                                .padding(.top, i == 0 ? 0 : 12)
+                            ForEach(g.items) { c in
+                                CleanPickRow(
+                                    candidate: c,
+                                    detailOpen: cleanDetail == c.path,
+                                    onToggle: { model.setCleanSelected(path: c.path, $0) },
+                                    onDetail: {
+                                        cleanDetail = (cleanDetail == c.path) ? nil : c.path
+                                    })
+                                    .padding(.bottom, 6)
+                            }
+                        }
+                    }
+                    .padding(.bottom, 12)
+                }
+            }
+        }
+    }
+
+    private func cleanGroupHeader(_ g: CleanGroup) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(theme.palette.tint)
+                .frame(width: 6, height: 6)
+            Text(g.label)
+                .font(theme.bodyFont(.caption).weight(.medium))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(LF("%d 处", g.items.count))
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkTertiary)
+            Text("·")
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkTertiary)
+            Text(human(g.bytes))
+                .font(theme.numeric(size: 10.5))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkTertiary)
+            Spacer(minLength: 6)
+        }
+        .padding(.bottom, 5)
+    }
+
+    private func cleanShortcut(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func cleanEmpty(_ title: String, _ hint: String) -> some View {
+        VStack(spacing: 8) {
+            Spacer(minLength: 24)
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(theme.palette.inkTertiary)
+            Text(title)
+                .font(theme.prose(size: 14, weight: .medium))
+                .foregroundStyle(theme.palette.inkSecondary)
+            Text(hint)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 320)
+            Spacer(minLength: 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: 确认列
+
+    private var cleanConfirmColumn: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 7) {
+                    Text(L("将移入废纸篓"))
+                        .font(theme.prose(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.palette.ink)
+                    Text(LF("%d 处", model.cleanSelected.count))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Text("·")
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                    Text(human(model.cleanSelectedBytes))
+                        .font(theme.numeric(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Spacer(minLength: 6)
+                }
+                .padding(.bottom, 6)
+
+                ForEach(Array(model.cleanSelected.enumerated()), id: \.element.path) { i, c in
+                    cleanPreviewRow(c, showRule: i > 0)
+                }
+
+                cleanCostSection
+                    .padding(.top, 14)
+
+                cleanNextStepsCard
+                    .padding(.top, 14)
+
+                if let f = model.cleanRun?.failures, !f.isEmpty {
+                    // 上一次跑完但没有一处搬成时停在这一屏：失败原因必须留在原地。
+                    Text(LF("上一次没有搬动任何一处：%d 处都失败了。", f.count))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.warnFG)
+                        .padding(.top, 12)
+                }
+            }
+            .padding(.bottom, 12)
+        }
+    }
+
+    private func cleanPreviewRow(_ c: CleanCandidate, showRule: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                RowIconView(icon: .path(c.url), side: 22,
+                            appID: c.appID, brand: c.brand)
+                    .frame(width: rowIconSide, height: rowIconSide)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(c.name)
+                        .font(theme.bodyFont(.callout))
+                        .foregroundStyle(theme.palette.ink)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(displayPath(c.url))
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 10)
+                if let b = verdictBadge(c.tier) {
+                    ThemeBadge(text: b.text, tone: b.tone)
+                }
+                Text(human(c.size))
+                    .font(theme.numeric(size: 12))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.ink)
+                    .frame(width: 78, alignment: .trailing)
+            }
+            .padding(.vertical, 7)
+            if showRule {
+                Rectangle()
+                    .fill(theme.palette.separator)
+                    .frame(height: 1)
+            }
+        }
+    }
+
+    private var cleanCostSection: some View {
+        let tiers: [(VerdictTier, String)] = [
+            (.safe, L("会自己长回来 / 可再下载")),
+            (.redo, L("下次构建 / 启动会重建")),
+            (.risky, L("这次没有动这类")),
+        ]
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(L("代价"))
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .padding(.bottom, 2)
+            ForEach(Array(tiers.enumerated()), id: \.offset) { _, tier in
+                let stats = cleanTierStats(tier.0, in: model.cleanSelected)
+                HStack(spacing: 8) {
+                    if let b = verdictBadge(tier.0) {
+                        ThemeBadge(text: b.text, tone: b.tone)
+                    }
+                    Text(LF("%1$@ · %2$d 处", human(stats.bytes), stats.n))
+                        .font(theme.bodyFont(.caption))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Spacer(minLength: 8)
+                    Text(tier.1)
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private var cleanNextStepsCard: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(L("接下来会发生什么"))
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkTertiary)
+            HStack(alignment: .top, spacing: 0) {
+                cleanStep(L("现在"),
+                          LF("%d 处仍在盘上", model.cleanSelected.count),
+                          LF("可用 %@ 不变", human(cleanAvailable)),
+                          ink: theme.palette.inkSecondary)
+                Rectangle()
+                    .fill(theme.palette.separator)
+                    .frame(width: 1)
+                    .padding(.horizontal, 12)
+                cleanStep(L("点下去"),
+                          L("移进废纸篓"),
+                          L("随时可以撤销"),
+                          ink: theme.palette.inkSecondary)
+                Rectangle()
+                    .fill(theme.palette.separator)
+                    .frame(width: 1)
+                    .padding(.horizontal, 12)
+                cleanStep(L("清空之后"),
+                          LF("可用 %@", human(cleanAvailable + model.cleanSelectedBytes)),
+                          L("清空不可撤销"),
+                          ink: theme.palette.danger)
+            }
+            .padding(12)
+            .background(theme.controlShape().fill(theme.palette.surfaceAlt))
+            .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: 1))
+        }
+    }
+
+    private func cleanStep(_ label: String, _ value: String, _ sub: String, ink: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkTertiary)
+            Text(value)
+                .font(theme.prose(size: 13, weight: .medium))
+                .foregroundStyle(theme.palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(sub)
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: 结果列
+
+    private var cleanResultColumn: some View {
+        let run = model.cleanRun
+        let receipts = run?.receipts ?? []
+        let failures = run?.failures ?? []
+        let bytes = run?.bytes ?? 0
+        let before = run?.beforeAvailable ?? cleanAvailable
+        let after = before + bytes
+        let remain = model.cleanPool
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 7) {
+                    Text(L("本次动作"))
+                        .font(theme.prose(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.palette.ink)
+                    Text(LF("%d 处", receipts.count))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Text("·")
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                    Text(human(bytes))
+                        .font(theme.numeric(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Spacer(minLength: 6)
+                }
+                .padding(.bottom, 1)
+
+                cleanResultCard(L("已移入废纸篓"), human(bytes),
+                                LF("%d 处 · 清空后才真正腾出", receipts.count),
+                                link: receipts.isEmpty ? nil : L("去清空 →")) {
+                    store.jumpTo = .trash
+                    closeCleanPage()
+                }
+
+                cleanResultCard(L("当前可用"), human(before),
+                                L("没变——字节还在废纸篓里"), link: nil, action: nil)
+
+                cleanResultCard(L("清空废纸篓后"), human(after),
+                                LF("+%@ 才真正回到可用", human(bytes)), link: nil, action: nil)
+
+                if !remain.isEmpty {
+                    HStack(spacing: 6) {
+                        Text(remain.count == 1
+                             ? LF("还剩 %1$@ 可回收 · %2$d 处（%3$@）",
+                                  human(model.cleanPoolBytes), remain.count,
+                                  remain.first?.name ?? "")
+                             : LF("还剩 %1$@ 可回收 · %2$d 处",
+                                  human(model.cleanPoolBytes), remain.count))
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 8)
+                        Button {
+                            cleanDetail = nil
+                            model.reopenCandidates()
+                        } label: {
+                            Text(L("去看看 ›"))
+                                .font(theme.bodyFont(.caption))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
+                }
+
+                if !failures.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(LF("%d 处没搬动", failures.count))
+                            .font(theme.bodyFont(.caption).weight(.semibold))
+                            .foregroundStyle(theme.palette.warnFG)
+                        ForEach(failures) { f in
+                            Text(LF("%1$@：%2$@", f.name, f.reason))
+                                .font(theme.bodyFont(.caption2))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(theme.controlShape().fill(theme.palette.warnBG))
+                    .padding(.top, 4)
+                }
+
+                if !receipts.isEmpty {
+                    HStack(spacing: 6) {
+                        Text(LF("这次移入的 %d 处", receipts.count))
+                            .font(theme.bodyFont(.caption).weight(.medium))
+                            .foregroundStyle(theme.palette.inkSecondary)
+                        Spacer(minLength: 8)
+                        Text(L("都在废纸篓里，可随时恢复"))
+                            .font(theme.bodyFont(.caption2))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                    }
+                    .padding(.top, 6)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(receipts.enumerated()), id: \.element.id) { i, r in
+                            cleanReceiptRow(r, showRule: i > 0)
+                        }
+                    }
+                }
+
+                if !receipts.isEmpty {
+                    Text(LF("清空废纸篓不可撤销。现在不清理也可以——这 %d 处会一直留在废纸篓里，直到你决定清空。",
+                            receipts.count))
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: 1))
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.bottom, 12)
+        }
+    }
+
+    private func cleanResultCard(_ label: String, _ value: String, _ sub: String,
+                                 link: String?, action: (() -> Void)?) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                Text(value)
+                    .font(theme.numeric(size: 25))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.ink)
+                Text(sub)
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+            }
+            Spacer(minLength: 8)
+            if let link, let action {
+                Button(action: action) {
+                    Text(link)
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
+        .background(theme.controlShape().fill(theme.palette.surfaceAlt))
+        .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: 1))
+    }
+
+    private func cleanReceiptRow(_ r: CleanReceipt, showRule: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                RowIconView(icon: .path(URL(fileURLWithPath: r.path)), side: 22,
+                            appID: r.appID, brand: r.brand)
+                    .frame(width: rowIconSide, height: rowIconSide)
+                Text(r.name)
+                    .font(theme.bodyFont(.callout))
+                    .foregroundStyle(theme.palette.ink)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 10)
+                Text(r.tier == .safe ? L("没影响") : L("要重新下载"))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(r.tier == .safe ? theme.palette.safeFG : theme.palette.warnFG)
+                Text(human(r.size))
+                    .font(theme.numeric(size: 11.5))
+                    .monospacedDigit()
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .frame(width: 78, alignment: .trailing)
+            }
+            .padding(.vertical, 6)
+            if showRule {
+                Rectangle()
+                    .fill(theme.palette.separator)
+                    .frame(height: 1)
+            }
+        }
+    }
+
+    // MARK: 底部动作条
+
+    private func cleanDock(_ stage: CleanStage) -> some View {
+        VStack(spacing: 5) {
+            HStack(spacing: 14) {
+                cleanDockLeft(stage)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                cleanDockAction(stage)
+                cleanDockRight(stage)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, Self.pagePad)
+            Text(cleanDockNote(stage))
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(.top, 11)
+        .padding(.bottom, 12)
+        .background(theme.palette.paper)
+        .overlay(alignment: .top) {
+            Rectangle().fill(theme.palette.separator).frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func cleanDockLeft(_ stage: CleanStage) -> some View {
+        switch stage {
+        case .candidates:
+            let n = model.cleanSelected.count
+            let safe = cleanTierStats(.safe, in: model.cleanSelected)
+            let redo = cleanTierStats(.redo, in: model.cleanSelected)
+            let risky = cleanTierStats(.risky, in: model.cleanSelected)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LF("已选 %1$d 处 · %2$@", n, human(model.cleanSelectedBytes)))
+                    .font(theme.prose(size: 13, weight: .medium))
+                    .foregroundStyle(theme.palette.ink)
+                Text(LF("没影响 %1$@ · 要重新下载 %2$@ · 会丢数据 %3$@",
+                        human(safe.bytes), human(redo.bytes), human(risky.bytes)))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .lineLimit(1)
+            }
+        case .confirm:
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LF("这 %1$d 处 · %2$@", model.cleanSelected.count,
+                        human(model.cleanSelectedBytes)))
+                    .font(theme.prose(size: 13, weight: .medium))
+                    .foregroundStyle(theme.palette.ink)
+                Text(LF("不会删除，只移进废纸篓 · 当前可用 %@", human(cleanAvailable)))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .lineLimit(1)
+            }
+        case .result:
+            let run = model.cleanRun
+            let n = run?.receipts.count ?? 0
+            let bytes = run?.bytes ?? 0
+            let before = run?.beforeAvailable ?? cleanAvailable
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LF("已移入 %1$d 处 · %2$@", n, human(bytes)))
+                    .font(theme.prose(size: 13, weight: .medium))
+                    .foregroundStyle(theme.palette.ink)
+                Text(LF("当前可用 %1$@ 没变 · 清空后 %2$@",
+                        human(before), human(before + bytes)))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cleanDockAction(_ stage: CleanStage) -> some View {
+        switch stage {
+        case .candidates:
+            let n = model.cleanSelected.count
+            ThemeButton(kind: .lamp,
+                        title: n > 0 ? LF("下一步：确认这 %d 处 →", n) : L("一件都没选"),
+                        isDisabled: n == 0) {
+                cleanDetail = nil
+                model.advanceToConfirm()
+            }
+        case .confirm:
+            ThemeButton(kind: .lamp,
+                        title: LF("移进废纸篓 · %@ →", human(model.cleanSelectedBytes)),
+                        isDisabled: model.cleanBusy || model.cleanSelected.isEmpty) {
+                runFirstClean()
+            }
+        case .result:
+            ThemeButton(kind: .lamp, title: L("去废纸篓清空 →")) {
+                store.jumpTo = .trash
+                closeCleanPage()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cleanDockRight(_ stage: CleanStage) -> some View {
+        switch stage {
+        case .candidates:
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(LF("已入废纸篓 %@", human(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                Text(LF("当前可用 %@", human(cleanAvailable)))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkSecondary)
+            }
+        case .confirm:
+            VStack(alignment: .trailing, spacing: 3) {
+                Button {
+                    cleanDetail = nil
+                    model.backToCandidates()
+                } label: {
+                    Text(L("← 返回修改"))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Text(LF("已入废纸篓 %@", human(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+            }
+        case .result:
+            VStack(alignment: .trailing, spacing: 3) {
+                Button { undoFirstClean() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(L("撤销本次移入"))
+                            .font(theme.bodyFont(.caption))
+                    }
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .overlay(Capsule().stroke(theme.palette.separator, lineWidth: 1))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.cleanRun == nil)
+                Text(L("直到清空前都可撤销"))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+            }
+        }
+    }
+
+    private func cleanDockNote(_ stage: CleanStage) -> String {
+        switch stage {
+        case .candidates: return L("还没有动任何文件 · 下一步只是核对")
+        case .confirm: return L("只移进废纸篓，不直接删除 · 清空后才真正让位")
+        case .result:
+            return LF("清空之后，这 %@ 才真正回到可用",
+                      human(model.cleanRun?.bytes ?? 0))
+        }
+    }
+
+    /// 页头钉在滚动区外面：它是这一屏的标题，滚走了就没人知道自己在哪页。
+    /// 下面仍然只有一个 ScrollView——macOS 13 的 ScrollView 会把内容的完整高度
+    /// 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点。
+    private var overviewPage: some View {
+        VStack(spacing: 0) {
+            // 扫描中页头自己报「在干什么」：这一屏剩下的时间全花在等，标题还写
+            // 「空间总览」会让人以为结果是现成的。副标题那句「只读」是承诺，
+            // 每一秒都得在屏幕上——扫描态下这一页一个写盘动作都没有。
+            PageHeader(symbol: "internaldrive",
+                       title: model.scanning ? L("正在扫描") : L("空间总览"),
+                       subtitle: model.scanning
+                           ? L("先量完，再决定——只读，不改任何文件。")
+                           : L("先看清，再下手——每一行点开，就是它名下具体是哪几个目录"),
                        variant: .display) {
-                ScanControl(scanning: model.scanning, kind: .primary,
-                            rescan: {
-                                // 发脉冲在前：`refresh` 会当场把 `scanning` 置真，
-                                // 别的页要在这同一轮里把各自的旧账作废掉。
-                                store.rescanPulse += 1
-                                model.refresh(scope: store.scope)
-                            },
-                            stop: { model.stop() })
+                HStack(spacing: 10) {
+                    if model.scanning, let u = model.usage {
+                        scanBadge(scanPercent(u.total))
+                    }
+                    ScanControl(scanning: model.scanning, kind: .primary,
+                                rescan: {
+                                    // 发脉冲在前：`refresh` 会当场把 `scanning` 置真，
+                                    // 别的页要在这同一轮里把各自的旧账作废掉。
+                                    store.rescanPulse += 1
+                                    model.refresh(scope: store.scope)
+                                },
+                                stop: { model.stop() })
+                }
             }
             .pagePadding()
             .padding(.top, 14)
@@ -940,13 +2223,25 @@ struct OverviewView: View {
         // 截图连拍要「摊开 → 再收回去」两拍都在一段里跑完，而收起在真机上是再点同一行，
         // 这一路没有键鼠点不到它。这里走的就是那颗行首 `▸` 的同一个 `setDrill`。
         .onChange(of: store.overviewCollapsePulse) { _ in setDrill(nil) }
+        // 圆心那句「还剩约 N 秒」是**从开跑时刻现算的**，不跟着任何一次测量事件更新：
+        // 几秒没有目录量完时，那个数会僵在原地，读者会以为卡住了。一秒一跳的时钟
+        // 只改 `scanTick`，量完/停下时随 `scanning` 一起收掉。
+        .task(id: model.scanning) {
+            guard model.scanning else { return }
+            while !Task.isCancelled && model.scanning {
+                scanTick = Date()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
     }
 
     /// `avail` = 这一屏给英雄卡的那一档宽度（已经扣掉页面左右内边距），
     /// `viewportH` = 滚动视口的高。环的尺寸由 `avail` 算（见 `ringDiameter(_:)`），
     /// 它居中的那一片由 `viewportH` 算（见 `ringBox(_:_:)`）——两个都来自窗口，不来自内容。
     private func heroCard(_ u: VolumeUsage, avail: CGFloat, viewportH: CGFloat) -> some View {
-        let acct = ringAccount(u)
+        // 扫描中单独一本账：只把**量到的**画成弧，没轮到的部分留暗轨（见 `scanningAccount`）。
+        // 正常态那本账里的「没量到 / 系统可清除 / 空闲」在扫描中是结论，不是进度。
+        let acct = model.scanning ? scanningAccount(u) : ringAccount(u)
         // 截图旋钮 DISKWISE_HOVER=<第几段>：真机的悬停是鼠标进来的，静态图里没有鼠标，
         // 没有这个钩子这一条响应就只能靠嘴说它存在。
         let hovLabel = hovKey ?? SnapshotMode.ringHover.flatMap { i in
@@ -977,7 +2272,7 @@ struct OverviewView: View {
                             .frame(width: ring, height: ring)
                             .overlay {
                                 GeometryReader { g in
-                                    SweepRing(segments: acct.segs,
+                                    SweepRing(segments: acct.ringSegs ?? acct.segs,
                                               centerTop: centerTop(acct),
                                               centerValue: centerValue(acct),
                                               // 盘心躺不下那两行口径的两档，都撤掉它：
@@ -990,7 +2285,11 @@ struct OverviewView: View {
                                               // `coverageLine` 那一行从头到尾都在写整块盘 / 可用 / 已用。
                                               centerCap: (ringIsReference || ring < 260) ? "" : centerCap(acct),
                                               diameter: g.size.width,
-                                              select: { tapArc($0) },
+                                              // 量完之前不进上膛那条路：S0 的规矩是这一屏一个清理动作都不出现。
+                                              select: { seg in
+                                                  guard !model.scanning else { return }
+                                                  tapArc(seg)
+                                              },
                                               armed: model.armedPath,
                                               tapCenter: { model.disarm(); arcNote = nil },
                                               scanning: model.scanning,
@@ -1001,7 +2300,9 @@ struct OverviewView: View {
                                               // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
                                               // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
                                               // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
-                                              centerNow: ringIsReference || model.armedPath != nil
+                                              // 扫描中同样让位：那两行正在报进度，再叠一句悬停读数就是四行。
+                                              centerNow: (ringIsReference || model.armedPath != nil
+                                                          || model.scanning)
                                                   ? nil : hov.map(centerNowLine))
                                 }
                             }
@@ -1120,7 +2421,12 @@ struct OverviewView: View {
                 drillCrumb(d)
             }
 
-            lede(acct)
+            // 扫描中不写导语：这一列此刻没有四笔账可分，而「已量完 n/m 处」
+            // 与中心百分比、右上行同说一件事。样稿里这一格是空的，
+            // 账目直接顶到页头下面——再垫一句进度，第一行就被推下去半屏。
+            if !model.scanning {
+                lede(acct)
+            }
 
             VStack(alignment: .leading, spacing: 0) {
                 // 逐行画分隔线（样稿 `.row+.row::before`），第一行不画。
@@ -1135,21 +2441,25 @@ struct OverviewView: View {
                                   lit: hovLabel == seg.label,
                                   dim: hovLabel != nil && hovLabel != seg.label,
                                   showRule: idx > 0,
-                                  onHover: { v in setHover(v ? seg.label : nil) },
-                                  tap: { tapArc(seg) },
+                                  // 扫描中那些「排队中」「正在量…」的行不在环上，指着它们
+                                  // 不该让整圈暗下去；只有真画了弧的行才接悬停。
+                                  onHover: seg.value > 0 ? { v in setHover(v ? seg.label : nil) } : nil,
+                                  // 量完之前这一列一个动作都不给：不上膛、不摊明细、不去授权。
+                                  tap: model.scanning ? nil : { tapArc(seg) },
                                   expanded: open,
-                                  onExpand: seg.drill == nil ? nil : { toggleDrill(seg) },
-                                  onGrant: (seg.drill == .gapRows && canGrantFDA)
+                                  onExpand: model.scanning || seg.drill == nil
+                                    ? nil : { toggleDrill(seg) },
+                                  onGrant: (!model.scanning && seg.drill == .gapRows && canGrantFDA)
                                     ? { openFullDiskAccessPane() } : nil,
                                   // 两个出口只在摊开时给：这一行是「还没进去的那一层」。
                                   // 收起时露出口会把它撑宽——`ledgerFloor` 那条注释记着代价
                                   // （列宽给到 336 时行尾那个数就顶出窗口 14 pt）——
                                   // 而且抢在「先摊开看看里面是什么」这一步前面。
                                   // 整条规则写在 `DrillRow` 那段注释里。
-                                  onReveal: (open && seg.path != nil)
+                                  onReveal: (!model.scanning && open && seg.path != nil)
                                     ? { NSWorkspace.shared.activateFileViewerSelecting(
                                         [URL(fileURLWithPath: seg.path!)]) } : nil,
-                                  onDeepDive: (open && seg.path != nil)
+                                  onDeepDive: (!model.scanning && open && seg.path != nil)
                                     ? { store.deepDive(into: seg.path!) } : nil,
                                   grantCompact: column < Self.ledgerGrantWidest)
                     if open {
@@ -1159,18 +2469,19 @@ struct OverviewView: View {
                             .transition(.opacity)
                     }
                 }
-                // 一行都没量完时，把正在量的那几处摆出来。不然切完范围就是几分钟的
-                // 空白清单，看着像点了没反应——路径要「陆续加载」，人才知道它在干活。
-                // 这一屏只剩这一列，它就住这一列。
-                ForEach(model.measuring.prefix(6), id: \.self) { name in
-                    MeasuringRow(name: name, showRule: true)
-                }
                 // 那句「各段之和」是这一列的分母，坐在最后一行的数下面才对得上账。
-                // 它以前躺在整张卡的最底下，跟右边那列数隔着主按钮和废纸篓两行——
-                // 带子在的时候还能靠那条彩带把六行串起来看，带子撤了就只剩一句孤话。
-                Text(lampRun(LF("各段之和 %1$@", human(acct.total)), human(acct.total),
-                             SweepRing.lamp(theme.palette.tint),
-                             base: theme.palette.inkTertiary))
+                // 扫描中它换成「已读 x / y · 只读」：这一列此刻还没有分母，
+                // 报一个「各段之和」等于把半截账说成整本。
+                Group {
+                    if model.scanning {
+                        Text(LF("已读 %1$@ / %2$@ · 只读",
+                                human(model.covered), human(acct.total)))
+                    } else {
+                        Text(lampRun(LF("各段之和 %1$@", human(acct.total)), human(acct.total),
+                                     SweepRing.lamp(theme.palette.tint),
+                                     base: theme.palette.inkTertiary))
+                    }
+                }
                     .font(theme.bodyFont(.caption))
                     .monospacedDigit()
                     .fixedSize()
@@ -1180,10 +2491,16 @@ struct OverviewView: View {
 
             VStack(alignment: .leading, spacing: 9) {
                 takeAllButton(acct)
-                trashTray(acct)
+                if !model.scanning { trashTray(acct) }
+                if model.scanning {
+                    Text(L("扫完之前，底栏不会出现任何清理动作"))
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
 
-            if model.armedPath == nil && acct.reclaimable > 0 {
+            if !model.scanning && model.armedPath == nil && acct.reclaimable > 0 {
                 Text(L("点一段两次才收走那一段（防误删）；点动不了的段只会告诉你它为什么动不了。"))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
@@ -1202,10 +2519,7 @@ struct OverviewView: View {
         // 样稿 `.lede b` 只染一个数：能动走的那几 G。其余三个读数保持原样，
         // 全句才有唯一一处重音——所以这里传的是 `human(reclaimable)`，不是「所有数字」。
         var run = ""
-        if model.scanning {
-            text = LF("正在量这一圈：已量完 %1$d/%2$d 处，量完才谈得上能动多少。",
-                      model.done, model.done + model.pending)
-        } else if n == 0 {
+        if n == 0 {
             text = L("这一圈里没有本工具动得了的地方——下面每一段都点名说了为什么动不了。")
         } else {
             run = human(acct.reclaimable)
@@ -1229,28 +2543,43 @@ struct OverviewView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 主按钮：把这一圈里所有动得了的一次收走。仍是两下——第一下整圈上膛，
-    /// 第二下才真搬；收完它自己变灰，不留一颗按了没反应的按钮在原地请人再按一次。
+    /// 主按钮：从「直接搬」改成入口。这一下不写盘，只把可回收的摆成一列，
+    /// 让人先看每一处的代价，再决定勾哪几处（样稿 S1→S2）。
+    ///
+    /// 按钮上的数必须和导语是**同一个来源**，否则同一屏隔两行长出两个「可回收」。
+    /// 样稿那张 mock 里只有一个数（2.3 GB / 6 处），真机上有两套：环上「动得了」只认
+    /// 知识库标 safe 的那几处（这台量到 2.4 GB / 11 处），清单还要把 `redo`（删了要重新
+    /// 下载）摆出来让人自己决定，于是 27.2 GB / 32 处。拿清单那套写字节（导语 2.4 /
+    /// 按钮 27.2）或写处数（导语 11 / 按钮 32）都会在招牌画面上打架——2026-10-19 中英
+    /// 两边实拍各命中一次。所以这里取 `acct.places`，与导语同一个数；清单页头那句
+    /// 「默认只勾了没影响的」负责解释多出来的那几行为什么也在列。
     private func takeAllButton(_ acct: RingAccount) -> some View {
-        let armedAll = model.armedPath == SweepRing.armAll
-        let can = acct.reclaimable
+        let n = acct.places
+        let can = n > 0 && !model.scanning && !model.cleanScanning
+        // 扫描中禁用态不能写「这一圈里没有可回收的」：这句话是在报结论，而账还没量完。
+        // S0 的规矩是当场说清「为什么按不动」——量完才能动手。
+        let title: String
+        if can {
+            title = LF("查看可回收的 %d 处 →", n)
+        } else if model.scanning {
+            title = L("量完才能动手")
+        } else if model.cleanScanning {
+            // 盘量完了、缓存清单还在量。此时下面几行已经报出「可回收」，
+            // 按钮却写「没有可回收的」——同一屏两句话打架，只是因为它还没数完。
+            title = L("正在量缓存…")
+        } else {
+            title = L("这一圈里没有可回收的")
+        }
         return ThemeButton(
             kind: .lamp,
-            title: can > 0
-                ? (armedAll ? LF("再点一次，把 %1$@ 移进废纸篓", human(can))
-                            : LF("把可回收的 %1$@ 移进废纸篓", human(can)))
-                : L("这一圈里没有可回收的"),
-            isDisabled: can <= 0
+            title: title,
+            isDisabled: !can
         ) {
-            if armedAll {
-                model.disarm()
-                flyToTrash(takeAll(acct))
-            } else {
-                arcNote = nil
-                model.arm(SweepRing.armAll)
-            }
+            arcNote = nil
+            cleanDetail = nil
+            model.openFirstClean()
         }
-        .accessibilityHint(L("第一下只是选中，第二下才真的移进废纸篓"))
+        .accessibilityHint(L("先看清单，再决定清哪些"))
     }
 
     /// 废纸篓那一格：搬进来的已经占着盘，进度条说的是「这堆里已经收了多少」。
@@ -1320,16 +2649,6 @@ struct OverviewView: View {
 
     private func fraction(_ v: Int64, of total: Int64) -> CGFloat {
         total <= 0 ? 0 : CGFloat(max(0, v)) / CGFloat(total)
-    }
-
-    /// 第二下：把这一圈里动得了的挨个搬进废纸篓。
-    ///
-    /// 一条一条走 `trashItem`，不是「一次性标记」：任何一处失败都得当场看见是
-    /// 哪一处、为什么，不然人就只剩「软件把我东西弄丢了」这一种解释。
-    /// 返回这一趟真搬走的合计——飞出去的那一枚筹码按它写数，不按按钮许的那个愿。
-    @discardableResult
-    private func takeAll(_ acct: RingAccount) -> Int64 {
-        acct.hot.reduce(Int64(0)) { $0 + take($1) }
     }
 
     // MARK: 就地摊开的明细：这一页唯一的下一级
@@ -1503,13 +2822,16 @@ struct OverviewView: View {
     /// 人一眼读成「我这盘挺空」——正好读反。
     /// 扫描和上膛那两态仍然抢圆心，因为它们说的是此刻这件事，不是盘的常态。
     private func centerTop(_ acct: RingAccount) -> String {
-        if model.scanning { return L("正在量") }
+        if model.scanning { return L("正在扫描") }
         if model.armedPath != nil { return L("确认移入废纸篓") }
         return L("可用")
     }
 
     private func centerValue(_ acct: RingAccount) -> String {
-        if model.scanning { return human(model.covered) }
+        // 扫描中圆心的主数从「已量字节」换成百分比：样稿 S0 要的是「还剩多久」，
+        // 而 286.8 GB 这个数离开下面那行 494.4 就没有参照物。带空格的写法让
+        // `heroNumber` 把 `%` 收到三分之一档，跟 GB 同一个处理。
+        if model.scanning { return "\(scanPercent(acct.total)) %" }
         if let armed = model.armedPath {
             // 上膛那一刻圆心写的是**这一按真会搬走的量**，不是那条弧的体积：
             // 「确认移入废纸篓 23.2 GB」而它名下只有 13 GB 收得走，那一按下去数对不上。
@@ -1524,8 +2846,9 @@ struct OverviewView: View {
     /// 第二行留给出完力之后的样子——「还能腾出」没消失，只是从招牌降成承诺。
     private func centerCap(_ acct: RingAccount) -> String {
         if model.scanning {
-            return LF("已量 %1$d/%2$d 处 · 这一圈还没量完",
-                      model.done, model.done + model.pending)
+            let head = LF("已读 %1$@ / %2$@", human(model.covered), human(acct.total))
+            // 换行只在两个词条外面拼：词条里带换行的话，词表对账那条规矩当场就破了。
+            return head + "\n" + scanEtaLine(acct.total)
         }
         if model.armedPath != nil {
             return L("再点一次才移进废纸篓 · 3 秒不点自动取消")
@@ -1538,10 +2861,58 @@ struct OverviewView: View {
             : L("这一圈里没有本工具动得了的东西"))
     }
 
+    /// 页头右上那枚进度胶囊：一圈细环 +「扫描中 · 58%」。
+    ///
+    /// 不放进圆心是因为圆心已经被百分比占着；这一枚的作用是**在滚动之后**
+    /// 也还看得见「仍在量」，而页头钉在滚动区外面。
+    private func scanBadge(_ pct: Int) -> some View {
+        HStack(spacing: 7) {
+            ZStack {
+                Circle()
+                    .stroke(theme.palette.separator, lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: CGFloat(max(0, min(100, pct))) / 100)
+                    .stroke(theme.palette.tint,
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 13, height: 13)
+            Text(LF("扫描中 · %1$d%%", pct))
+                .font(theme.bodyFont(.caption))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize()
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 6)
+        .overlay(Capsule().stroke(theme.palette.separator, lineWidth: 1))
+    }
+
+    /// 扫描百分比：按**整块盘**算，不按已用。样稿 S0 的圆心是 286.8 / 494.4 = 58%，
+    /// 读数头也停在这条边界上——两处拿同一个分母，图才和数对得上。
+    private func scanPercent(_ total: Int64) -> Int {
+        Int((Double(model.covered) / Double(max(1, total)) * 100).rounded())
+    }
+
+    /// 「还剩约 N 秒 · 只读」。比例太小的时候不报：头两处目录量完时，
+    /// 用 2% 反推出来的剩余时间能从 10 秒跳到 3 分钟，报它比不报更像故障。
+    private func scanEtaLine(_ total: Int64) -> String {
+        let frac = Double(model.covered) / Double(max(1, total))
+        let elapsed = model.scanStartedAt.map { scanTick.timeIntervalSince($0) } ?? 0
+        guard frac > 0.02, elapsed > 1 else { return L("只读 · 正在估算剩余时间") }
+        let left = elapsed * (1 - frac) / frac
+        guard left.isFinite, left > 0 else { return L("只读 · 正在估算剩余时间") }
+        let seconds = Int(left.rounded())
+        // 按秒报只在两分钟以内：再长就是「还剩约 754 秒」，人得当场做除法。
+        return seconds < 90
+            ? LF("还剩约 %1$d 秒 · 只读", seconds)
+            : LF("还剩约 %1$d 分钟 · 只读", (seconds + 59) / 60)
+    }
+
     /// 扫描期间那道光停在哪儿：按**量到的字节**走，不是按时间编一段动画。
     /// 环是按字节长的，所以光束永远钉在「量到的边界」上——它慢下来就是真慢下来。
     private func scanFraction(_ u: VolumeUsage) -> Double {
-        min(1, max(0, Double(model.covered) / Double(max(1, u.used))))
+        min(1, max(0, Double(model.covered) / Double(max(1, u.total))))
     }
 
     /// 环上刚点出来的那句话。上膛那一版跟着 `armedPath` 走而不是跟着 @State：
@@ -1737,6 +3108,11 @@ struct OverviewView: View {
     /// 恒等式：reclaimable + measuredIdle + untouched + inBin + free + purgeable == total。
     private struct RingAccount {
         var segs: [GaugeSegment] = []
+        /// 环上真正画的那些段。跟 `segs` 只在扫描中分家：账目列要七行都读得出来
+        /// （其中几行还是「排队中」、值为 0），而环上那几行没有角度——照 `segs` 画
+        /// 会被 `ringArcs` 按可见值归一，把整圈分给还没量完的那几段。
+        /// nil = 就用 `segs`。
+        var ringSegs: [GaugeSegment]? = nil
         /// 弧上还搬得走的总和
         var reclaimable: Int64 = 0
         /// 量到了、但这一屏动不了的（前三名剩下的 + 其他已统计剩下的）
@@ -1801,6 +3177,81 @@ struct OverviewView: View {
     /// 把蓝道抬回去，灰才读成灰；透明度按 247/164 补回亮度，灰阶三档的落差原样不动。
     private var ringGrey: Color {
         darkSkin ? Color(red: 150 / 255, green: 164 / 255, blue: 182 / 255) : theme.palette.ink
+    }
+
+    /// 扫描中的那本账：只把**量到的**画出来，其余留给暗轨。
+    ///
+    /// 跟 `ringAccount` 分家的理由不是省事，是那本账里绝大多数属性此刻还不存在：
+    /// 「没量到 / 系统可清除 / 空闲」是量完之后的结论，扫描中把它们画成有值的弧
+    /// 等于先报一个还没算出来的答案。这一本只有三种东西：
+    ///
+    /// - 已经量完的前三名：值是真的，弧是亮的，但 `reclaim` 记 0——量完之前不许上膛。
+    /// - 「其他已统计」：= 已读 − 前三名，每完成一处就长一截；它还没闭合，所以不给数。
+    /// - 一段透明填充：把整圈补满，让 `ringArcs` 按整块盘的比例分角度。
+    ///   没有它，量到一半的时刻整圈会被归一成「已量到的那点东西占满一圈」。
+    ///
+    /// 账目列固定七行（前三 + 其他 + 没量到 + 系统可清除 + 空闲），跟量完那一屏
+    /// 是同一本账的名字；屏幕上是**这一行**从「排队中」换成「已量完」，不是一个新列表。
+    private func scanningAccount(_ u: VolumeUsage) -> RingAccount {
+        let dark = darkSkin
+        let warm = dark ? Color(red: 247 / 255, green: 246 / 255, blue: 243 / 255)
+                        : theme.palette.ink
+        // 量到了、还不许说能收：跟正常态那档「动不了」同一个灰，不借灯色许愿。
+        let measured = warm.opacity(dark ? 0.26 : 0.09)
+        let ghost = theme.palette.inkTertiary
+        let lamp = SweepRing.lamp(theme.palette.tint)
+        let top = Array(model.hotspots.prefix(3))
+        let topSum = top.reduce(Int64(0)) { $0 + $1.size }
+        let rest = max(0, model.covered - topSum)
+        var out: [GaugeSegment] = []
+        for h in top {
+            let can = model.reclaimable(of: h.path)
+            out.append(GaugeSegment(
+                label: h.name, value: h.size,
+                color: measured, tone: .neutral,
+                sub: can > 0 ? LF("已量完 · 可回收 %1$@", human(can))
+                             : L("已量完 · 不整体搬走"),
+                path: h.path))
+        }
+        // 还没轮到前三名的那几行不能从列表里消失：用队列里的名字占住同一个槽，
+        // 每量完一处就换成那一处。空槽和「排队中」一起消失，读者看到的是同一行在变。
+        var taken = Set(top.map(\.path))
+        var slots = 3 - top.count
+        for t in model.scanTargets where slots > 0 {
+            guard !taken.contains(t.path), model.measuredTargets[t.path] == nil else { continue }
+            taken.insert(t.path)
+            out.append(GaugeSegment(label: t.name, value: 0, color: ghost,
+                                    tone: .neutral, sub: L("排队中")))
+            slots -= 1
+        }
+        if rest > 0 {
+            // 弧在长，数不写：这枚数每一秒都在跳，印在环上会被当成结论。
+            out.append(GaugeSegment(label: L("其他已统计"), value: rest,
+                                    color: lamp, tone: .hot,
+                                    sub: L("正在量… · 这一条弧还没闭合"),
+                                    drill: .restGroup, hidesArcValue: true))
+        } else {
+            out.append(GaugeSegment(label: L("其他已统计"), value: 0, color: ghost,
+                                    tone: .neutral, sub: L("排队中")))
+        }
+        out.append(GaugeSegment(label: L("没量到"), value: 0, color: ghost,
+                                tone: .neutral, sub: L("排队中 · 密封系统卷")))
+        out.append(GaugeSegment(label: L("系统可清除"), value: 0, color: ghost,
+                                tone: .neutral, sub: L("排队中")))
+        out.append(GaugeSegment(label: L("空闲"), value: 0, color: ghost,
+                                tone: .neutral, sub: L("排队中")))
+        for i in out.indices { out[i].sizeText = out[i].value > 0 ? human(out[i].value) : "—" }
+        var ringSegs: [GaugeSegment] = []
+        let unmeasured = max(0, u.total - model.covered)
+        ringSegs.append(contentsOf: out.filter { $0.value > 0 })
+        if unmeasured > 0 {
+            // 透明不等于不存在：它占着剩下的角度，环的暗轨才是「还没量到的那一圈」。
+            ringSegs.append(GaugeSegment(label: "", value: unmeasured,
+                                         color: .clear, tone: .neutral))
+        }
+        return RingAccount(segs: out, ringSegs: ringSegs, reclaimable: 0,
+                           measuredIdle: model.covered, untouched: 0, inBin: 0,
+                           free: u.free, purgeable: u.purgeable, total: u.total)
     }
 
     /// 环形分段 = 前 3 大热点 + 其余量到的 + 这一轮没量到的 + 可清除 + 空闲，加起来正好等于整块盘。
@@ -2133,47 +3584,99 @@ private struct DrillRow: View {
     }
 }
 
-// MARK: - 正在量的占位行
+// MARK: - 候选列
 
-/// 还没量完的目录先占一行，路径立刻出现在这一列里。
-///
-/// 体积要等整棵树走完才报得出来，一趟整盘扫描里最慢的那几处能跑几分钟。
-/// 没有占位行的话，切完范围就是几分钟的空白——那看着跟「点了没反应」
-/// 一模一样，而这一屏的全部卖点恰恰是「它在老老实实扫」。
-private struct MeasuringRow: View {
+/// 候选列里的一组：同一个账本行（弧）名下的可回收处。
+private struct CleanGroup {
+    var key: String
+    var label: String
+    var items: [CleanCandidate]
+    var bytes: Int64
+}
+
+/// 候选页的一行。勾选框留在最左、始终全亮；名字、路径、数和「明细」一起退后，
+/// 这样「取消勾选」这件事一眼能看见，而没选中的那几行也不会从列里消失。
+private struct CleanPickRow: View {
     @Environment(\.theme) private var theme
-    var name: String
-    /// 首行不画分段线（样稿 `.row+.row::before`，第一行没有）。
-    var showRule: Bool = true
+    var candidate: CleanCandidate
+    var detailOpen: Bool
+    var onToggle: (Bool) -> Void
+    var onDetail: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            // 行首那道空槽是账目列的展开记号位。占位行没有下一级可摊，
-            // 空着也要占：不占的话这一列的名字会随扫描进度左右跳。
-            Color.clear.frame(width: 12, height: 12)
-            Image(systemName: "hourglass")
-                .font(.system(size: 11))
-                .foregroundStyle(theme.palette.inkTertiary)
-                .frame(width: 8)
-            Text(name)
-                .font(theme.bodyFont(.callout))
-                .foregroundStyle(theme.palette.inkSecondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: 8)
-            Text(L("正在量"))
-                .font(theme.bodyFont(.caption2))
-                .foregroundStyle(theme.palette.inkTertiary)
-                .fixedSize()
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .top) {
-            if showRule {
-                Rectangle().fill(theme.palette.separator.opacity(0.7))
-                    .frame(height: 1).padding(.horizontal, 8)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Toggle("", isOn: Binding(get: { candidate.selected }, set: onToggle))
+                    .toggleStyle(ThemeCheckStyle(side: 16))
+                    .labelsHidden()
+
+                HStack(spacing: 10) {
+                    RowIconView(icon: .path(candidate.url), side: 22,
+                                appID: candidate.appID, brand: candidate.brand)
+                        .frame(width: rowIconSide, height: rowIconSide)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(candidate.name)
+                                .font(theme.bodyFont(.callout))
+                                .foregroundStyle(theme.palette.ink)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if let b = verdictBadge(candidate.tier) {
+                                ThemeBadge(text: b.text, tone: b.tone)
+                            }
+                        }
+                        Text(displayPath(candidate.url))
+                            .font(theme.bodyFont(.caption2))
+                            .foregroundStyle(theme.palette.inkTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text(human(candidate.size))
+                        .font(theme.numeric(size: 12.5))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.palette.ink)
+                        .fixedSize()
+
+                    Button(action: onDetail) {
+                        HStack(spacing: 3) {
+                            Text(L("明细"))
+                                .font(theme.bodyFont(.caption))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .rotationEffect(.degrees(detailOpen ? 90 : 0))
+                        }
+                        .foregroundStyle(theme.palette.inkTertiary)
+                        .frame(width: 46, alignment: .trailing)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .opacity(candidate.selected ? 1 : 0.45)
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+
+            if detailOpen {
+                VStack(alignment: .leading, spacing: 5) {
+                    if let hint = verdictHint(for: candidate.path) {
+                        Text(hint)
+                            .font(theme.bodyFont(.caption2))
+                            .foregroundStyle(theme.palette.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    PathLine(path: candidate.path)
+                }
+                .padding(.leading, rowLeadInset)
+                .padding(.trailing, 11)
+                .padding(.bottom, 9)
             }
         }
+        .background(theme.controlShape().fill(
+            theme.palette.surfaceAlt.opacity(candidate.selected ? 1 : 0.55)))
+        .overlay(theme.controlShape().stroke(theme.palette.separator, lineWidth: 1))
     }
 }

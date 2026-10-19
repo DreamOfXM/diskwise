@@ -4,17 +4,18 @@
 
 **一款免费、开源的 macOS CleanMyMac 替代。**
 
+![stars](https://img.shields.io/github/stars/DreamOfXM/diskwise?style=social)
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~5%20MB-blue)
+![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
 一个**不会真正删除任何东西**的 macOS 磁盘清理工具：SwiftUI 原生实现，专治开发者机器上的
 `node_modules`、Xcode `DerivedData`、Docker 虚拟盘、微信 / 钉钉 / 企业微信缓存和卸载残留。
 所有删除只进废纸篓，本次会话内随时可撤销。没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅，界面共十种语言。安装包约 5 MB，一个文件同时带
+没有端口、不联网、无遥测、无订阅，界面共十种语言。安装包约 8 MB，一个文件同时带
 Apple Silicon 和 Intel 两个切片。
 
 [English](./README.md) | 简体中文 | [日本語](./README.ja.md) | [한국어](./README.ko.md)
@@ -67,10 +68,14 @@ brew install --cask dreamofxm/diskwise/diskwise
 
 ## 给 AI agent 用
 
-直装版附带 `diskwise` 命令行（App Store 版不带），它同时是一个 MCP
-（Model Context Protocol）服务——Claude Code、Cursor、Codex、Qoder、OpenCode、Zed、ZCode、
+直装版附带 `diskwise` 命令行（App Store 版不带），它同时是一个
+[Model Context Protocol](https://modelcontextprotocol.io) 服务——
+Claude Code、Cursor、Codex、Qoder、OpenCode、Zed、ZCode、
 Claude 桌面版都能挂上，替你清磁盘。它不能 `rm -rf`：唯一删除路径是把知识库认得且判为安全的
 位置移进废纸篓，每一步都能整单撤销，会丢数据的位置永远动不了。
+
+**抄这条命令之前，先把 DiskWise 放进「应用程序」文件夹。** 下面这行指的就是那个位置里的包；还留在
+桌面上、或直接从挂载着的 DMG 里跑的，一旦挪动或删掉，这行当场失效。
 
 Claude Code 一条命令接上：
 
@@ -115,6 +120,9 @@ DiskWise 走相反的路子：
   （前几大热点 + 其他已统计 + 没量到 + 系统可清除 + 空闲）。
   - 那道光带就停在「量到这儿」的边界上。
   - 能整个搬走的那一段点两下：第一下上膛，第二下才进废纸篓，3 秒不点自己松开。
+  - 环下面那颗按钮开的是清单，不是删除：能搬走的每一处占一行，各自写着删掉它的代价，没影响的
+    已经替你勾好，要重新下载的那些得你自己勾。下一屏把这份清单再列一遍作为确认，只有那一屏的
+    按钮会真动手——之后的结果页能把这一批原样放回。
   - 整页只有一段账：环旁边那一列。点这一行就**就地摊开**它名下是哪几个目录、「其他已统计」背后
     是哪几处位置、「没量到」是哪几卷账。
   - 摊开的时候环收成一枚小参照盘，「访达显示」和「深挖」挂在摊开的这一行上。
@@ -162,6 +170,12 @@ DiskWise 走相反的路子：
   不用 Xcode、不用编译、不用写 Swift。
 
 ## 界面截图
+
+环下面那颗按钮打开的是两屏：先是一张能逐条勾选的清单，然后是一屏把选择原样复述一遍，确认后才动手。
+
+| 可回收清单 | 确认 |
+|---|---|
+| <img src="docs/screenshots/zh/20-clean-list.png" width="410" alt="可回收清单：每一处一行，带大小、代价标签和勾选框；没影响的到场即勾，能重新下载的没有"> | <img src="docs/screenshots/zh/21-clean-confirm.png" width="410" alt="确认：同一批位置在数过它们的标题下再列一遍，以及那颗真正把文件移进废纸篓的按钮"> |
 
 | 空间总览 | 重复文件 |
 |---|---|
@@ -292,6 +306,10 @@ v1.7 起不会了：v1.7 之后发出去的每一个包都用 Developer ID 证�
   用它们各自的清理命令比这个按钮安全
 - **node_modules 大盘扫描慢**，且还没有流式快照
 - **卸载残留刻意保守**，会漏报
+
+## 深读
+
+- [一个 UUID 引发的每秒 85 次重画：用 SwiftUI 画一枚会呼吸的磁盘环形图](docs/blog/ring-zh.md) — 总览那枚环形图挣来的五条规则：求和一致的取整、UUID 身份陷阱（每秒 85 次重画）、三种光、HSB 灯罩校正。
 
 ## 路线图
 
