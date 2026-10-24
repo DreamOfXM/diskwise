@@ -78,6 +78,7 @@ struct TrashView: View {
                         ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward",
                                     title: L("撤销上次"),
                                     isDisabled: store.trashHistory.isEmpty) {
+                            Sound.shared.play(.undo)
                             message = store.undoLast()
                             refresh()
                         }

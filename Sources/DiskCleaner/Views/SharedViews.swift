@@ -258,23 +258,70 @@ struct ScanChecklist: View {
     /// 有范围的那几页（大文件 / 落灰 / 重复）在卡底下多印一句范围话，跟骨架屏那一版一致。
     var scope: String? = nil
 
-    /// 一次露几格。清单可能有几十格（卸载残留光「量体积」那段就四十多格），全铺出来
+    /// 一次至少露几格。清单可能有几十格（卸载残留光「量体积」那段就四十多格），全铺出来
     /// 这一屏就成了表格——而它要给的现场感恰恰是「一行一行往前走」。
     static let window = 7
 
+    /// 一行最低多高。2026-10-24 在 `02-big-files-midscan.png` 上量的：相邻两行同名读数
+    /// 相隔 48 px @2x = 24 pt（`caption` 那行字 13 + 上下各 3 的内边距 + 余量）。
+    private static let rowMin: CGFloat = 24
+    /// 行最高拉到多高。空间再多也不接着拉——一行一句话漂在半空就不像清单了。
+    /// 40 是两版实拍之间挑的：8 格那一屏（整盘范围的大文件页）摊到 32 时卡片底下
+    /// 又空出 80 pt，正是用户这次要修掉的那个洞；摊到 40 刚好填满，行距和结果页
+    /// 那两行的账目行同量级，读起来还是一列账，不是八条标语。
+    private static let rowMax: CGFloat = 40
+    /// 一次最多露几格。上限是给「窗口跟着当前那格挪」留的：二十行就没有「走」的意思了，
+    /// 只剩一张表。
+    private static let rowCap = 20
+    /// 卡头那一格（读数 + 条子：上 11 下 7，字高 14）加卡底那条 11 的内边距。
+    private static let cardChrome: CGFloat = 43
+    /// 卡底下那句范围话占多高（`ListNote`：字 13 + 上 11 + 下 12）。
+    private static let noteHeight: CGFloat = 36
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 同 `LoadingRow`：TimelineView 自己按节拍重画，不去打扰模型——遍历那边每走过
-            // 一个条目都 `@Published` 一次的话，UI 会被淹死。
-            TimelineView(.periodic(from: .now, by: 0.4)) { _ in card }
-            if let scope {
-                ListNote(text: LF("范围「%@」，要把每个目录走一遍才出列表。", scope))
+        // 「放大一点」这件事只能问窗口要，不能自己拍一个数：这一屏剩下多高是
+        // 页头那几条（标题、进度、工具条）合起来决定的，而它们各页不一样、
+        // 还会随语言换行。所以先量，再决定列几格、每格多高。
+        // `layoutPriority` 是必须的：各页的 `VStack` 底下都躺着一颗 `Spacer` 负责把
+        // 清理条钉在下沿，两个都想吃剩下的空间，不压优先级就一人一半，
+        // 卡片只长到半屏——那正是用户 2026-10-24 说「就这么一点很不美观」的那个「一点」。
+        GeometryReader { geo in
+            VStack(alignment: .leading, spacing: 0) {
+                // 同 `LoadingRow`：TimelineView 自己按节拍重画，不去打扰模型——遍历那边每走过
+                // 一个条目都 `@Published` 一次的话，UI 会被淹死。
+                // 往下传的只有**这一屏多高**这一个数。行数和行高不能在下面算：格子是
+                // 这趟扫描预列出来的，第一次排版时它们还不存在，在那儿算出来的 `fit`
+                // 会被这个闭包冻住（`progress` 不是 `@ObservedObject`，格子落地不触发重排），
+                // 于是 8 格摊 13 格的高度——2026-10-24 第一版就是这么空在底下的。
+                TimelineView(.periodic(from: .now, by: 0.4)) { _ in card(geo.size.height) }
+                // 那句范围话挪到**最下面**（原来紧贴卡片下沿，于是卡片和清理条之间那一大片
+                // 黑全归了它上面）：卡片吃满剩下的空间之后，中间那段话只是把空又切了一刀。
+                Spacer(minLength: 0)
+                if let scope {
+                    ListNote(text: LF("范围「%@」，要把每个目录走一遍才出列表。", scope))
+                }
             }
         }
+        .layoutPriority(1)
+    }
+
+    /// 这一屏放得下几格、每格多高。
+    ///
+    /// 先按**最低行高**算能塞几格（塞不满就不许缩到一两行——缩了就没有「这一趟要走几处」
+    /// 那个分母），再把多出来的高度摊回行里，最多摊到 `rowMax`。
+    ///
+    /// `stations` 那一问不能省：整盘范围的大文件页只有 8 格，按「塞得下 13 格」去摊
+    /// 就还是 24 pt 一行、卡片底下空一大片——**空格子不配拿高度**。格子数少于窗口时，
+    /// 把余量摊给真实存在的那几格，卡片才真的长得起来。
+    static func fit(in height: CGFloat, scope: Bool, stations: Int) -> (rows: Int, rowHeight: CGFloat) {
+        let room = max(0, height - cardChrome - (scope ? noteHeight : 0))
+        let n = min(rowCap, max(window, Int(room / rowMin)))
+        let shown = stations > 0 ? min(n, stations) : n
+        return (shown, min(rowMax, max(rowMin, room / CGFloat(shown))))
     }
 
     @ViewBuilder
-    private var card: some View {
+    private func card(_ height: CGFloat) -> some View {
         let all = progress.stations()
         // 清单是**先列后走**的，而列之前那段（整盘范围要先找齐根）还没有格子。
         // 那几百毫秒里印一句「已量完 0/0 处」是在说一件没有的事——上面那句「正在看…」
@@ -282,11 +329,12 @@ struct ScanChecklist: View {
         if all.isEmpty {
             EmptyView()
         } else {
-            cardBody(all)
+            cardBody(all, Self.fit(in: height, scope: scope != nil, stations: all.count))
         }
     }
 
-    private func cardBody(_ all: [ScanProgress.Station]) -> some View {
+    private func cardBody(_ all: [ScanProgress.Station],
+                          _ fit: (rows: Int, rowHeight: CGFloat)) -> some View {
         let done = all.filter { $0.state == .done }.count
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -306,7 +354,7 @@ struct ScanChecklist: View {
             .padding(.bottom, 7)
 
             VStack(spacing: 0) {
-                ForEach(visible(all)) { s in row(s) }
+                ForEach(visible(all, fit.rows)) { s in row(s, fit.rowHeight) }
             }
             .padding(.bottom, 11)
         }
@@ -317,17 +365,17 @@ struct ScanChecklist: View {
     ///
     /// 不用滚动视图：清单一边走一边滚，用户根本没空读进去；窗口跟着当前那一格挪，
     /// 眼睛只要盯住中间那一行。格子少于一屏就原样全列，不摆空位。
-    private func visible(_ all: [ScanProgress.Station]) -> [ScanProgress.Station] {
-        guard all.count > Self.window else { return all }
+    private func visible(_ all: [ScanProgress.Station], _ window: Int) -> [ScanProgress.Station] {
+        guard all.count > window else { return all }
         let focus = all.firstIndex { $0.state == .active }
             ?? all.firstIndex { $0.state == .pending }
             ?? all.count - 1
-        let half = Self.window / 2
-        let lo = max(0, min(focus - half, all.count - Self.window))
-        return Array(all[lo..<(lo + Self.window)])
+        let half = window / 2
+        let lo = max(0, min(focus - half, all.count - window))
+        return Array(all[lo..<(lo + window)])
     }
 
-    private func row(_ s: ScanProgress.Station) -> some View {
+    private func row(_ s: ScanProgress.Station, _ height: CGFloat) -> some View {
         HStack(spacing: 9) {
             marker(s.state)
             Text(s.label)
@@ -347,6 +395,9 @@ struct ScanChecklist: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
+        // 行高由上面那次 `fit` 算出来：够就摊开（这一屏不再是一小撮字漂在黑底上），
+        // 字被系统放大时 `minHeight` 让行自己长，不硬压。
+        .frame(maxWidth: .infinity, minHeight: height)
         .help(s.detail)
     }
 
@@ -1110,20 +1161,38 @@ extension ControlStrip where Trailing == EmptyView {
 
 /// 扫描页的共用动作：扫描中给「停止」，扫完给「重新扫描」。
 /// 结果跨 tab 复用之后，进页面不再自动重扫，这颗按钮就是用户唯一的重扫入口。
+///
+/// ⌘R 绑在**这一颗**上，不绑在窗口的全局命令上：样稿里 `⌘R→scan()` 扫的是总览那一趟，
+/// 而真机上这一颗在八页里各扫各的（大文件重找大文件、Docker 重量镜像）。绑在钮上
+/// 就自动等于「刷新的正是你眼前这一页」，跟 Finder 的 ⌘R 一个道理；绑在全局就得
+/// 再写一层「现在在哪页」的分派，而那层迟早和页面上的钮对不上。
+///
+/// 总览那一页是个例外：稿子把它的重扫放在顶栏（`.tb-right`），页头不再有一颗。
+/// 顶栏那颗在**每一页**都画着，所以 `showsShortcut` 只在总览给真——别的页里页内那颗
+/// 已经带着 ⌘R，同一屏两处绑同一个组合，最后按到哪颗由系统挑，不归我们定。
+///
+/// 扫描中那一支不接 ⌘R：画面正在量，再按一次只是把这一趟作废重来，
+/// 而角标也就不该在一个按了会毁掉当前进度的钮上亮着。
 struct ScanControl: View {
     @Environment(\.theme) private var theme
     var scanning: Bool
     var kind: ThemeButton.Kind = .secondary
+    var showsShortcut: Bool = true
     var rescan: () -> Void
     var stop: () -> Void
 
     var body: some View {
         if scanning {
-            ThemeButton(kind: .secondary, symbol: "stop.fill",
-                        title: L("停止"), action: stop)
+            // 顶栏那一档（`.compact`）连「停止」也得是紧凑的：一颗 16 pt 内边距的
+            // 大钮会把 52 pt 的标题带顶高。其余页原来那颗停止钮仍是 secondary。
+            ThemeButton(kind: kind == .compact ? .compact : .secondary,
+                        symbol: "stop.fill", title: L("停止"), action: stop)
         } else {
             ThemeButton(kind: kind, symbol: "arrow.clockwise",
-                        title: L("重新扫描"), action: rescan)
+                        title: L("重新扫描"),
+                        shortcut: showsShortcut ? KeyboardShortcut("r", modifiers: .command) : nil,
+                        keyHint: showsShortcut ? "⌘R" : nil,
+                        action: rescan)
         }
     }
 }

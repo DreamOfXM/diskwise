@@ -47,6 +47,18 @@
   视图通过 `@Environment(\.theme)` 拿，`.themed()` 注入。
 - **不要**再往 `ContentView` 上加 `.id(skin.id)` 强制重建子树——那个写法每换一次肤就把全盘扫描重跑一遍。
 - 视图层只准引用 `theme.*` token，禁止手写色值、禁止假设浅色。
+  环是这条唯一一直没执行的地方，现在执行了：环的材质数全在 `Theme/RingStyle.swift`
+  （`RingStyle.shipped` ＝ 今天线上那一版），绘制全在 `Theme/RingLayers.swift`，
+  `SweepRing` 只留状态、事件与无障碍。**出第二款材质 = 在 `RingStyle` 加一份数、`RingLook` 加一个 case**，
+  视图那一边一行不动；哪套皮肤穿哪一款由 `skins.json` 的 `"ring"` 那一行定，用户投放的 JSON 走同一个字段。
+  今天六套内置皮肤都写 `"crystal"`，所以 `shipped` 现在只由 `DISKWISE_RING_STYLE=standard` 这一格开关取到。
+  每个数为什么是这个数，记在它自己的字段注释上。
+- 环上那三档不上色的灰（量到了动不了 / 压根没量到 / 空闲）跟着**皮肤**取色、两套材质共用一份，
+  所以它们在 `Components.swift` 的「环上的墨」那一段（`SweepRing.blockedInk` 等），不在 `RingStyle` 里。
+  搬过去的理由是**第二个用环的人**：首次运行那一屏的示例环读同一份配方，不重抄一遍近似色。
+- 但**几何不进材质，也不进配置**：哪一段画在哪儿、这一点归谁，只由 Core 的 `GaugeLayout` 算
+  （`DiskCleanerCore/RingGeometry.swift`）。用户投放的 JSON 可以按 id 选形状、可以改材质，
+  不可以定义区间——区间归错一位，代价是第二下点击删错目录。
 - 明暗：皮肤自带 `scheme`（可为 nil = 跟随系统），App 级 `forcedScheme` 优先于皮肤。
 - 皮肤可用性只有一个开关：`Channel.showsPricing`（编译期 `-DAPPSTORE`，见 `build.sh` 的 `CHANNEL=appstore`）。
   默认关闭 → 六套皮肤全可用，不渲染分区标题和 `PaywallSheet`；为真时判定只落在 `ThemeManager.canUse`

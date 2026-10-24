@@ -68,6 +68,147 @@ struct CleanRun: Equatable {
     var afterClear: Int64 { beforeAvailable + bytes }
 }
 
+/// 鼠标停在哪一段上专用的那条通知线：
+/// 不存第二份账，只把「此刻指着谁」这一件事单独发出去。
+///
+/// 为什么要单独一条：悬停从鼠标跨进一行到跨出去，每秒能来好几发；每一发要是都让
+/// 整页重算，这台 Intel 上一次整页变更的价就是 60–100 ms（见 `PerfProbe` 的底价），
+/// 手在环上扫一圈能把主线程吃满。而悬停真正要动的只有两处——环上那条弧和账本那一行，
+/// 所以这条线上只该挂那两处。
+final class LedgerHoverSignal: ObservableObject {
+    @Published private(set) var label: String?
+    /// 值真变了才写：`@Published` 写回同一个值也会发一次变更，而 AppKit 的 enter
+    /// 事件不保证只来一次（重排、重挂都会再放一次）。
+    func set(_ label: String?) {
+        if self.label != label { self.label = label }
+    }
+}
+
+/// 「此刻在不在预演那一档」专用的那条通知线。立这条线的理由跟 `LedgerHoverSignal`
+/// 是同一条，只是这一发更贵：
+///
+/// 预演要改的画面有**五处**（盘心三行、六行小字末尾那截 `+N`、环底下那条决策条、
+/// 环上退到后面的那几段、带心线上那截绿光弧）。原先这一档挂在 `OverviewModel` 的
+/// `@Published` 上，一发空格就是**整页重算一次**。同场配对量过的数（30 s 探针、
+/// `DISKWISE_PERF_PREVIEW=1.6`、尾段 22.7 s）：环那一档钉死不吃预演、页面照旧整页重算，
+/// 尾段 p99 仍有 35.9 ms、最长一格 100.1 ms，而同场静帧地板的 p99 是 9.4 ms、最长一格
+/// 100–157 ms 那几格是扫描尾巴自己的账。所以这一档不进模型那本 `@Published` 账，
+/// 只发给挂在这条线上的那几颗叶子。
+///
+/// 叶子清单：`RingBands` / `RingGlowBands`（退到后面）、`RingEdgeLightsBands`（流速）、
+/// `RingGainArcHost`（那截绿弧）、`RingCenterReadout`（盘心三行）、
+/// `LedgerSubLine`（行里那截 `+N`）、`PreviewBarHost`（浮在环底那条）、
+/// `AfterClearSlot`（环那一格让位给谁的那句话）。
+///
+/// **这一发还剩多少，2026-10-22 逐层分过账**（同一趟构建、同一棵合成家目录、
+/// 每 0.4 s 压放一次空格、静帧对照在同一场）：全开尾段 p99 42.4 ms / 主线程 34.4 %，
+/// 摘掉其中**任何一层**都回到 28–32 ms / 21.2–29.3 %（同场静帧 28.3 / 8.6）。
+/// 四层的份额几乎一样（`+N` 角标 14.4、退到后面 13.4、亮丝 11.0、绿光弧 10.2 ms），
+/// 所以贵的是**这几颗叶子的 `body` 各重跑一次**，不是哪一层画得狠——摘掉一颗就回到
+/// 地板，是因为剩下的量正好压在同场噪声带里（跨趟绝对值不能比：同一档静帧的 p99
+/// 在两趟之间是 9.4 与 28.3，那 19 ms 是这台机器上别的进程吃的）。
+/// 另一笔要记清：**>100 ms 那几格多半不是预演添的**——那几趟里静帧对照自己就报 3–9 格，
+/// 预演 3–9 格，同量级。
+///
+/// **同场配对、干净的一场（2026-10-22 收口，`DISKWISE_PERF=40 SKIP=10`，只看尾段 30 s）**：
+/// 静帧 p50 8.3 / p99 9.3 / 最大 13.4 ms，`>33.4` 与 `>100` 各 0 格，主线程 1.8 %；
+/// 每 1.6 s 压放一次空格 → p99 17.1 / 最大 59.6 / `>33.4` 7 格 / 主线程 15.5 %；
+/// 每 0.4 s（约人手速三倍）→ p99 28.1 / 最大 51.3 / `>33.4` 25 格 / 主线程 27.8 %。
+/// 两档预演都**没有一发 >100 ms**。拿 `PerfProbe.swift` 那条红线读这一场：p99 差 0.4 ms
+/// 过线、`>100` 过线，**`>33.4` 没过**——一秒一按的节拍下每 30 秒 7 发，规则要的是 1 发。
+/// 这一笔就这么记着，不许换成「最大才 60 ms，看不出来」结案；要结案只能走下面那条路。
+/// 想再把这一发砍下去只剩一条路：让这几颗叶子在预演档**连 `body` 都不重跑**
+/// （把退后乘子、`+N`、盘心句子交给 Core Animation 或 `Equatable` 子视图）。那要动环的
+/// 材质与账本行这两处最敏感的画面代码，六套皮肤 × 十种语言的静图闸门得全部重拍——
+/// 本轮没做，账记在这里。
+final class PreviewSignal: ObservableObject {
+    @Published private(set) var on = false
+    /// 同 `LedgerHoverSignal.set`：写回同一个值也发一次变更，而「按住」这条路
+    /// 可能被重复触发（连发已由 `SpaceHoldTap` 掐掉，这一条守的是别的入口）。
+    func set(_ on: Bool) {
+        if self.on != on { self.on = on }
+    }
+}
+
+/// 环正下方那一格的闸门：预演、或刚从预演里给整圈上了膛，这一格**空着**（那句话由
+/// 决策条说）；其余时候装「刚点出来的那句话」。
+///
+/// 闸门本身不换内容，换的是**订阅范围**：这一格要不要让位，读的仍是「此刻在不在
+/// 全部清空之后那一档」，而这一档住在 `PreviewSignal` 上、不走 `@Published`。写在
+/// 页面上，那一次重算的范围就是整页（`OverviewView.body` → `SweepRing.body` → `dial`，
+/// 环上那棵大树加右边六行账全跟着走一遍）；挂在这一颗叶子上，重算只有这一格。
+///
+/// `armedAll` 由页面传：整圈上膛那一档本来就住在 `@Published armedPath` 上，页面跟着它
+/// 重算是已有的账。这一格让位之后环底下还剩不还剩一句话，全在 `ringBelow(showBar:ring:)`。
+private struct AfterClearSlot<Content: View>: View {
+    @ObservedObject var preview: PreviewSignal
+    let armedAll: Bool
+    /// 量具：`DISKWISE_BAR=off` 让这一格在这一档不装条子。见 `OverviewView.barOffByEnv`。
+    let hide: Bool
+    @ViewBuilder var content: (_ showBar: Bool) -> Content
+
+    var body: some View {
+        content(!hide && (armedAll || preview.on))
+    }
+}
+
+/// 决策条（稿子⑫）的闸门：同一对判据，另一颗叶子。
+///
+/// 为什么不与上面那一格共用一颗：条子从前就坐在那一格里，于是它一出现就把环顶高 56 pt
+/// ——那 56 pt 在样稿里没有（样稿 `.dbar` 是 `position:absolute`，环从头到尾不动），
+/// 在账上是一发整窗排版（实测记在 `heroGeo` 上面）。搬成 overlay 之后两棵子树不再同格，
+/// 判据却仍是同一句「此刻在不在全部清空之后」，所以照 `AfterClearSlot` 再立一颗，
+/// 而不是把页面拖回来读这一位。
+///
+/// **这一颗不换树，只换透明度。** 搬成 overlay 之后重量（同一场、同一条 0.4 s 节拍）：
+/// 环确实一动不动了（量它的那发临时探针从每发两响掉到只剩开跑那几秒布局定的几行；
+/// 探针数完就摘了，写法见 `heroGeo`），
+/// 可尾段 p99 48.2 对搬之前 48.8 —— 一点没省。把三档摆一起才看得清：
+/// `off` 24.1 / `rect`（一块同高的空板，换树但不画东西）34.1 / 条子 48.8。
+/// 贵的从来不是「环被顶高」，是**这一棵子树进树与出树那两下**：每一下都要过一遍
+/// 整扇窗的 Auto Layout，跟它把谁顶高了没关系。所以这一档改成常驻：不进不出，
+/// 出现与消失只是 `opacity` 这一个渲染量（样稿 `.dbar` 写的是
+/// `transition:opacity .32s,transform .44s`，这里省掉 `transform` 是因为常驻之后
+/// 它已没有要让位的活儿），加上 `allowsHitTesting` 与 `accessibilityHidden` 两道锁——
+/// 一颗看不见又点不着的钮必须同时不吃鼠标、不进 VoiceOver，而它**不能绑 ⌘↵**：
+/// 那颗钮的键位跟着 `armed` 走，见 `previewBar`。
+///
+/// 2026-10-22 同场复测（同一棵合成家目录、同一趟构建，静帧对照与预演档背靠背跑）：
+/// **常驻这一档在静帧上不要钱**——`BAR=off`（子树根本不在）p99 9.5 / 主线程 9.5 %，
+/// 常驻 p99 9.4 / 主线程 6.6 %，`>33.4` 那格 26 对 21。也就是说多留在树里的那一棵
+/// 空板子既不吃主线程也不添长格，它换掉的正是每发空格那两下进出。
+///
+/// **淡入淡出同样不要钱**：原先怀疑挂在 `opacity` 上那发 `.animation(value:)` 是主线程
+/// 没降的原因（`Components.swift` 里那颗勾选框记过同一件事），当场配对量下来是
+/// 带淡入 p99 36.9 / 主线程 32.0 %，摘掉淡入 38.9 / 30.1 %——差在噪声里，无罪。
+/// 所以淡入留着（它是对的：按下要看见数变，松手是收回），那颗开关摘掉了。
+private struct PreviewBarHost<Content: View>: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject var preview: PreviewSignal
+    let armedAll: Bool
+    /// 量具：`DISKWISE_BAR=off` 让这一档**整棵子树都不进树**——它是上面那三档对照的
+    /// 「off」臂，所以必须真的不建，而不是把 `opacity` 压成 0（见 `OverviewView.barMode`）。
+    let hide: Bool
+    @ViewBuilder var content: (_ on: Bool) -> Content
+
+    var body: some View {
+        if hide {
+            EmptyView()
+        } else {
+            let on = armedAll || preview.on
+            content(on)
+                .opacity(on ? 1 : 0)
+                // 退场比进场快一档：按下空格那一下要当场看见数变了，松手是「收回」，
+                // 慢慢淡回去反而像还留着一半。
+                .animation(reduceMotion ? nil : (on ? theme.animation : .easeOut(duration: 0.16)),
+                           value: on)
+                .allowsHitTesting(on)
+                .accessibilityHidden(!on)
+        }
+    }
+}
+
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
 final class OverviewModel: ObservableObject {
@@ -97,8 +238,6 @@ final class OverviewModel: ObservableObject {
     /// 量完一处记一笔（路径 → 字节）。它是账目列判断「这一处轮到没有」的账本：
     /// 量到 0 字节的也记（`nil` 才是「还没轮到」）。
     @Published private(set) var measuredTargets: [String: Int64] = [:]
-    /// 这一轮开跑的时刻。圆心那句「还剩约 N 秒」＝已用时间 ÷ 已量比例 − 已用时间。
-    @Published private(set) var scanStartedAt: Date? = nil
     /// 这个进程实测有没有「完全磁盘访问权限」。授权是在系统设置里点的，macOS 要 App
     /// 退出重开才落到进程上，所以「扫描里报了几处 EPERM」不能当授权状态用——
     /// 那样会对着已经勾过的人说「点这个按钮去开」。每轮扫描开始时重测一次。
@@ -107,6 +246,10 @@ final class OverviewModel: ObservableObject {
     /// 那时「没量到的地方」只能整体归成一块，不硬编明细。
     @Published private(set) var split: VolumeSplit? = nil
     @Published private(set) var started = false
+    /// 环上「动得了多少」这本账落地的节拍：`settleCaches()` 每结算一次加一。
+    /// 读的人只有总览那一屏的截图定帧钩子——水珠的判据是「这条弧 reclaim > 0」，
+    /// 而 reclaim 比弧本身晚到（缓存体积要一台一台量回来）。
+    @Published private(set) var reclaimPulse = 0
     /// 行内摊开的下一级，按父路径缓存。行视图会随滚动和导航重建，不缓存的话
     /// 每次滚回来都要重走一遍几十 G 的子树——那看着就像 App 卡死了。
     @Published private(set) var childRows: [String: [ChildEntry]] = [:]
@@ -123,6 +266,31 @@ final class OverviewModel: ObservableObject {
     @Published private(set) var childBusy: Set<String> = []
     private var childTasks: [String: Task<Void, Never>] = [:]
     private var task: Task<Void, Never>? = nil
+
+    /// 扫描期回填的缓冲。窗口内量完几处只改这里，窗口到了才一次性写进上面那串
+    /// `@Published`。为什么要攒：几百处目标就是几百轮整页重绘，而一次整页变更在这台
+    /// Intel 上值 60–100 ms（见 `PerfProbe` 的底价）；扫描那几分钟主线程该留给量盘。
+    /// 窗口取 0.2 秒：环上的弧仍看得出在长（每秒五拍），又不至于每量完一处就重画整页。
+    /// 2026-10-22 在同一棵合成家目录（200 个一级目录 / 6 万个文件）上配对量：
+    ///   每处当场发  15 s 里 >33.4 207 次、p99 89.7 ms、主线程 79.5%
+    ///   0.2 s 窗口  >33.4   9 次、p99 14.9/17.7 ms、主线程 11.4/11.7%（两次跑）
+    /// 还剩下的 4 次 >100 ms 全在起跑后 1.3 s 内，是首屏铺开那一笔，不在回填途中。
+    private final class ScanBackfill {
+        var done = 0
+        var pending = 0
+        var total: Int64 = 0
+        var sized: [(name: String, path: String, size: Int64)] = []
+        var measured: [String: Int64] = [:]
+        var blame = DirScan()
+        var measuring: [String] = []
+        var measuringSet = Set<String>()
+        var progressDirty = false
+        var measuringDirty = false
+    }
+
+    private static let scanFillWindow: TimeInterval = 0.2
+    private var backfill: ScanBackfill?
+    private var backfillJob: DispatchWorkItem?
 
     /// 小于这个数不进列表：家目录一级有上百个点目录，绝大多数是几 KB 的配置夹。
     static let sizeFloor: Int64 = 100 * MB
@@ -275,6 +443,14 @@ final class OverviewModel: ObservableObject {
         min(max(0, arc), restReclaimTargets().reduce(0) { $0 + $1.size })
     }
 
+    /// 代价读法那两行勾选框名下的候选：`零代价` = 池里的 `safe`，`需重下` = `redo`。
+    /// 池子本来就只收这两档，所以这两行加起来正好是主按钮许的诺；
+    /// `不可逆` 从不进一键路径，它那一行因此没有框。
+    func poolTargets(_ tier: VerdictTier) -> [ReclaimTarget] {
+        cleanPool.filter { $0.tier == tier }
+            .map { ReclaimTarget(path: $0.path, size: $0.size) }
+    }
+
     /// 应用缓存与开发缓存两台模型。环形认的是「知识库里量出来的那几处」，
     /// 不分页——少接一台，一键腾出的数就会少掉整个开发工具那一坨。
     /// 强引用不成环：两台模型都不回头指总览，而三方都由 `ScanStore` 持有。
@@ -283,16 +459,45 @@ final class OverviewModel: ObservableObject {
 
     /// 由 `ScanStore` 在构造时接线：缓存页每落地一处体积，这边重归一次账。
     /// 订阅而不是轮询：体积是一条条异步量完的，靠定时刷会出现「弧上刚亮起来、数还是旧的」。
+    ///
+    /// 但「订阅」不等于「逐条响应」。缓存页一趟扫描能连发上百条变更，而每一条都要在
+    /// **主线程**上把全部候选路径 stat 一遍、判一遍可删/受保（`rebuildCacheTargets`
+    /// 接着 `rebuildCleanCandidates`）。实测扫描期这样能把主线程一口气压住 1.4 秒：
+    /// 环还在转，整页却冻住。所以变更只立个记号，攒到结算点统一算一遍。
     func bind(caches: [CachesModel]) {
         cachesModels = caches
         cachesSubs = caches.map { model in
             model.objectWillChange
                 .receive(on: DispatchQueue.main)
-                .sink { [weak self] in
-                    self?.objectWillChange.send()
-                    self?.rebuildCacheTargets()
-                }
+                .sink { [weak self] in self?.cachesChanged() }
         }
+    }
+
+    /// 结算窗口：一个窗口最多算一遍。取 0.12 秒——远大于一帧（不至于每帧都在重算整本账），
+    /// 又短到数换过去时人看不出延迟。
+    private static let cachesSettleWindow: TimeInterval = 0.12
+    private var cachesPending = false
+    private var cachesSettle: DispatchWorkItem?
+
+    private func cachesChanged() {
+        cachesPending = true
+        guard cachesSettle == nil else { return }   // 本轮窗口里已经排上了，不用再排
+        // 结算排在窗口末尾、不跟着新变更往后挪。扫描期变更能连续几分钟，挪成「静默了才算」
+        // 就变成环形一直停在旧数上——那正是这层订阅当初要防的事。
+        let job = DispatchWorkItem { [weak self] in self?.settleCaches() }
+        cachesSettle = job
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.cachesSettleWindow, execute: job)
+    }
+
+    private func settleCaches() {
+        cachesSettle = nil
+        guard cachesPending else { return }
+        cachesPending = false
+        // `cacheTargets` 没挂 `@Published`（它只在被读时用到），所以这一条得手动发：
+        // 不发，环形和主按钮不会跟着重画。
+        objectWillChange.send()
+        rebuildCacheTargets()
+        reclaimPulse += 1
     }
 
     /// 重新归一次缓存可回收账。扫描收尾、缓存体积落地、真搬走过东西，都要重跑这一趟。
@@ -307,25 +512,34 @@ final class OverviewModel: ObservableObject {
     func rebuildCacheTargets() {
         let fm = FileManager.default
         let rows = (hotspots + restHotspots).map { $0.path }
-        var hits: [ReclaimTarget] = []
+        let gone = movedBytesByKey
+        var sizeOf: [String: Int64] = [:]
         for it in cachesModels.flatMap(\.items) {
             guard it.entry.level != "warn" else { continue }
             for (p, measured) in it.pathSizes {
-                let sz = cacheBytesNow(p, measured: measured)
+                let sz = cacheBytesNow(p, measured: measured, gone: gone)
                 guard sz > 0 else { continue }
                 guard isDeletable(URL(fileURLWithPath: p)) else { continue }
                 guard fm.fileExists(atPath: p) else { continue }   // 已经搬走的不许再报
-                hits.append(ReclaimTarget(path: p, size: sz))
+                // 同一条路径被两处知识库命中时留第一次那个数（原来取 `hits.first`）。
+                if sizeOf[p] == nil { sizeOf[p] = sz }
             }
         }
         var map: [String: [ReclaimTarget]] = [:]
-        for p in dropNested(hits.map { $0.path }) {
-            let size = hits.first { $0.path == p }?.size ?? 0
+        for p in dropNested(Array(sizeOf.keys)) {
             let key = reclaimBucket(of: p, in: rows) ?? Self.restBucketKey
-            map[key, default: []].append(ReclaimTarget(path: p, size: size))
+            map[key, default: []].append(ReclaimTarget(path: p, size: sizeOf[p] ?? 0))
         }
         cacheTargets = map
         rebuildCleanCandidates()
+    }
+
+    /// 本工具已经搬走的那几处，路径先标准化好、按字节带着。
+    ///
+    /// 循环外算一次是有原因的：`cacheBytesNow` 要对**每个候选路径**扫一遍整条搬走历史，
+    /// 历史几百条 × 候选几百处，放在函数里就是几十万趟 `URL` 构造。一趟重归账只标准化一次。
+    private var movedBytesByKey: [(path: String, bytes: Int64)] {
+        moved.map { (URL(fileURLWithPath: $0.original).standardizedFileURL.path, $0.bytes) }
     }
 
     /// 一处缓存此刻还在原处的字节：缓存页量到的那笔，减去已经被本工具搬走的。
@@ -334,14 +548,13 @@ final class OverviewModel: ObservableObject {
     /// 安全子项被搬走之后，目录本身还在，旧数里却仍含着已经不在原处的字节——
     /// 不扣，结果页就会报出一笔「还剩」的假账（实测：搬完 7 处后仍挂着 1.9 GB）。
     /// 只减不重测：重扫之前宁可少报，不许错报。
-    private func cacheBytesNow(_ path: String, measured: Int64) -> Int64 {
+    private func cacheBytesNow(_ path: String, measured: Int64,
+                               gone: [(path: String, bytes: Int64)]) -> Int64 {
         let p = URL(fileURLWithPath: path).standardizedFileURL.path
-        var gone: Int64 = 0
-        for m in moved {
-            let mp = URL(fileURLWithPath: m.original).standardizedFileURL.path
-            if mp == p || mp.hasPrefix(p + "/") { gone += m.bytes }
-        }
-        return max(0, measured - gone)
+        let prefix = p + "/"
+        var sum: Int64 = 0
+        for m in gone where m.path == p || m.path.hasPrefix(prefix) { sum += m.bytes }
+        return max(0, measured - sum)
     }
 
     // MARK: 首次清理：候选池、选择、执行
@@ -351,7 +564,25 @@ final class OverviewModel: ObservableObject {
     /// 可以逐条勾选的缓存。和 `cacheTargets` **不是同一批**：那边只收 `safe`，
     /// 这里还要把 `redo` 摆出来让人自己决定——只报一半，用户会在缓存页看见
     /// 另一批能清的东西，却在这条「首次清理」的路上找不到它们。
-    @Published private(set) var cleanPool: [CleanCandidate] = []
+    ///
+    /// `didSet` 只做一件事：作废那份勾选索引。清单里每一行的勾和总览主按钮
+    /// 读的是同一份账，这份账一变，两边必须跟着变，不能让两处各存一份状态。
+    ///
+    /// 它**不是 `@Published`**：清单里勾一行只该重画那一行和主按钮，不该把整棵视图树重建一遍。
+    /// 代价是改池子的入口要自己发一次整页变更，漏一处的症状是「清单页按了没反应」，
+    /// 所以下面那几处（清单勾选、重建、撤销回填）都留了指回这里的注释。
+    private var poolBacking: [CleanCandidate] = [] {
+        didSet { selectedFlagsCache = nil }
+    }
+    var cleanPool: [CleanCandidate] { poolBacking }
+    /// 四类代价账的前三类。跟 `poolBacking` 一样**不是** `@Published`：
+    /// 它在同一趟重建里算完，搭那次 `poolChanged()` 一起发，不许再立第二条变更线。
+    private var costSumsBacking = CostSums()
+    /// 悬停那条通知线。住在模型里而不是视图的 `@State` 里，只为一件事：
+    /// 探针要能按手指走的那条路去指一行（见 `applyHoverToken`）。
+    let hoverSignal = LedgerHoverSignal()
+    /// 池子被勾选以外的途径改了：清单页的勾、知识库重建、搬完/撤销后回填。
+    private func poolChanged() { objectWillChange.send() }
     @Published private(set) var cleanBusy = false
     @Published private(set) var cleanRun: CleanRun? = nil
 
@@ -363,6 +594,88 @@ final class OverviewModel: ObservableObject {
         contentsUnionSize(cleanSelected.map { (path: $0.path, bytes: $0.size) })
     }
     var cleanScanning: Bool { cachesModels.contains { $0.scanning } }
+
+    // MARK: 「这一笔」的合计（选哪几处在清理清单里做）
+
+    /// 候选池里每一处此刻勾没勾、多大。懒算一份索引，池子一变就作废（见 `poolBacking`）：
+    /// 总览那一列每屏要查七八行 × 每行几十处，逐行现扫整池就是几百趟重复比对。
+    private var selectedFlagsCache: [String: (on: Bool, bytes: Int64)]?
+    private var selectedFlags: [String: (on: Bool, bytes: Int64)] {
+        if let c = selectedFlagsCache { return c }
+        // 同一路径不该在池里出现两次（按路径归并且 `dropNested` 过），但字典不许赌：
+        // `uniqueKeysWithValues` 撞上就 trap，这里留第一条。
+        let c = Dictionary(cleanPool.map { ($0.path, ($0.selected, $0.size)) },
+                           uniquingKeysWith: { a, _ in a })
+        selectedFlagsCache = c
+        return c
+    }
+
+    /// 「这一笔」此刻的合计：候选池里真勾着的那几处。
+    ///
+    /// 账本行首不再有勾选框（2026-10-22，按他的要求撤掉）：改选择只有清理清单一个入口。
+    /// 这里仍要现读池子，因为清单里取消过的项关掉再回来还得算数；池里一处都找不到的段
+    /// 按全额算——它本来就不由选择说话，剔掉会让按钮比同一屏的导语少一截。
+    ///
+    /// `all` = 池里每一处都还勾着，按钮照旧报「可回收的 n 处」；有人取消过就改报
+    /// 「选中的 n 处」，免得同一屏两个数对不上。
+    func pickedTotals(of segs: [GaugeSegment]) -> (bytes: Int64, places: Int, all: Bool) {
+        var bytes: Int64 = 0, places = 0
+        var all = true
+        let flags = selectedFlags
+        for seg in segs where seg.reclaim > 0 {
+            var inPool = 0, on = 0
+            var onBytes: Int64 = 0
+            for p in seg.targets.map(\.path) {
+                guard let f = flags[p] else { continue }
+                inPool += 1
+                if f.on { on += 1; onBytes += f.bytes }
+            }
+            if inPool == 0 {
+                bytes += seg.reclaim
+                places += seg.targets.count
+            } else {
+                bytes += min(seg.reclaim, onBytes)
+                places += on
+                if on != inPool { all = false }
+            }
+        }
+        return (bytes, places, all)
+    }
+
+    /// 探针悬停用的那几段。只记「指着它会亮」的段：跟账本行 `onHover` 的闸门
+    /// （`seg.value > 0`）同一道，不然探针会去指一行屏上根本没有悬停反应的行。
+    private(set) var hoverLabels: [String] = []
+    private var hoverCursor = -1
+    func recordHoverLabels(_ labels: [String]) {
+        hoverLabels = labels.filter { !$0.isEmpty }
+    }
+
+    /// 口令指一下某一段。探针走这里，落点和行/弧的 `onHover` 是同一个 `hoverSignal.set`：
+    /// 探针不另置一份悬停状态，也不绕 `AppStore`——那一发会让每一页都重绘，
+    /// 量到的就不是悬停的账了。
+    ///
+    /// `cycle` 按人手的节奏来：进一行、出一行，每一拍在两件事之间交替。只进不出
+    /// 量的是「一直有人停着」，跟手扫过一列的真样子不是一回事。
+    @discardableResult
+    func applyHoverToken(_ token: String) -> Bool {
+        let labels = hoverLabels
+        guard !labels.isEmpty else { return false }
+        switch token {
+        case "none":
+            hoverSignal.set(nil)
+        case "cycle":
+            if hoverSignal.label != nil {
+                hoverSignal.set(nil)
+            } else {
+                hoverCursor = (hoverCursor + 1) % labels.count
+                hoverSignal.set(labels[hoverCursor])
+            }
+        default:
+            guard let i = Int(token), labels.indices.contains(i) else { return false }
+            hoverSignal.set(labels[i])
+        }
+        return true
+    }
 
     func openFirstClean() {
         disarm()
@@ -378,18 +691,22 @@ final class OverviewModel: ObservableObject {
     }
 
     func setCleanSelected(path: String, _ on: Bool) {
-        guard let i = cleanPool.firstIndex(where: { $0.path == path }) else { return }
-        cleanPool[i].selected = on
+        guard let i = poolBacking.firstIndex(where: { $0.path == path }) else { return }
+        poolBacking[i].selected = on
+        // 清单页每一行那颗勾读的就是这一处，要的是整页变更（见 `poolBacking` 那条注释）。
+        poolChanged()
     }
 
     func setAllCleanSelected(_ on: Bool) {
-        for i in cleanPool.indices { cleanPool[i].selected = on }
+        for i in poolBacking.indices { poolBacking[i].selected = on }
+        poolChanged()
     }
 
     /// 「只勾没影响的」：把 `redo` 全部撤掉，`safe` 全部勾上。
     /// 这不是「全选」的别名——两个按钮挨着放，做的事必须分得开。
     func selectCleanSafeOnly() {
-        for i in cleanPool.indices { cleanPool[i].selected = cleanPool[i].tier == .safe }
+        for i in poolBacking.indices { poolBacking[i].selected = poolBacking[i].tier == .safe }
+        poolChanged()
     }
 
     func advanceToConfirm() {
@@ -401,7 +718,7 @@ final class OverviewModel: ObservableObject {
         cleanStage = .candidates
     }
 
-    /// 逐条重归候选池。扫描收尾、缓存体积落地、真搬走过东西都走这里。
+    /// 逐条重归候选池与四类代价账。扫描收尾、缓存体积落地、真搬走过东西都走这里。
     ///
     /// 去重的口径比 `cacheTargets` 多一层：`safe` 和 `redo` 各自去嵌套之后，
     /// 还要把「`redo` 是某个 `safe` 候选的祖先或后代」的那些剔掉。`~/Library/Caches`
@@ -410,15 +727,21 @@ final class OverviewModel: ObservableObject {
     func rebuildCleanCandidates() {
         let fm = FileManager.default
         let rows = (hotspots + restHotspots).map { $0.path }
+        let gone = movedBytesByKey
         var raw: [(path: String, size: Int64, item: CacheItem)] = []
+        // 代价账要把 `risky` 也数进来：池子只摆 `safe`/`redo`，而「不可逆」那一类
+        // 只在 `warn+data` 上——不收它，四类里的第三类永远是零。
+        // 过筛与池子同一条（存在、可删、不受保、扣掉已搬走的），两本账才是同一块盘。
+        var costItems: [CostItem] = []
         for it in cachesModels.flatMap(\.items) {
             let tier = it.entry.tier
-            guard tier == .safe || tier == .redo else { continue }
             for (p, measured) in it.pathSizes {
-                let sz = cacheBytesNow(p, measured: measured)
+                let sz = cacheBytesNow(p, measured: measured, gone: gone)
                 guard sz > 0 else { continue }
                 let url = URL(fileURLWithPath: p)
                 guard fm.fileExists(atPath: p), isDeletable(url), !isProtected(url) else { continue }
+                costItems.append(CostItem(path: p, bytes: sz, tier: tier))
+                guard tier == .safe || tier == .redo else { continue }
                 raw.append((p, sz, it))
             }
         }
@@ -472,7 +795,18 @@ final class OverviewModel: ObservableObject {
             if $0.size != $1.size { return $0.size > $1.size }
             return $0.path < $1.path
         }
-        if out != cleanPool { cleanPool = out }
+        let sums = costSums(of: costItems)
+        if out != poolBacking || sums != costSumsBacking {
+            costSumsBacking = sums
+            poolBacking = out
+            poolChanged()
+        }
+    }
+
+    /// 四类代价账。O(1)：归账在重建那趟里已经算完，这里只把整盘容量配上去。
+    /// 不许把这个计算挪进哪个 `body`——那是每帧几十上百次 stat。
+    var costLedger: CostLedger? {
+        usage.map { CostLedger(sums: costSumsBacking, total: $0.total) }
     }
 
     /// 真搬。一条一条走 `trashItem`，失败留在 `failures` 里点名。
@@ -526,9 +860,10 @@ final class OverviewModel: ObservableObject {
     func reopenCandidatesAfterUndo(_ restored: Set<String>) {
         cleanRun = nil
         rebuildCleanCandidates()
-        for i in cleanPool.indices where restored.contains(cleanPool[i].path) {
-            cleanPool[i].selected = true
+        for i in poolBacking.indices where restored.contains(poolBacking[i].path) {
+            poolBacking[i].selected = true
         }
+        poolChanged()
         cleanStage = .candidates
     }
 
@@ -558,10 +893,48 @@ final class OverviewModel: ObservableObject {
     }
 
     /// 解除上膛：第二下搬完、点了别处、3.2 秒到点、重扫、切页都走这里。
+    /// 顺带收掉预演（`previewing`）——离开「要动刀」这一档的两句话一起说才收得干净：
+    /// 预演那个数是**还没发生的**，收不干净就是把它留在招牌上当成今天的可用空间。
     func disarm() {
+        // 没上膛也没预演就不发变更：写在一个 `@Published` 上等于**再来一次整页
+        // 重绘**，而点一条动不了的弧也会经过这里——它本来不该有「把整屏重画一遍」这个副作用。
+        guard armedPath != nil || armTask != nil || previewing else { return }
         armTask?.cancel()
         armTask = nil
         armedPath = nil
+        previewSignal.set(false)
+    }
+
+    // MARK: 预演（按住空格）
+
+    /// 此刻正在看「全部清空之后」那一档。**状态仍旧只有一份、仍旧住在模型里**（同 `armedPath`
+    /// 那条纪律：切走一趟再回来，这一档要么跟着蒸发、要么还亮着，两种都是假状态），
+    /// 变的只是它**不走 `@Published`**：这一档要改的画面有五处，挂进整页那本账就是
+    /// 一发空格重算一遍整页，实测数据记在 `PreviewSignal` 上面那段。
+    /// 读的人照旧读 `model.previewing`，写的人只走下面那两个方法。
+    ///
+    /// 这是**整屏唯一一处还没发生的数**，所以每一条离开这一屏的路都要收掉它。收法与
+    /// 卸膛合成一个动作（见 `disarm`）：预演与上膛本来就互斥——「全部清空后」和
+    /// 「再点一次搬这一段」不能同时说，`beginPreview` 与 `arm` 各自进门都先卸对方。
+    let previewSignal = PreviewSignal()
+    var previewing: Bool { previewSignal.on }
+
+    /// 进预演。能不能进由页面判（那本账在视图里算），这里只接结论。
+    func beginPreview() {
+        guard !previewing else { return }
+        disarm()
+        previewSignal.set(true)
+    }
+
+    /// 松开空格：只把预演收掉。
+    ///
+    /// 与 `disarm()` 分开的理由就一条：松手是**这一档自己的退路**，不该顺手把别的
+    /// 状态一起清掉。极端情形是按住空格的同时用鼠标点了某一条弧（`arm` 会把预演顶掉，
+    /// 于是此刻是「上了膛」而不是「在预演」），这一松手要是走 `disarm()`，那一发刚
+    /// 上好的膛会跟着没——人看见的是「我按了个空格，你把我的确认取消了」。
+    func endPreview() {
+        guard previewing else { return }
+        previewSignal.set(false)
     }
 
     /// 只刷磁盘余量——可用空间随时在变，进页面就该是新的；
@@ -580,10 +953,16 @@ final class OverviewModel: ObservableObject {
 
     func refresh(scope: ScanScope) {
         task?.cancel()
+        backfillJob?.cancel()
+        backfillJob = nil
+        // 旧一轮可能还有正在收尾的子任务：换掉 session 之后，它们对 `enterMeasuring`
+        // / `exitMeasuring` 的调用会因为对不上号而作废，不会污染这一轮的在量名单。
+        backfill = nil
         dropChildren()
         disarm()
         readVolume()
         scanning = true
+        Prefs.shared.setGaugeRunning(true)
         started = true
         hasFDA = fullDiskAccessGranted()
         hotspots = []
@@ -602,19 +981,18 @@ final class OverviewModel: ObservableObject {
         let targets = hotspotTargets(scope)
         scanTargets = targets.map { (name: $0.name, path: $0.path) }
         measuredTargets = [:]
-        scanStartedAt = Date()
         pending = targets.count
+        let session = ScanBackfill()
+        session.pending = targets.count
+        backfill = session
         task = Task {
             targetPaths = targets.map { $0.path }
-            var sized: [(name: String, path: String, size: Int64)] = []
-            var total: Int64 = 0
-            var blame = DirScan()
             await withTaskGroup(of: (Int, DirScan).self) { group in
                 for (i, t) in targets.enumerated() {
                     group.addTask {
-                        await self.enterMeasuring(t.name)
+                        await self.enterMeasuring(t.name, in: session)
                         let r = await dirSizeReport(URL(fileURLWithPath: t.path))
-                        await self.exitMeasuring(t.name)
+                        await self.exitMeasuring(t.name, in: session)
                         return (i, r)
                     }
                 }
@@ -622,41 +1000,51 @@ final class OverviewModel: ObservableObject {
                 for await (i, r) in group {
                     if Task.isCancelled { break }
                     let t = targets[i]
-                    pending -= 1
-                    done += 1
-                    total += r.bytes
-                    covered = total
-                    measuredTargets[t.path] = r.bytes
+                    guard backfill === session, let b = backfill else { break }
+                    b.pending -= 1
+                    b.done += 1
+                    b.total += r.bytes
+                    b.measured[t.path] = r.bytes
                     // 这一处的账现在是新量的了：量之前就已经搬走的那些当场作废，否则同一截
                     // 字节要扣两遍；量完之后新搬走的仍然要扣（见 Core 的 `voidedUpTo`）。
                     voidedUpTo[t.path] = moved.count
                     cachedLedger = nil
-                    blame.merge(r)
                     // 不设上限：这两串只被数个数拿去报「多少处读不动」。
                     // 掐到 60 条就等于对着 187 处说「有 60 处」，是个假数。
-                    needFDA = blame.needFullDiskAccess
-                    needAdmin = blame.needAdmin
+                    b.blame.merge(r)
                     if r.bytes > Self.sizeFloor {
-                        sized.append((t.name, t.path, r.bytes))
-                        sized.sort { $0.size > $1.size }
-                        hotspots = Array(sized.prefix(Self.listCap))
-                        restHotspots = Array(sized.dropFirst(Self.listCap))
+                        b.sized.append((t.name, t.path, r.bytes))
+                        b.sized.sort { $0.size > $1.size }
                     }
+                    b.progressDirty = true
+                    // 一处量完只登记，不发布：窗口到了由 `flushScanBackfill()` 一次写出去。
+                    // 列表仍然「动」——每 0.2 秒一拍，环上的弧看得出在长。
+                    scheduleScanFlush()
                     // 截图模式：热缓存下一趟整扫描不到半秒，「量到一半」那一帧根本截不到。
                     // 这里只把**回填的节拍**拉开，数字一个都不改——弧该长多大还长多大，
-                    // 光束该停在哪还停在哪，只是慢到快门跟得上。平时这个开关永远是关的。
+                    // 光该照在哪一格还照在哪一格，只是慢到快门跟得上。平时这个开关永远是关的。
                     if SnapshotMode.slowScanFill {
                         try? await Task.sleep(nanoseconds: 260_000_000)
                     }
                 }
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, backfill === session else { return }
+            // 收尾这一拍不再等窗口：把攒着的最后一处当场发出去，再把总账补齐。
+            flushScanBackfill()
+            let sizedBytes = session.sized.reduce(Int64(0)) { $0 + $1.size }
+            let sizedCount = session.sized.count
+            backfillJob?.cancel()
+            backfillJob = nil
+            backfill = nil
             scanning = false
             measuring = []
+            // 走到这一行的唯一路径是上面那道 `!Task.isCancelled` 的守卫：这一轮是走完的，
+            // 不是按停的。顶栏那句「量完 · …」只在这种时刻盖戳（见 `Prefs.noteGaugeFinished`）。
+            Prefs.shared.noteGaugeFinished()
             // 环形加起来等于整块盘，列表这一头也必须能对上：摊到几行、剩下多少，
             // 当场说清。不然「其他已统计」那块弧里就有一截是谁都没报过的数。
-            unlistedBytes = max(0, total - sized.reduce(Int64(0)) { $0 + $1.size })
-            unlistedCount = max(0, targets.count - sized.count)
+            unlistedBytes = max(0, session.total - sizedBytes)
+            unlistedCount = max(0, targets.count - sizedCount)
             // 「还能腾出多少」这个数不能只靠整段可搬：一台真机上大头在缓存里。
             // 量体积走的是缓存页同一本知识库、同一趟统计（`load` 自带只跑一次的闸），
             // 一处一处量回来之后，环形那道金弧和主按钮的数才有凭据。
@@ -667,17 +1055,62 @@ final class OverviewModel: ObservableObject {
 
     func stop() {
         task?.cancel()
+        // 停在窗口里的那几处不补发：账本来就不完整，留下最后一拍的数就够了。
+        backfillJob?.cancel()
+        backfillJob = nil
+        backfill = nil
         scanning = false
         measuring = []
+        // 按停的那一趟不盖「量完」的戳（见上面那道 `!Task.isCancelled` 守卫），
+        // 但「还在跑」必须先撤——不然顶栏那一格再也没有落回来的时候。
+        Prefs.shared.setGaugeRunning(false)
     }
 
-    func enterMeasuring(_ name: String) {
-        guard !measuring.contains(name) else { return }
-        measuring.append(name)
+    private func enterMeasuring(_ name: String, in session: ScanBackfill) {
+        guard backfill === session, session.measuringSet.insert(name).inserted else { return }
+        session.measuring.append(name)
+        session.measuringDirty = true
+        scheduleScanFlush()
     }
 
-    func exitMeasuring(_ name: String) {
-        measuring.removeAll { $0 == name }
+    private func exitMeasuring(_ name: String, in session: ScanBackfill) {
+        guard backfill === session, session.measuringSet.remove(name) != nil else { return }
+        session.measuring.removeAll { $0 == name }
+        session.measuringDirty = true
+        scheduleScanFlush()
+    }
+
+    /// 攒到窗口末尾再发布。跟缓存账的 `cachesSettleWindow` 同一条纪律：窗口**不跟着
+    /// 新变更往后挪**——扫描能连续几分钟，挪成「静默了才算」就变成界面一直停在旧数上。
+    private func scheduleScanFlush() {
+        guard backfillJob == nil, let session = backfill else { return }
+        let job = DispatchWorkItem { [weak self] in
+            guard let self, self.backfill === session else { return }
+            self.backfillJob = nil
+            self.flushScanBackfill()
+        }
+        backfillJob = job
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.scanFillWindow, execute: job)
+    }
+
+    /// 把缓冲一次性写进 `@Published`。只写这一拍真变过的那几组，少发几条无用的变更。
+    private func flushScanBackfill() {
+        guard let b = backfill else { return }
+        if b.progressDirty {
+            pending = b.pending
+            done = b.done
+            covered = b.total
+            measuredTargets = b.measured
+            needFDA = b.blame.needFullDiskAccess
+            needAdmin = b.blame.needAdmin
+            hotspots = Array(b.sized.prefix(Self.listCap))
+            restHotspots = Array(b.sized.dropFirst(Self.listCap))
+            b.progressDirty = false
+        }
+        if b.measuringDirty {
+            measuring = b.measuring
+            b.measuringDirty = false
+        }
     }
 
     // MARK: 量下一级
@@ -769,12 +1202,83 @@ final class OverviewModel: ObservableObject {
     }
 }
 
+/// 环那一片的悬停订阅者**不在这里**：它已经拆成 `SweepRing` 里那几颗叶子
+/// （`RingBands` / `RingGlowBands` / `RingNowLine`），页面和环的 body 都不订阅信号。
+///
+/// 收窄的经过（2026-10-22 配对实测，全部走 `PerfProbe` 的同一条注入路）：
+/// 整页订阅时主线程 32–33%、p99 44–49 ms、每 24 s 约 100 次 >33.4 ms；
+/// 收窄到这层 + 账本行三颗小叶子之后主线程 ~26%、p99 25–27 ms；
+/// 最后把 `SweepRing.body` 也摘出去（搬去 CA 之前）：静置 17.3/17.6、悬停 19.6/19.9。
+/// 环上那两条永续循环搬进 `CALoopView` 之后（见 `RingLayers` 文件顶），静置落到 1.5–1.7%、
+/// p99 ~10 ms；终版悬停两对：静置 1.5/1.7、悬停 4.3/4.4，静置 1.5/1.6、悬停 4.4/4.5
+/// （涨 2.7–2.9 个点），p99 悬停 13.5–14.0，>33.4 和 >100 都是零次——红线四条全过
+/// （数见 `PerfProbe` 顶部）。
+/// 搬走常驻循环才现形的一笔：圆心那行悬停说明原先排在 VStack 末尾，出现/消失带着整扇窗
+/// 重跑 Auto Layout（悬停 p99 17.9、>33.4 23 次/24 s）；挪进布局之外的 overlay 才有上面这组数。
+
 struct OverviewView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: OverviewModel
+    /// 这一圈按空间还是按代价读。存在偏好里，不是 `@State`：
+    /// 换页回来还该是刚才那副面孔，而它是「这个人习惯怎么看盘」，不是一次性动作。
+    @ObservedObject private var prefs = Prefs.shared
+
+    /// 此刻是不是「按代价」。扫描中一律不是：四类账要等缓存清单量完，
+    /// 扫描态那一圈报的是进度，跟读法无关。
+    private var costReading: Bool { !model.scanning && prefs.overviewRead == .cost }
+
+    /// 换读法：旧的上膛、摊开、悬停都只属于上一副面孔，得当场收掉。
+    /// 不收的话，环换了一套段而 `armedPath` / `drillKey` 还指着旧段的键——
+    /// 圆心会写「确认移入废纸篓」却找不到那一段，环还会缩成参照盘。
+    private func setReadMode(_ mode: OverviewRead) {
+        guard mode != prefs.overviewRead else { return }
+        model.disarm()
+        setDrill(nil)
+        setHover(nil)
+        arcNote = nil
+        prefs.setOverviewRead(mode)
+    }
+
+    /// 页头那颗「按空间 / 按代价」。形状照样稿 `.readseg`：两片字、不带图标，
+    /// 选中的那片用皮肤的淡主色——它必须和顶栏那颗「重新扫描」一眼分得开：
+    /// 一颗是换看法、一颗是再量一遍，长得一样就是请人点错。
+    ///
+    /// 扫描中整颗不动：那一圈报的是进度，四类账要等缓存清单也量完才有分母。
+    private var readSwitch: some View {
+        HStack(spacing: 2) {
+            ForEach(OverviewRead.allCases, id: \.self) { mode in
+                let on = prefs.overviewRead == mode
+                let label = mode == .space ? L("按空间") : L("按代价")
+                Button { setReadMode(mode) } label: {
+                    Text(label)
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(on ? theme.palette.tint : theme.palette.inkSecondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(on ? theme.palette.tintSoft : .clear))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(LF("%1$@：%2$@", L("读法"), label))
+                .help(mode == .space
+                      ? L("按空间：这一圈是「谁占了地方」")
+                      : L("按代价：同一块盘，清掉它分别要付什么"))
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(theme.palette.surface))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .stroke(theme.palette.separator, lineWidth: 1))
+        .opacity(model.scanning ? 0.45 : 1)
+        .allowsHitTesting(!model.scanning)
+        .fixedSize()
+        .animation(theme.animation, value: prefs.overviewRead)
+    }
 
     /// 这一页原本三段：环旁边这本账、下面「没量到的地方」、再下面「最占地方的文件夹」。
     /// 同一批目录在三个地方各说一遍，而下面那两段讲的其实就是这本账里两段的下一级——
@@ -783,36 +1287,71 @@ struct OverviewView: View {
     /// 摊开在哪一段读 `OverviewModel.drillKey`，不是这里的 `@State`：键取 `armKey`
     /// 不取路径（「其他已统计」「没量到」这两条弧没有路径，拿路径当键它们永远摊不开），
     /// 而**它要跨页留着**——切走再回来还摊在原处，理由见那个属性的注释。
-    /// 鼠标停在面包屑那两个字上（决定那支 `←` 显不显形）。跟 `hovKey` 同一条纪律：
-    /// 值真变了才写，AppKit 的 enter 不保证只来一次。
+    /// 鼠标停在面包屑那两个字上（决定那支 `←` 显不显形）。跟悬停那条线同一条纪律：
+    /// 值真变了才写，AppKit 的 enter 不保证只来一次。它只影响这一块面包屑，
+    /// 所以留在 `@State` 里没有整页的账。
     @State private var crumbHover = false
     /// 点动不了的弧时当场说清为什么。静默吞掉一次点击是最坏的结局：
     /// 人会以为是画面坏了，而不是「这一段这个工具不碰」。
     @State private var arcNote: String?
-    /// 鼠标此刻停在哪一段上（键是 `GaugeSegment.label`）。环和右边那列账目读同一个值，
-    /// 所以样稿里 `link('.seg','.row')` 那套双向点亮在真机上是一起动的：
-    /// 戳弧 → 那一行亮、其余退后；戳行 → 那条弧弹出来、其余压暗。
-    @State private var hovKey: String?
-    /// 扫描中每秒走一次的钟。剩余秒数＝已用时间 ÷ 已量比例 − 已用时间，
-    /// 分子每秒都在涨、分母只在有目录量完时才涨——不另起这只钟，最长的那一处
-    /// 量几分钟，那句「还剩约 N 秒」就会停在几分钟前那个数上。
-    @State private var scanTick = Date()
-    /// 悬停键唯一的写入口：**值真变了才写**。`@State` 写回同一个值也会把整页标脏，
-    /// 而 AppKit 的 enter 事件不保证只来一次（重排、重挂都会再放一次）。
-    /// 这一道守卫挡的是多余的那几次重画，挡不住自激环——那是身份问题，见 `GaugeSegment`。
+    /// 悬停键唯一的写入口。守卫「值真变了才写」在 `LedgerHoverSignal.set` 里：
+    /// 写回同一个值也会发一次变更，而 AppKit 的 enter 事件不保证只来一次。
+    /// **整页不再订阅它**：指着谁只由 `HoverRing` 和账本那几行里的小叶子接住。
     private func setHover(_ key: String?) {
-        if hovKey != key { hovKey = key }
+        // 这一下只是在写信号，不碰任何 `@State`：悬停仍然不触发整页重排。
+        // 换到新的一段才「咔」一声；离开（nil）不响——手指离开不该还要报一声。
+        let changed = model.hoverSignal.label != key
+        model.hoverSignal.set(key)
+        if changed, key != nil { Sound.shared.play(.tick) }
     }
 
     /// 英雄卡那个命名坐标系。环心与废纸篓那一格都量在它里面，飞行才对得上——
     /// 量在两个坐标系里（一个局部一个全局），窗口一挪起点终点就分家。
     static let heroSpace = "overview.hero"
 
-    /// 此刻在空中飞的那些字节筹码。见 `TrashFlight`。
-    @State private var flights: [TrashFlight] = []
-    /// 英雄卡里两个锚点（环心、废纸篓那一格）此刻在 `heroSpace` 里的位置。
-    /// 由 `heroAnchor(_:in:)` 报上来：触发那一刻去现量，量到的可能还是上一帧的框。
-    @State private var anchors: [String: CGPoint] = [:]
+    /// 英雄卡里环与废纸篓那一格此刻的矩形，加上环上每一段弧的角区间。
+    ///
+    /// 这两份由 `heroFrame(_:in:)` 和 `SweepRing` 在**布局之后**报上来：触发那一刻去现量
+    /// 量到的可能还是上一帧的框，而水珠的起点、落点和竖槽都要宽度，只报一个中心不够。
+    ///
+    /// 为什么不写成 `@State private var heroRects: [String: CGRect]`：**布局会跟着画面里
+    /// 任何一次位移重来，而 @State 一写就是整页 `body` 重跑**。2026-10-22 归因出来的正是
+    /// 这一条（同一棵合成家目录、30 s 探针、`DISKWISE_PERF_PREVIEW=0.4`、尾段 22.7 s）：
+    /// 预演那一档环底下要装 102 pt 高的决策条，整块环被顶高 56 pt，按压一次来回两发位移，
+    /// 每一发都写一次 @State（当时挂的是一发临时探针，往 stderr 报环那一格的 `y`；
+    /// 数报完就摘了，结论留在这一段）。摘掉条子（`DISKWISE_BAR=off`）尾段 p99 73.6 → 20.4 ms、
+    /// >33.4 ms 那格 88 → 19，而摘掉的既不是那几行字也不是那两颗钮——是**这一发回写**。
+    ///
+    /// 后来条子搬成了浮在环底下的 overlay（见 `PreviewBarHost`），位移从此不再有：
+    /// 同一发探针量到环那一格的 `y` 只剩下开跑那几秒布局定的那几个值。留着这一段的理由
+    /// 是它记的是**为什么这只盒子不能用 `@State` 存几何**——那笔账对以后任何一层都还成立。
+    ///
+    /// 读它的只有两处（`reclaimBurst` / `fireSnapshotBurstIfAsked`），都是按下去那一刻
+    /// 现读，没有任何视图要订阅它，所以它不该带着「会触发重绘的存储」这层身份。
+    ///
+    /// 用 `@State` 装一只**类**：这里要的只是跨 body 的同一只盒子（@State 的初值一辈子
+    /// 只用一次），而不是订阅。往里写走的是引用类型的属性、不是 @State 的 setter，
+    /// 所以一次重绘都不触发。
+    @State private var heroGeo = HeroGeo()
+
+    /// 上面那两份几何的盒子。
+    private final class HeroGeo {
+        /// 环与废纸篓那一格在英雄卡命名坐标系里的矩形。
+        var rects: [String: CGRect] = [:]
+        /// 环上每一段弧的角区间。这一份是**画出来的**几何，页面不按 `regions(for:)`
+        /// 再切一遍——那个函数会剔掉零值段，下标对不上弧。
+        var arcs: [String: GaugeRegion] = [:]
+        /// 环带厚度，跟弧表同一趟报上来（`RingArcMap.band`）。回收动效的每一档半径
+        /// 都从它推，页面不许再按「环框宽的百分之几」估一遍。
+        var band: CGFloat = 0
+    }
+    /// 正在演的那一趟回收。宿主按 `ReclaimBurst.id` 认新旧，
+    /// 所以换掉这个值就是下一趟，同样的值重画不会重放。
+    @State private var burst: ReclaimBurst?
+
+    /// 废纸篓那一格的条子**正在等水珠落地**。只有回收那一趟把数顶上去时才有这段等待
+    /// （见 `trashTray` 的动画）；别的改动没有水珠可等，等一下就读成「卡了一下」。
+    @State private var trayLanding = false
 
     /// 候选页这一行摊没摊开「代价 / 路径」。一次只摊一行：这一列本来就长，
     /// 两行同时摊着会把下一组挤出视野。
@@ -863,15 +1402,31 @@ struct OverviewView: View {
 
     /// 环与账之间那道间距（样稿 `.hero` 的 gap）。
     static let heroGap: CGFloat = 24
+    /// 决策条浮在环下沿再往下 10 pt。只有这一个数是常量：条子的高由内容定（窄窗里那两行
+    /// 会折行），浮着的偏移按**顶边**算，不去量它自己有多高。
+    static let barGap: CGFloat = 10
     /// 右边这本账**压不动**的那一档：2026-09-28 在同一屏（900×700，`minWidth` 还是 900 的那一版）
     /// 逐颗点图量出来的——这一列给到 336 时，行尾那枚「GB」仍然顶在窗口边上溢出约 14 pt
     /// （`liveC/s232-900`）。336 是按各件宽度加出来的（内边距 8×2、记号槽 12、色块 8、
     /// 两道 12 间距、条子下限 136、`Spacer(minLength: 6)`、行尾 `›` 8 加 12、那枚数 ~78），
     /// 加出来比实拍少 20 pt：那枚数用的是 21 pt 的 `SizeNumber`，我按 17 pt 估的。
-    static let ledgerFloor: CGFloat = 356
-    /// 「没量到」那一行在 356 之上还要再要 48 pt（那颗带字的「去授权」比只有图标的宽这些）。
-    /// 这一列窄到装不下时，那颗钮收成只有图标（`RingLedgerRow.grantCompact`），整行回到 356。
-    static let ledgerGrantWidest: CGFloat = 404
+    ///
+    /// 行首那一格是 16 pt 的槽（里面坐一颗 8 pt 色块，见 `RingLedgerRow.leadingSlot`），
+    /// 比只放 8 pt 色块多要 8 pt → 356 抬到 364。这一档是环形那头的对手：它涨多少，
+    /// 窗口收到窄档时环的直径就让多少，所以改行首那一格的尺寸必须同时改这里。
+    static let ledgerFloor: CGFloat = 364
+    /// 「没量到」那一行在 364 之上还要再要 48 pt（那颗带字的「去授权」比只有图标的宽这些）。
+    /// 这一列窄到装不下时，那颗钮收成只有图标（`RingLedgerRow.grantCompact`），整行回到 364。
+    static let ledgerGrantWidest: CGFloat = 412
+    /// 环的最大直径。`ringDiameter` 与下面那个封顶宽共用这一个数。
+    static let ringCap: CGFloat = 420
+    /// 右边这本账的最大宽度。稿子 `.sidecol{width:364px;flex:none}` 是定宽的，
+    /// 窗口变宽多出来的份落在留白上，不落在控件上；真机放到 480 是因为行尾比稿子
+    /// 多一枚「去授权」（`ledgerGrantWidest`）。
+    static let ledgerCap: CGFloat = 480
+    /// 招牌那一屏（环 + 间距 + 这本账）的封顶宽。超过它窗口再宽也不再摊给这一栏，
+    /// 多出来的份还给留白——封顶落在 `overviewPage` 的整列上，不只落在这块卡上。
+    static let heroCap: CGFloat = ringCap + heroGap + ledgerCap
     /// 环这一档怎么算。**它不再是一个常量，而是「内容宽 − 间距 − 账压不动那一档之后剩下的」**：
     /// 写死 420 的那一版，窗口一窄就是整列数被推出窗口边硬切
     /// （2026-09-28 实拍：`39.7 GB` 只剩 `39.7 G`、「停止」只剩「停」）。
@@ -899,10 +1454,13 @@ struct OverviewView: View {
     ///   下钻时这本账摊到了下一级，宽度全给它，环不参与分摊。
     private func ringDiameter(_ avail: CGFloat) -> CGFloat {
         if ringIsReference { return 132 }
-        return min(420, max(132, avail - Self.heroGap - Self.ledgerFloor))
+        return min(Self.ringCap, max(132, avail - Self.heroGap - Self.ledgerFloor))
     }
     /// 这本账实际拿到的那一列有多宽——`heroColumn` 要靠它决定行尾那颗「去授权」
     /// 留字还是收成图标，而这一列的宽只有算环的这里知道。
+    ///
+    /// 它不再等于「窗口给剩下的一切」：整页在 `overviewPage` 里被 `heroCap` 封了顶，
+    /// 所以传进来的 `avail` 最宽就是 `heroCap`，这一列最宽也就是 `ledgerCap`。
     private func ledgerWidth(_ avail: CGFloat) -> CGFloat {
         avail - Self.heroGap - ringDiameter(avail)
     }
@@ -947,7 +1505,20 @@ struct OverviewView: View {
         // 「其他已统计」那条弧没有路径，拿路径当键的话它永远上不了膛。
         if let armed = model.armedPath, armed == seg.armKey, seg.reclaim > 0 {
             model.disarm()
-            flyToTrash(take(seg))
+            Sound.shared.play(.snap)
+            let moved = take(seg)
+            // 动效演的是**真搬走的**那一笔：一处都没搬动就不演，
+            // 一把水珠飞进废纸篓而那本账没动，比不演更让人怀疑账错了。
+            if moved > 0 {
+                if !reduceMotion {
+                    burst = reclaimBurst(seg, moved)
+                    trayWaitsForLanding()
+                }
+                // 声音跟着那一趟的节拍走，不是三声一起按下去：响指是「确认」，
+                // 收拢是「字节离开弧」，天亮是「落进废纸篓、账已改」。
+                Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
+                Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
+            }
             return
         }
         // 上膛期间点别的弧：先解除，再按那条弧自己的规矩办事。
@@ -965,6 +1536,142 @@ struct OverviewView: View {
         }
         arcNote = nil
         model.arm(seg.armKey)
+        Sound.shared.play(.arm)
+    }
+
+    // MARK: 按住空格：预演「全部清空之后」（稿子③ 那一整块）
+
+    /// 这一屏此刻是不是在「全部清空之后」那一档——**这个判据不再由页面算**。
+    ///
+    /// 盘心那三行、每一行小字末尾那截 `+N`、环底下那条决策条共用的是同一件事：
+    /// 「这一笔还没发生的账正在被看着」。它们原先读同一个 `showingAfterClear`，而那一位
+    /// 读 `model.previewing`——于是它一翻，整页重算一次（实测记在 `PreviewSignal` 上面）。
+    /// 现在这几处画面各由自己那颗叶子判：环上是 `RingLayers.previewed` / `RingGainArcHost` /
+    /// `RingEdgeLightsBands`，盘心是 `RingCenterReadout`，行里是 `LedgerSubLine`，
+    /// 环底下那一格是 `AfterClearSlot`（它只管让位），浮在环底下的条子是 `PreviewBarHost`。
+    /// 「松手就回去」要一处不漏，靠的还是同一条纪律：
+    /// 每一颗叶子读的都是**同一根线**（`model.previewSignal`），上一档 `armedPath == "*"`
+    /// 的那一位由页面补，因为那一档本来就在 `@Published` 上。
+    ///
+    /// 量具：`DISKWISE_BAR=off` 让那条决策条在预演/整圈上膛时不进树（稿子⑫）。
+    /// 摘的是「浮在环底下的那一棵子树」这一下。它跟 `DISKWISE_CHIPS`（六行末尾那截绿字）、
+    /// `DISKWISE_GAIN`（环上那截亮弧）、`DISKWISE_RINGDIM`（退到后面的那几段）是分开的四笔账：
+    /// 2026-10-22 就是靠这几颗开关逐层量出「贵的是账那一列被重排」，然后把条子从账列里
+    /// 搬出来的。规矩同 `DISKWISE_EDGE`。
+    static let barMode: String = {
+        (ProcessInfo.processInfo.environment["DISKWISE_BAR"] ?? "").lowercased()
+    }()
+
+    /// 这一圈的盘心此刻吃不吃预演那三行。空串 = 不吃（判据全在 `RingCenterReadout` 里）。
+    ///
+    /// 三条拒绝都和 `holdPreview` 那三句「为什么不让你按」同一判据：扫描中、正在量缓存、
+    /// 代价读法。页面跟着 `scanning` 重算，所以这里读它是免费的。
+    private var previewCenterRefused: Bool {
+        model.scanning || model.cleanScanning || costReading
+    }
+
+    /// 预演那一档盘心的口径行。第一行仍是整块盘的分母（数从哪儿来必须当场看得见），
+    /// 第二行说的是**这一笔还没发生**——这一屏只有这一档写的是未来的数，
+    /// 所以它必须自己把「松手就回去」讲明白，不然人会把 26.8 抄下来当成今天的可用。
+    private func previewCenterCap(_ acct: RingAccount) -> String {
+        LF("整块盘 %1$@ · 已用 %2$@", acct.totalShown, acct.usedShown)
+            + "\n" + L("这一笔还没发生 · 松开空格就回去")
+    }
+
+    /// 环正下方那一格装什么：只装「点了一条动不了的弧，为什么动不了」那一句；
+    /// 整圈那一档让它空着（条子在那时浮在环底下，见 `heroCard` 里的 `PreviewBarHost`）。
+    ///
+    /// 上膛那一档**不在这里说话**。样稿 `?arm` 上只有盘心那两行（「确认移入废纸篓」/
+    /// 「再点一次才移进废纸篓 · 3 秒不点自动取消」）、那圈描边和那截琥珀弧；环底下
+    /// 没有第二块地方。2026-10-23 实拍：这里曾给上膛补过一条带警告底的框，把「几处、
+    /// 多少 G、还能在废纸篓页找回」又念一遍——稿子里没有，而且它跟盘心说的是同一个
+    /// 「下一步」，同一屏两个下一步。上膛之后弧暗下去、盘心那行自己收回，这句也就
+    /// 没有要跟着消失的东西了。
+    ///
+    /// 从前这句跟在整张卡片的下面：默认那扇 700 pt 高的窗里它落在 807 pt 处，而
+    /// 「点一条动不了的弧，当场把话说清」是这一屏唯一的反馈——2026-09-28 实拍：
+    /// 1280x800 的 `-refused` 与静图零差异，换成 1500 高才看见那句话。
+    /// 眼睛在环上，话就得落在环底下。
+    @ViewBuilder
+    private func ringBelow(showBar: Bool, ring: CGFloat) -> some View {
+        if showBar {
+            // 这一格这一档**什么都不装**。条子已经浮到环底下了（见 `heroCard` 里那颗
+            // `PreviewBarHost`），这里剩下的活儿只有替它让位。
+            EmptyView()
+        } else if let note = arcNote {
+            Text(note)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: ring, alignment: .leading)
+        }
+    }
+
+    /// 空格落下这一跳：先问这一屏能不能预演，不能就把话说清；能才进那一档。
+    ///
+    /// 判据读的是**页面上这一本账**（`ringAccount(u)`），不写进 `OverviewModel`：那本账
+    /// 在视图里算，模型只知道自己那堆扫描状态。叫模型重算一遍就是养出第二本账，而这一屏
+    /// 最容易塌的就是同屏两个数打架（见 `RingAccount` 上面那段）。
+    ///
+    /// 挡住的时候话仍旧只走 `arcNote` 那一格：它本来就是「点了一条动不了的弧，当场把
+    /// 话说清」那张嘴，钉在环正下方、眼睛此刻就在的地方。给它另开一格等于同一屏两句
+    /// 「为什么不行」排队念。
+    private func holdPreview() {
+        // 连发已被 `SpaceHoldTap` 掐掉（只认第一发），这一条挡的是别处再调进来。
+        guard !model.previewing else { return }
+        if model.scanning {
+            arcNote = L("这一圈还没量完：「全部清空之后」要有账才量得出来。")
+            return
+        }
+        if model.cleanScanning {
+            arcNote = L("正在量缓存…")
+            return
+        }
+        // 代价读法不预演。那一屏的 `reclaimable` 是「零代价＋需重下」两类的可勾字节，
+        // 而它整圈本来就不接上膛（`select == nil`）——预演条上那颗「就这样清」在代价
+        // 读法里没有对应的动作，画一颗按不动的钮比不画更糟。
+        if costReading {
+            arcNote = L("代价读法不预演：那四类说的是「清掉要付什么」，不是「一口气能收走多少」。")
+            return
+        }
+        guard let u = model.usage else { return }
+        guard ringAccount(u).reclaimable > 0 else {
+            arcNote = L("这一圈里没有本工具动得了的东西")
+            return
+        }
+        arcNote = nil
+        // 与「进清理清单」同一声：那一下也是「先看清楚，刀还没落」。
+        Sound.shared.play(.preview)
+        model.beginPreview()
+    }
+
+    /// 「就这样清」那一颗钮的两次按下——与弧上那两下同一条规矩：第一下上膛，第二下才搬。
+    ///
+    /// 走的是 `model.arm(SweepRing.armAll)` 这条**已有**的上膛路：整圈描边、3.2 秒自己
+    /// 解除，条子上那颗钮跟着翻成「确认移入废纸篓 ⌘↵」。这里只是把
+    /// 「点两次那一条弧」换成「点两次这条钮」，不另写一把确认刀。
+    private func tapCleanAll(_ acct: RingAccount) {
+        if model.armedPath == SweepRing.armAll {
+            model.disarm()
+            Sound.shared.play(.snap)
+            let moved = takeAllReclaimable(acct)
+            // 与单条弧同一条纪律：一处都没搬动就不演那趟飞行。
+            if moved > 0, let seg = acct.hot.max(by: { $0.reclaim < $1.reclaim }),
+               !reduceMotion {
+                burst = reclaimBurst(seg, moved)
+                trayWaitsForLanding()
+                Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
+                Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
+            }
+            return
+        }
+        guard acct.reclaimable > 0 else {
+            arcNote = L("这一圈里没有本工具动得了的东西")
+            return
+        }
+        arcNote = nil
+        model.arm(SweepRing.armAll)
+        Sound.shared.play(.arm)
     }
 
     /// 为什么这一段动不了。三种原因得用三句话说，揉成一句「动不了」等于没说。
@@ -1022,65 +1729,133 @@ struct OverviewView: View {
     /// 那句「还能腾出 22 GB」是按钮许的愿，搬完对不上而原因没说，这一屏就再没人信了。
     @discardableResult
     private func takeTargets(_ seg: GaugeSegment) -> Int64 {
-        var ok = 0, bytes: Int64 = 0, failed = 0
-        var why = ""
-        for t in seg.targets {
+        let r = moveTargets(seg.targets)
+        var line = LF("已把「%1$@」名下的 %2$@移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。",
+                      seg.label, cnt(r.ok, "处"), human(r.bytes))
+        line += failTail(r)
+        store.notice = line
+        return r.bytes
+    }
+
+    /// 预演条上那颗「就这样清」的第二下：把这一圈里动得了的**每一段**名下点名的处搬走。
+    ///
+    /// 一句汇总，不是六句：这一趟是一次动作，弹六条提示等于让人逐条核对一趟已经按完的账。
+    /// 处数与字节全取**真搬到的**那些（`moveTargets` 的账），跟按钮上许的「共 N 处」
+    /// 对不上时，那句「另有 x 处没搬动」必须自己把差额说出来。
+    @discardableResult
+    private func takeAllReclaimable(_ acct: RingAccount) -> Int64 {
+        var all = MoveReceipt()
+        for seg in acct.hot {
+            let r = moveTargets(seg.targets)
+            all.ok += r.ok; all.bytes += r.bytes; all.failed += r.failed
+            if all.why.isEmpty { all.why = r.why }
+        }
+        var line = LF("已把这一圈里动得了的 %1$@移入废纸篓（%2$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。",
+                      cnt(all.ok, "处"), human(all.bytes))
+        line += failTail(all)
+        store.notice = line
+        return all.bytes
+    }
+
+    /// 一处一处搬。成功了几处、搬走多少字节、第一处失败为什么，三样都要留到最后那句话里。
+    ///
+    /// 抽出来给两条路共用：一条弧的第二下（`takeTargets`）与预演条的第二下
+    /// （`takeAllReclaimable`）。搬文件这件事只该有一份实现——两把刀迟早有一天砍得不一样。
+    ///
+    /// 「已移入废纸篓 12 处（8.4 GB），另有 3 处没搬动」这种句子必须是**真数**：
+    /// 那句「还能腾出 22 GB」是按钮许的愿，搬完对不上而原因没说，这一屏就再没人信了。
+    private func moveTargets(_ targets: [ReclaimTarget]) -> MoveReceipt {
+        var r = MoveReceipt()
+        for t in targets {
             do {
                 let moved = try trashItem(t.url)
                 store.record(TrashRecord(original: t.url, inTrash: moved,
                                          size: t.size,
                                          displayName: t.url.lastPathComponent))
-                ok += 1
-                bytes += t.size
+                r.ok += 1
+                r.bytes += t.size
             } catch {
-                failed += 1
-                if why.isEmpty { why = failReason(error) }   // 只留第一处的原因，句子才不失控
+                r.failed += 1
+                if r.why.isEmpty { r.why = failReason(error) }   // 只留第一处的原因，句子才不失控
             }
         }
-        var line = LF("已把「%1$@」名下的 %2$@移入废纸篓（%3$@）。这些字节还占着盘，去废纸篓页交给访达清空才真让位。",
-                      seg.label, cnt(ok, "处"), human(bytes))
-        if failed > 0 {
-            // 系统给的那句原因自带句号（「你没有许可。」），照搬进模板就是「许可。。」。
-            let cause = why.hasSuffix("。") || why.hasSuffix(".") ? String(why.dropLast()) : why
-            line += why.isEmpty ? LF("另有 %1$d 处没搬动。", failed)
-                                : LF("另有 %1$d 处没搬动，第一处的原因是：%2$@。", failed, cause)
-        }
-        store.notice = line
-        return bytes
+        return r
     }
 
-    /// 搬完这一趟，让那一笔字节从环心飞到废纸篓那一格。见 `TrashFlight`。
+    /// 一趟搬运的清点结果。
+    private struct MoveReceipt {
+        var ok = 0
+        var bytes: Int64 = 0
+        var failed = 0
+        var why = ""
+    }
+
+    /// 有处数没搬动时挂在最后那句话说的那半句。两处（一条弧 / 整圈）共用同一条尾巴，
+    /// 免得同一件失败在两个入口长成两种说法。
+    private func failTail(_ r: MoveReceipt) -> String {
+        guard r.failed > 0 else { return "" }
+        // 系统给的那句原因自带句号（「你没有许可。」），照搬进模板就是「许可。。」。
+        let cause = r.why.hasSuffix("。") || r.why.hasSuffix(".")
+            ? String(r.why.dropLast()) : r.why
+        return cause.isEmpty ? LF("另有 %1$d 处没搬动。", r.failed)
+                             : LF("另有 %1$d 处没搬动，第一处的原因是：%2$@。", r.failed, cause)
+    }
+
+    /// 这一趟回收的动效参数：被点的那一段弧、环那一格、废纸篓那一格、真搬走的字节。
     ///
-    /// 三条不发的情形：
-    /// - 一处都没搬动（0 字节）——一枚写着「0 B」的筹码飞过去，比不飞更让人怀疑账错了；
-    /// - 两个锚点还没量到（第一次进页面、布局还没落定）——这时候只能从一个猜出来的点起飞；
-    /// - 已经有三枚在空中——第四枚起不再有信息量，只剩噪声。真数在那句通知里，一个都没少。
-    private func flyToTrash(_ moved: Int64) {
-        guard moved > 0, flights.count < 3 else { return }
-        guard let from = anchors["ring"], let to = anchors["tray"] else { return }
-        flights.append(TrashFlight(text: human(moved), from: from, to: to,
-                                   delay: Double(flights.count) * 0.08,
-                                   // 连拍那一趟的进度按连拍时钟算，起飞时刻得当场记下来。
-                                   bornClock: SnapshotMode.filmMotion ? SnapshotMode.filmClock : nil))
+    /// 两个矩形还没到手时不演（第一次进页面、布局还没落定）：那时候只能从猜出来的
+    /// 点起飞，水珠会从卡片外头飞进来。宁可这一趟只有账变，也不要一条对不上的轨迹。
+    private func reclaimBurst(_ seg: GaugeSegment, _ moved: Int64) -> ReclaimBurst? {
+        guard let arc = heroGeo.arcs[seg.armKey],
+              let ring = heroGeo.rects["ring"], let tray = heroGeo.rects["tray"] else { return nil }
+        return ReclaimBurst(arc: arc, ring: ring, band: heroGeo.band, tray: tray,
+                            bytes: moved, tint: SweepRing.lamp(theme.palette.tint))
     }
 
-    /// 一枚落地，把它摘掉。
-    private func flightLanded(_ id: UUID) {
-        flights.removeAll { $0.id == id }
-    }
-
-    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时补一枚钉在指定行程上的筹码。
+    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时演一格回收（0 = 水珠刚浮现，1 = 已落进废纸篓）。
     ///
-    /// 只在**这一屏量完、两个锚点也到手**之后发：起点终点都是量出来的，不是猜的。
-    /// 这一趟不写真账（不发筹码就不会有真的 `trashItem`），筹码上写的数是环上此刻
-    /// 真能回收的那个量，跟按一下会看到的一致。
-    private func fireSnapshotFlightIfAsked() {
-        guard SnapshotMode.flightPhase != nil, flights.isEmpty else { return }
+    /// 这一趟不写真账：不调 `take`，只按环上此刻真能回收的那一段搭参数，
+    /// 跟按两下会看到的那条轨迹同源。弧表与两个矩形都到手之后才发。
+    ///
+    /// 矩形换了要重发：取证这一趟里窗口会从 820 长到 852，环那一格跟着换尺寸换位置，
+    /// 而 `ReclaimFXHost.layout()` 每轮都按**当前**矩形重画那一格定帧——攥着旧矩形，
+    /// 拍出来的就是上一版布局的那一圈水珠。平时（非截图）这一句走不进来。
+    private func fireSnapshotBurstIfAsked() {
+        guard SnapshotMode.flightPhase != nil else { return }
         guard let u = model.usage, !model.scanning else { return }
-        guard let from = anchors["ring"], let to = anchors["tray"] else { return }
-        let can = ringAccount(u).reclaimable
-        guard can > 0 else { return }
-        flights.append(TrashFlight(text: human(can), from: from, to: to))
+        let acct = costReading ? costAccount(u) : ringAccount(u)
+        guard let seg = (acct.ringSegs ?? acct.segs).first(where: { $0.reclaim > 0 }) else { return }
+        guard let arc = heroGeo.arcs[seg.armKey],
+              let ring = heroGeo.rects["ring"], let tray = heroGeo.rects["tray"] else { return }
+        if let old = burst, old.ring == ring, old.tray == tray, old.arc == arc, old.band == heroGeo.band {
+            return
+        }
+        burst = ReclaimBurst(arc: arc, ring: ring, band: heroGeo.band, tray: tray,
+                             bytes: seg.reclaim, tint: SweepRing.lamp(theme.palette.tint))
+    }
+
+    /// 真机那一趟还在飞的时候，把矩形换成此刻量到的那一份。
+    ///
+    /// 只换字段、不换 `id`：`id` 一换，宿主会当成新的一趟从头排队；留着同一个 `id`，
+    /// 它才认得出这是「同一趟的环挪了家」，走 `rebake` 那条重排。
+    /// 为什么需要：凡是飞行途中改动滚动视口高的事都会让环挪家——环居中的那一片按视口高算
+    /// （`ringBox(viewportH, ring)` 用在 `:3192`，`viewportH` 就是 `:1863` 那颗 `gate.size.height`），
+    /// 视口一矮，**环在卡片自己的局部坐标里就挪了位**——整页一起平移不算错位，动效和环同属
+    /// 这一张卡，平移是一起吃的；错位吃的正是这一格局部矩形没跟着换。而这一趟吃的是按下时
+    /// 量到的那份矩形，一趟只 2.7 秒，够它错到底。
+    ///
+    /// 曾经命中的一条是回收提示条：它那时排在整页**上面**、占版面一行，一进来就把视口矮掉
+    /// 一截。现在它按设计稿浮在内容区底沿（`.dbar`/`.pgtip` 都是 `position:absolute`，不占
+    /// 版面），那条根因已经拔掉；留着这一手是为剩下的那些——主要是拖窗口下沿。
+    /// 重排的窗口和代价由宿主把着，见 `ReclaimFXHost.rebake`。
+    /// 收敛：只有真的不一样才写 `burst`，写完这一次布局不会再报同一个数。
+    private func reliveBurstIfMoved() {
+        guard burst != nil, SnapshotMode.flightPhase == nil,
+              let ring = heroGeo.rects["ring"], let tray = heroGeo.rects["tray"] else { return }
+        if burst?.ring == ring, burst?.tray == tray, burst?.band == heroGeo.band { return }
+        burst?.ring = ring
+        burst?.tray = tray
+        burst?.band = heroGeo.band
     }
 
     /// 把 store 那本废纸篓账推给模型：环形每一帧都要读它，模型自己摸不到 store。
@@ -1168,6 +1943,7 @@ struct OverviewView: View {
     private func runFirstClean() {
         guard model.cleanStage == .confirm, !model.cleanBusy, !model.cleanSelected.isEmpty
         else { return }
+        Sound.shared.play(.snap)
         let run = model.performFirstClean { store.record($0) }
         if run.records.isEmpty {
             model.noteFirstCleanFailure(run)
@@ -1175,6 +1951,8 @@ struct OverviewView: View {
                 ?? L("没有可搬动的候选")
             return
         }
+        Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
+        Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
         model.finishFirstClean(run)
         syncMovedLedger()
         store.notice = run.failures.isEmpty
@@ -1187,6 +1965,7 @@ struct OverviewView: View {
     /// 还挂着一张「已移入」的账单就是假账）。
     private func undoFirstClean() {
         guard let run = model.cleanRun else { return }
+        Sound.shared.play(.undo)
         let r = store.undoBatch(run.records)
         model.reopenCandidatesAfterUndo(Set(r.restored.map { $0.original.path }))
         syncMovedLedger()
@@ -1381,10 +2160,7 @@ struct OverviewView: View {
                       armed: nil,
                       tapCenter: nil,
                       scanning: model.scanning,
-                      scanProgress: scanFraction(u),
-                      hovered: nil,
-                      onHover: nil,
-                      centerNow: nil)
+                      scanProgress: scanFraction(u))
                 .frame(width: ring, height: ring)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else {
@@ -2102,34 +2878,48 @@ struct OverviewView: View {
     /// 页头钉在滚动区外面：它是这一屏的标题，滚走了就没人知道自己在哪页。
     /// 下面仍然只有一个 ScrollView——macOS 13 的 ScrollView 会把内容的完整高度
     /// 当成自己的理想尺寸报上去，套两层就会把 detail 列顶成一千六百多点。
+    /// 页头单独抽成一坨：它和下面整页 `VStack` 混在一个表达式里时，Swift 的类型推导
+    /// 会当场罢工（`unable to type-check this expression in reasonable time`，2026-10-23）。
+    /// 页头自己的账（扫描态换字、徽章给不给）也该只管自己这一屏的顶上。
+    private var overviewHeader: some View {
+        // 扫描中页头自己报「在干什么」：这一屏剩下的时间全花在等，标题还写
+        // 「空间总览」会让人以为结果是现成的。副标题那句「只读」是承诺，
+        // 每一秒都得在屏幕上——扫描态下这一页一个写盘动作都没有。
+        PageHeader(symbol: "internaldrive",
+                   title: model.scanning ? L("正在扫描") : L("空间总览"),
+                   // 稿子这句是「一圈 = 这块盘的真实字节」。上一版把它换成了一句操作说明，
+                   // 而下面「没量到的」「各段之和」已经把这些话各说了一遍——页头只该说
+                   // 这一屏在量什么，不该替下面的账先说结论。
+                   subtitle: model.scanning
+                       ? L("先量完，再决定——只读，不改任何文件。")
+                       : (prefs.overviewRead == .cost
+                           ? L("按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。")
+                           : L("一圈 = 这块盘的真实字节")),
+                   variant: .display,
+                   // 页头右侧只剩读法开关。`ViewThatFits` 留着是给长译文兜底：
+                   // 装不下时开关退到下一行右对齐，而不是把副标题挤断、顶出窗口边。
+                   wrapsControls: true,
+                   // 稿子页头副标题后面那枚小徽章（`.phead .sub .cost`）。它讲的是
+                   // 颜色没有文字标签这件事：弧为什么是亮的，不写出来就得由人猜。
+                   //
+                   // 扫描中不给——那一趟还没量完，「现在就能收走」是句还没兑现的话。
+                   // 稿子另外两枚尾句（「还占着盘 · 清空后才让位」「废纸篓已清空」）
+                   // 不往这儿搬：那两句话底栏的废纸篓那一格和清理结果页各说了一遍，
+                   // 页头再说就是同一屏第三遍。
+                   subBadge: model.scanning ? nil : L("亮起来的那几段，现在就能收走")) {
+            // 「重新扫描」不在这儿：稿子把它放在顶栏 `.tb-right`（量完 → 菜单 → 扫描 → 声音 → ?）。
+            // 页头再放一颗蓝主钮，等于把同一个动作在同一屏说两遍——上一版那颗还把副标题
+            // 顶到了第二行。页头这一格只留「换看法」的开关，它跟顶栏那颗放在一起才分得清。
+            readSwitch
+        }
+    }
+
     private var overviewPage: some View {
         VStack(spacing: 0) {
-            // 扫描中页头自己报「在干什么」：这一屏剩下的时间全花在等，标题还写
-            // 「空间总览」会让人以为结果是现成的。副标题那句「只读」是承诺，
-            // 每一秒都得在屏幕上——扫描态下这一页一个写盘动作都没有。
-            PageHeader(symbol: "internaldrive",
-                       title: model.scanning ? L("正在扫描") : L("空间总览"),
-                       subtitle: model.scanning
-                           ? L("先量完，再决定——只读，不改任何文件。")
-                           : L("先看清，再下手——每一行点开，就是它名下具体是哪几个目录"),
-                       variant: .display) {
-                HStack(spacing: 10) {
-                    if model.scanning, let u = model.usage {
-                        scanBadge(scanPercent(u.total))
-                    }
-                    ScanControl(scanning: model.scanning, kind: .primary,
-                                rescan: {
-                                    // 发脉冲在前：`refresh` 会当场把 `scanning` 置真，
-                                    // 别的页要在这同一轮里把各自的旧账作废掉。
-                                    store.rescanPulse += 1
-                                    model.refresh(scope: store.scope)
-                                },
-                                stop: { model.stop() })
-                }
-            }
-            .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 2)
+            overviewHeader
+                .pagePadding()
+                .padding(.top, 14)
+                .padding(.bottom, 2)
 
             // 演示树必须占满一条视线，不能只靠覆盖率那行末尾的小字：假家目录配真盘
             // 容量、或者配一块 96 GB 的假盘，缩略图里跟真机一模一样，挑图的人（包括
@@ -2151,22 +2941,47 @@ struct OverviewView: View {
 
             scrollContent
         }
+        // 整页封顶宽并居中。稿子那一屏是定宽的（`.ringbox{width:420px;flex:none}` +
+        // `.sidecol{width:364px;flex:none}`），窗口拉宽多出来的份在稿子里是**留白**，不是
+        // 控件。真机先只在招牌那一屏上封顶，结果页头的「空间总览」还贴着窗口左沿、
+        // 环却往中间挪了一截，两者不再同一条左基线——所以这一刀落在整列上：
+        // 页头、招牌、下面的小节一起收进同一个宽度里，左沿仍然对齐，只是这一整列
+        // 在窗口里居中。2026-10-24 实拍：1700 宽时账本被摊到 950 pt，「查看回收」
+        // 那枚按钮成了一块 950×35 的板。
+        .frame(maxWidth: Self.heroCap + 2 * Self.pagePad, alignment: .leading)
+        // 默认 `.center` alignment 负责把这一列水平摆正，纵向照旧铺满。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             syncMovedLedger()
             model.started ? model.refreshUsage() : model.refresh(scope: store.scope)
+            // 假手指（`DISKWISE_PREVIEW=on`）的第二把落点：这一趟用的是**缓存好的扫描**，
+            // `scanning` 从没翻过真，上面那条 onChange 一辈子不来，于是量到的是一张静图。
+            if SnapshotMode.previewHold && !model.scanning { holdPreview() }
         }
         // 搬进废纸篓、撤销、清空之后环形要挪账。整条历史重新推一遍（见 `syncMovedLedger`）。
         .onChange(of: store.trashHistory) { _ in syncMovedLedger() }
         // 重扫一轮就把下钻收回：模型的 `dropChildren()` 同时作废了摊开出来的下级账，
         // 键还留着的话那一格会空摊着，看着像「扫到一半把东西弄丢了」。
         .onChange(of: model.scanning) { go in
+            // 扫描这一趟开跑与收尾各一声。它不跟着环上的进度走——那会响成一片，
+            // 只在「开始」和「量完了」两个边界各报一次。
+            Sound.shared.play(go ? .scanStart : .scanEnd)
             if go { setDrill(nil); return }
-            fireSnapshotFlightIfAsked()
+            fireSnapshotBurstIfAsked()
+            // 性能配对要把「按住空格」这一档钉住整趟测量：真机上是手指按着不放，
+            // 测量链路里没有手指。`DISKWISE_PREVIEW=on` 就是那只假手指——它走的仍是
+            // `holdPreview()` 这条真路（同一套判据、同一个 `beginPreview`），
+            // 不是另画一张「看起来像预演」的皮，所以量到的代价就是那一档真正的代价。
+            if SnapshotMode.previewHold { holdPreview() }
         }
-        // 锚点是布局落定之后才报上来的，而「量完」和「锚点到齐」谁先谁后不定。
-        // 两个都盯着，谁后到就由谁把那枚筹码发出来。
-        .onChange(of: anchors) { _ in fireSnapshotFlightIfAsked() }
+        // 「动得了多少」比弧本身晚落地（缓存体积一台一台量回来才结算，见 `settleCaches`）。
+        // 上面那三处都不在这一趟之后：矩形与弧表早就算好了，扫描收尾那一刻每一段的
+        // reclaim 还是 0，`fireSnapshotBurstIfAsked` 走到 `reclaim > 0` 那道判据就 returns，
+        // 于是 `DISKWISE_FLIGHT` 拍出来的永远是「没有水珠」那一格
+        // （2026-10-24 实拍 `dump612`：同一张上 `~/Library` 那条弧已经写着回收 10.0 GB）。
+        .onChange(of: model.reclaimPulse) { _ in fireSnapshotBurstIfAsked() }
+        // 弧表与两个矩形报上来的时候直接叫那一格定帧（见 `heroCard` 末尾那两个
+        // `onPreferenceChange`）：这两份几何不再是 @State，没有 `onChange` 可挂了。
         // 切走这一页就解除上膛：弧都不在眼前了，还留着「等你确认」那道白边，
         // 回来时人会以为自己上一刀点到了一半。悬停指针与那句「为什么动不了」同理，
         // 都是当前这一屏的事，带不进下一页。
@@ -2175,6 +2990,17 @@ struct OverviewView: View {
             setHover(nil)
             arcNote = nil
         }
+        // 稿子③那只「按住空格」的接收器。挂在**这一页**而不是窗口上（跟 `EscapeTap` 相反）：
+        // 它要吞掉空格的 keyDown，而空格在别的页面上本来就是「按下聚焦的那颗按钮」——
+        // 挂在窗口层就等于在全部七页把那条 AppKit 规矩换掉了。切走这一页，监视器跟着拆，
+        // 别的页照旧。
+        //
+        // 这一页上换掉的那条规矩说清楚：空格改给预演，因此这一屏的按钮靠鼠标点；
+        // 已经上膛的整圈那一下另配 ⌘↵（跟着条子上那颗钮走，见 `previewBar`）。
+        // 预演本身不搬任何东西，第二下才搬，所以这一换不会
+        // 把「不小心按下去就丢文件」换来换去——恰恰相反，把空格按下就搬东西那条路堵掉了。
+        .background(SpaceHoldTap(onHold: { holdPreview() },
+                                 onRelease: { model.endPreview() }))
         .onChange(of: store.overviewDrill) { name in
             guard let name else { return }
             store.overviewDrill = nil
@@ -2198,6 +3024,14 @@ struct OverviewView: View {
             }
             guard let u = model.usage else { return say("还没有账，这一钩子跳过了") }  // l10n-scan: skip
             store.overviewRing = nil
+            // 稿子③那一档的静图。走的是空格落下那**同一条路**（`holdPreview`，连它所有
+            // 拒绝的分支一起），松手那一发走同一个 `endPreview`——不是另搭一个「看起来
+            // 像预演」的状态。stderr 那行说清到底进没进：「拍出来跟静图零差异」有两种原因，
+            // 这一行是唯一分得清「界面没画」和「画在了折出去的地方」的东西。
+            if token == "preview" || token == "previewoff" {
+                if token == "preview" { holdPreview() } else { model.endPreview() }
+                return say("previewing = \(model.previewing)")        // l10n-scan: skip
+            }
             let segs = ringAccount(u).segs
             // 挑哪条弧不写死名字：演示树会改，而这一钩子要验的是「动得了的弧点两下」
             // 这件事本身，不是某一条弧。
@@ -2223,16 +3057,9 @@ struct OverviewView: View {
         // 截图连拍要「摊开 → 再收回去」两拍都在一段里跑完，而收起在真机上是再点同一行，
         // 这一路没有键鼠点不到它。这里走的就是那颗行首 `▸` 的同一个 `setDrill`。
         .onChange(of: store.overviewCollapsePulse) { _ in setDrill(nil) }
-        // 圆心那句「还剩约 N 秒」是**从开跑时刻现算的**，不跟着任何一次测量事件更新：
-        // 几秒没有目录量完时，那个数会僵在原地，读者会以为卡住了。一秒一跳的时钟
-        // 只改 `scanTick`，量完/停下时随 `scanning` 一起收掉。
-        .task(id: model.scanning) {
-            guard model.scanning else { return }
-            while !Task.isCancelled && model.scanning {
-                scanTick = Date()
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-            }
-        }
+        // 这里原来挂着一发一秒一跳的 `scanTick` 时钟，只为圆心那句「还剩约 N 秒」现算
+        // 剩余时间。那句倒计时 2026-10-24 删了（没根据，见 `centerCap` 扫描态那条），
+        // 时钟跟着走：扫描期每一秒一次的 `@State` 写回，正是 #52/#56 一路在削的那类整页重绘。
     }
 
     /// `avail` = 这一屏给英雄卡的那一档宽度（已经扣掉页面左右内边距），
@@ -2241,13 +3068,15 @@ struct OverviewView: View {
     private func heroCard(_ u: VolumeUsage, avail: CGFloat, viewportH: CGFloat) -> some View {
         // 扫描中单独一本账：只把**量到的**画成弧，没轮到的部分留暗轨（见 `scanningAccount`）。
         // 正常态那本账里的「没量到 / 系统可清除 / 空闲」在扫描中是结论，不是进度。
-        let acct = model.scanning ? scanningAccount(u) : ringAccount(u)
+        // 「按代价」换的不是配色，是分法：同一块盘按清掉要付什么切成四段（见 `costAccount`）。
+        let acct = model.scanning ? scanningAccount(u)
+                 : (costReading ? costAccount(u) : ringAccount(u))
         // 截图旋钮 DISKWISE_HOVER=<第几段>：真机的悬停是鼠标进来的，静态图里没有鼠标，
-        // 没有这个钩子这一条响应就只能靠嘴说它存在。
-        let hovLabel = hovKey ?? SnapshotMode.ringHover.flatMap { i in
+        // 没有这个钩子这一条响应就只能靠嘴说它存在。**它只是一格定值**：
+        // 整页不再读悬停状态，读它的是环那一层（`HoverRing`）和账本行里的小叶子。
+        let hovFallback = SnapshotMode.ringHover.flatMap { i in
             acct.segs.indices.contains(i) ? acct.segs[i].label : nil
         }
-        let hov = acct.segs.first { $0.label == hovLabel }
         let ring = ringDiameter(avail)
         // 卡片只装招牌那一屏（环 + 右侧这本账）。样稿里 `.acct` 那根账带子是主行的
         // **兄弟节点**，不在窗口卡里面：Ring 是「画面」，账带子是「画面下的图注」。
@@ -2286,50 +3115,108 @@ struct OverviewView: View {
                                               centerCap: (ringIsReference || ring < 260) ? "" : centerCap(acct),
                                               diameter: g.size.width,
                                               // 量完之前不进上膛那条路：S0 的规矩是这一屏一个清理动作都不出现。
-                                              select: { seg in
+                                              // 代价读法整圈不接上膛：点的是「一类字节」，
+                                              // 没有「把这一类整块挪走」这回事——那一按该进候选清单。
+                                              select: costReading ? nil : { (seg: GaugeSegment) in
                                                   guard !model.scanning else { return }
                                                   tapArc(seg)
                                               },
                                               armed: model.armedPath,
                                               tapCenter: { model.disarm(); arcNote = nil },
                                               scanning: model.scanning,
+                                              // 预演（按住空格）交给环的那一条通知线：
+                                              // 段带退到后面、带心线上长出一截绿光弧、两根亮丝慢一档、
+                                              // 盘心换一套句子。这里**不传「在不在预演」这个布尔**——
+                                              // 传了就得有视图订阅它，而能吃下这一发的视图只有整页那么大。
+                                              // 分账用的开关各在叶子自己身上：`DISKWISE_RINGDIM`（退到后面）、
+                                              // `_GAIN`（绿弧）、`_EDGE`（亮丝）。原先那颗一刀切掉整圈的
+                                              // `DISKWISE_RINGPREV` 已经没东西可切了，2026-10-22 摘掉。
+                                              preview: model.previewSignal,
+                                              // 预演那三行（只有页面算得出来，见 `SweepRing.centerTopPreview`）。
+                                              // 数取 `afterClearShown`——与静帧那行「全部清空后可用 x」**同一个属性**，
+                                              // 不在这里再算一遍：两处各算一次就会差出 0.1，而这一屏那 0.1
+                                              // 是说得出却对不上的账。
+                                              // 扫描与代价读法给空串 = 这一圈不吃预演：前者盘心正被「正在扫描 /
+                                              // 已量 x/y」占着，后者压根不让进这一档（`holdPreview`）。
+                                              centerTopPreview: previewCenterRefused ? "" : L("全部清空后"),
+                                              centerValuePreview: previewCenterRefused ? "" : acct.afterClearShown,
+                                              centerCapPreview: previewCenterRefused ? "" : previewCenterCap(acct),
                                               scanProgress: scanFraction(u),
-                                              hovered: hovLabel,
-                                              onHover: { v in setHover(v) },
+                                              // 悬停只交给环上那几颗订阅叶子，不再经过
+                                              // 页面、也不再经过 `SweepRing.body`。
+                                              hoverNote: model.hoverSignal,
+                                              hoverFallback: hovFallback,
+                                              onHover: { model.hoverSignal.set($0) },
                                               // 上了膛的那几秒这句要让位：圆心的 `cap` 那时写的正是
                                               // 「再点一次才移进废纸篓」，两句话叠着念就是四行字压到环带上。
                                               // 参照盘也让位——眼睛此刻在右边那列明细上，盘心那两行小字
                                               // 在 93 pt 的内孔里只会糊成一团，而它说的名字就在被点亮的行上。
                                               // 扫描中同样让位：那两行正在报进度，再叠一句悬停读数就是四行。
-                                              centerNow: (ringIsReference || model.armedPath != nil
-                                                          || model.scanning)
-                                                  ? nil : hov.map(centerNowLine))
+                                              // 预演中同样让位由叶子自己判（`RingNowLine`）：盘心那个数是
+                                              // 「全部清空之后」，鼠标划过弧就把它换成「这一条 6.3 GB」——
+                                              // 预演的那一眼还没看完。这一位要是读 `model.previewing`，
+                                              // 整页就得跟着空格重算一次。
+                                              centerNowEnabled: !(ringIsReference || model.armedPath != nil
+                                                                  || model.scanning || costReading),
+                                              centerNowLine: { centerNowLine($0) })
                                 }
                             }
-                            // 环心就是飞行的起点。取盘心不取弧：一段弧被点两下之后
-                            // 它自己就要缩、还要挪，而「这一笔字节离开这块盘」这件事
-                            // 在整个圆里只有一个地方说得清——圆心那个数。
-                            .heroAnchor("ring", in: Self.heroSpace)
-                        // 环上刚点出来的那句话，钉在环的正下方。上膛那一版跟着 `armedPath`
-                        // 走而不是跟着 @State：3.2 秒到点自己解除，这句也得跟着消失，
-                        // 不然弧都暗下去了话还挂着。
+                            // 水珠从这一格的**外沿**起飞（角度按被点的那段弧算，见
+                            // `ReclaimFXHost.geometry`），冲击波与光圈也以它为心。
+                            // 报整格矩形，不报圆心：水珠的起点、槽位和落点都要宽度。
+                            .heroFrame("ring", in: Self.heroSpace)
+                            // 稿子⑫那条决策条：浮在环底下这一片**空白**里，不排在环下面。
+                            //
+                            // 为什么不是排在下面（这一版改的就是这一处）：排下去就是这一格
+                            // 从 0 长到 102，环跟着被顶高 56——样稿 `.dbar` 是
+                            // `position:absolute` + `opacity`/`translateY`，环从头到尾不动，
+                            // 动的一直是条子自己。两头都对上：画面按样稿走，代价也不再是
+                            // 一次整窗排版（`heroGeo` 上面记着那一发值多少）。
+                            //
+                            // 宽只到环那一格，不铺满整张卡。试过铺满（= `avail`，正好是
+                            // 环 + `heroGap` + 那本账）：右边这本账比环高，条子落在环下沿
+                            // 那一带时正压在账目列的「See 16 reclaimable locations」那一颗
+                            // 上，2026-10-22 实拍 `bar2` 那一对图。样稿敢铺满是因为它的
+                            // `.sidecol` 只有 420 高、底下是空的；我们这一列六行账 + 一颗钮
+                            // + 废纸篓那一格，底下不空。
+                            .overlay(alignment: .topLeading) {
+                                PreviewBarHost(preview: model.previewSignal,
+                                               armedAll: model.armedPath == SweepRing.armAll,
+                                               hide: Self.barMode == "off") { _ in
+                                    // 顶边落在环下沿再往下 10：按环自己的高走，不按那一片
+                                    // 空白的高走。空白是 `ringBox` 给的（窗口越高它越大），
+                                    // 贴着框底画就成了「条子离环越来越远」。
+                                    // 高由内容定，所以这里只推顶边——写死一档高度的话，
+                                    // 窄窗里那两行一折行就被剪掉半句。
+                                    previewBar(acct, width: ring)
+                                        .offset(y: ring + Self.barGap)
+                                }
+                            }
+                        // 环正下方那一格：装哪句话、什么时候让位，连同「为什么必须落在环
+                        // 底下」的实拍，都记在 `ringBelow(showBar:ring:)` 的注上。
+                        // 稿子⑫那条决策条的账本记在两处：它原先坐在右边那本账的最后，
+                        // 2026-10-22 逐层配对量下来那一格付不起（`DISKWISE_PERF_PREVIEW=0.4`
+                        // 同一场，尾段 >100 ms——只换账目列那一格 46 格、整圈全开 55 格、
+                        // 两处都不动 13 格、同场静帧 0 格）。贵的不是那几行字，是**账那一列
+                        // 被重排**：列高一变整张卡跟着变，滚动内容重排一次在这台 Intel 上
+                        // 就是几十到一百多毫秒。于是搬到环这一格；搬过来之后同一发空格还剩
+                        // 一笔账——这一格从 0 长到 102 把环顶高 56，那 56 pt 每一发都要走
+                        // 一整扇窗的 Auto Layout。数与拆法记在 `heroGeo` 上面。
                         //
-                        // 从前这句跟在整张卡片的下面：默认那扇 700 pt 高的窗里它落在
-                        // 807 pt 处，而「点一条动不了的弧，当场把话说清」是这一屏唯一的
-                        // 反馈——2026-09-28 实拍：1280x800 的 `-refused` 与静图零差异，
-                        // 换成 1500 高才看见那句话。眼睛在环上，话就得落在环底下。
-                        if let fb = arcFeedback(acct) {
-                            Group {
-                                if fb.urgent {
-                                    callout(text: fb.text)
-                                } else {
-                                    Text(fb.text)
-                                        .font(theme.bodyFont(.caption))
-                                        .foregroundStyle(theme.palette.inkSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            .frame(maxWidth: ring, alignment: .leading)
+                        // 现在这一格**不换子树了**：条子浮在环底下（上面那颗 `PreviewBarHost`），
+                        // 环一动不动，样稿 `.dbar` 那句 `position:absolute` 才是它本来的样子。
+                        // 这一格剩下的活儿只有一件：整圈那一档（预演、或刚从预演里给整圈上了
+                        // 膛）把上面那句话压住——那时确认在条子上那颗钮，条子说的就是
+                        // 「再点一次才搬」，同一屏不必再有第二句。
+                        // 其余时候这里只压「点动不了的弧那句为什么」，退掉这一档之后它自己回来。
+                        //
+                        // 「此刻压不压」由 `AfterClearSlot` 自己判：判据是预演那一根线，
+                        // 写在页面上就是整页重算一次（环那棵大树加右边六行账全跟着走），
+                        // 挂在叶子上重算的范围就只有这一格。
+                        AfterClearSlot(preview: model.previewSignal,
+                                       armedAll: model.armedPath == SweepRing.armAll,
+                                       hide: Self.barMode == "off") { showBar in
+                            ringBelow(showBar: showBar, ring: ring)
                         }
                     }
                     // 环的居中框来自窗口，不来自这一本账（见 `ringBox(_:_:)`）。
@@ -2338,7 +3225,7 @@ struct OverviewView: View {
                     .frame(maxHeight: ringIsReference ? .infinity : ringBox(viewportH, ring),
                            alignment: ringIsReference ? .top : .center)
 
-                    heroColumn(acct, hovLabel, ledgerWidth(avail))
+                    heroColumn(acct, ledgerWidth(avail))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2356,13 +3243,28 @@ struct OverviewView: View {
                 coverageLine(u)
             }
         }
-        // 飞行的坐标基准钉在整张卡上，不钉在环或某一列上：起点在环里、终点在右边那一列
-        // 底下的废纸篓格子里，两个点分属两棵子树。量在各自的局部坐标里就对不上了。
+        // 水珠的坐标基准钉在整张卡上，不钉在环或某一列上：起点在环里、终点在右边那一列
+        // 底下的废纸篓格子里，两处分属两棵子树。量在各自的局部坐标里就对不上了。
         .coordinateSpace(name: Self.heroSpace)
-        .onPreferenceChange(HeroAnchorKey.self) { anchors = $0 }
-        // 铺在最上层、不接鼠标（`TrashFlightLayer` 自己关掉了命中测试）。
+        .onPreferenceChange(HeroRectKey.self) { rects in
+            // 写进盒子，不写 @State：见 `heroGeo`。
+            heroGeo.rects = rects
+            fireSnapshotBurstIfAsked()
+            reliveBurstIfMoved()
+        }
+        .onPreferenceChange(RingArcMapKey.self) { map in
+            heroGeo.arcs = map.spans
+            heroGeo.band = map.band
+            // 弧表与两个矩形都是布局之后才报上来的，和「量完」谁先谁后不定：两份都盯着，
+            // 谁后到就由谁把那一格定帧发出来（`burst == nil` 兜住只发一次）。
+            // 只有截图那一趟（`DISKWISE_FLIGHT`）真走得进来，平时这一句就是一次布尔判断。
+            fireSnapshotBurstIfAsked()
+            reliveBurstIfMoved()
+        }
+        // 铺在最上层、不接鼠标（`ReclaimFXHost.hitTest` 返回 nil），
+        // 环、账本行、按钮的点击都照旧落在它们自己身上。
         .overlay {
-            TrashFlightLayer(flights: flights, onLanded: flightLanded)
+            ReclaimFXLayer(burst: burst)
         }
     }
 
@@ -2410,25 +3312,25 @@ struct OverviewView: View {
         }
     }
 
-    /// 环右边那一列：面包屑（摊开时）、一句导语、这一圈的账、一个动作、一句防误删的话。
-    /// 顺序就是读的顺序——先说能动多少，再说是谁，再给按钮。
+    /// 环右边那一列：面包屑（摊开时）、这一圈的账、一个动作、一句防误删的话。
+    /// 顺序就是读的顺序——先说是谁，再给按钮。
     ///
     /// 这一列是整页**唯一**的清单：环形旁边这本账之外不再有第二段列表，
     /// 每一段的下一级都摊在自己那一行下面。
-    private func heroColumn(_ acct: RingAccount, _ hovLabel: String?, _ column: CGFloat) -> some View {
+    private func heroColumn(_ acct: RingAccount, _ column: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let d = drilledSegment(acct) {
                 drillCrumb(d)
             }
 
-            // 扫描中不写导语：这一列此刻没有四笔账可分，而「已量完 n/m 处」
-            // 与中心百分比、右上行同说一件事。样稿里这一格是空的，
-            // 账目直接顶到页头下面——再垫一句进度，第一行就被推下去半屏。
-            if !model.scanning {
-                lede(acct)
-            }
-
+            // 这本账上面不再垫一句导语（2026-10-23 撤）。那句话把「几处动得了 / 其余先不动 /
+            // 没量到的另算」在账本上行之前先说了一遍，而账本每一行、各段之和、环心都已经
+            // 各说了一遍——页头下面于是堆着四层字。样稿这一格本来就是空的：`.ledger`
+            // 直接顶在页头下面。缺的那半句由两处接住：可勾的读法在行尾，没量到的自己是一行。
             VStack(alignment: .leading, spacing: 0) {
+                // 小节头。判据跟导语同一条：扫描中这一列还没有一本完整的账，
+                // 「几类现在能清」在那个时候是一个正在变的数（见上面那段注释）。
+                if !model.scanning { ledgerHead(acct) }
                 // 逐行画分隔线（样稿 `.row+.row::before`），第一行不画。
                 // 上一版靠 3pt 的行距把六行分开：没有线的时候那六行是六片浮着的字，
                 // 有了线才读得出「这是一本账的六笔」。
@@ -2438,14 +3340,18 @@ struct OverviewView: View {
                                   fraction: Double(seg.value) / Double(max(1, acct.total)),
                                   armed: model.armedPath != nil
                                     && (model.armedPath == SweepRing.armAll || model.armedPath == seg.armKey),
-                                  lit: hovLabel == seg.label,
-                                  dim: hovLabel != nil && hovLabel != seg.label,
+                                  // 亮/暗不再由整页算好传进来：这一行里只有底光、暗态
+                                  // 和行尾那枚数订阅悬停线（见 `HoverSpotlight`），
+                                  // 行体自己不为「指着谁」重算。
+                                  hoverNote: model.hoverSignal,
                                   showRule: idx > 0,
                                   // 扫描中那些「排队中」「正在量…」的行不在环上，指着它们
                                   // 不该让整圈暗下去；只有真画了弧的行才接悬停。
                                   onHover: seg.value > 0 ? { v in setHover(v ? seg.label : nil) } : nil,
                                   // 量完之前这一列一个动作都不给：不上膛、不摊明细、不去授权。
-                                  tap: model.scanning ? nil : { tapArc(seg) },
+                                  // 代价读法里整行也没有上膛这一说（环上 `select` 已是 nil），
+                                  // 不给 `tap`，行名那一块才只是一块名字。
+                                  tap: (model.scanning || costReading) ? nil : { tapArc(seg) },
                                   expanded: open,
                                   onExpand: model.scanning || seg.drill == nil
                                     ? nil : { toggleDrill(seg) },
@@ -2461,7 +3367,15 @@ struct OverviewView: View {
                                         [URL(fileURLWithPath: seg.path!)]) } : nil,
                                   onDeepDive: (!model.scanning && open && seg.path != nil)
                                     ? { store.deepDive(into: seg.path!) } : nil,
-                                  grantCompact: column < Self.ledgerGrantWidest)
+                                  grantCompact: column < Self.ledgerGrantWidest,
+                                  // 稿子⑪：这一行名下还能腾出多少，跟着预演一起接进小字末尾。
+                                  // 这六截加起来 = 这一圈动得了的总数 = 条子上那颗钮真会搬走的那一笔
+                                  // （「比现在多」里还含着已经在废纸篓、等访达清空的那几 G，不在这里）。
+                                  // 摘掉它做对照的开关在行自己身上：`RingLedgerRow.gainRunOffByEnv`。
+                                  // 「刚从预演里给整圈上了膛」那一档由这一位补上（页面跟着
+                                  // `armedPath` 重算，空格那一发由 `preview` 那条线自己走）。
+                                  afterClearAll: model.armedPath == SweepRing.armAll,
+                                  preview: model.previewSignal)
                     if open {
                         drillPanel(seg)
                             .padding(.top, 2)
@@ -2477,7 +3391,8 @@ struct OverviewView: View {
                         Text(LF("已读 %1$@ / %2$@ · 只读",
                                 human(model.covered), human(acct.total)))
                     } else {
-                        Text(lampRun(LF("各段之和 %1$@", human(acct.total)), human(acct.total),
+                        Text(lampRun(LF("各段之和 %1$@", segmentsSumText(acct)),
+                                     segmentsSumText(acct),
                                      SweepRing.lamp(theme.palette.tint),
                                      base: theme.palette.inkTertiary))
                     }
@@ -2487,10 +3402,28 @@ struct OverviewView: View {
                     .fixedSize()
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.top, 9)
+                // 四类账唯一的破绽：用量还没跟上扫描快照时，四类加起来会比整盘多。
+                // `CostLedger` 把多出来的那截记在 `overdrawn` 上而不是印一个负的「不碰」，
+                // 那这里就得把多出来的数说出来——不说，这一列就是一张加不起来的图。
+                if costReading, let led = model.costLedger, !led.balanced {
+                    Text(LF("用量与扫描快照对不上：四类比整块盘多出 %@。", human(led.overdrawn)))
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.warnFG)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, 4)
+                }
             }
 
             VStack(alignment: .leading, spacing: 9) {
-                takeAllButton(acct)
+                PickMainButton(model: model, acct: acct) {
+                    arcNote = nil
+                    cleanDetail = nil
+                    // 进清单这一下是「先把刀放下、看清楚」：一声下行的预演音，
+                    // 与真正搬走那声「响指」正好反过来。
+                    Sound.shared.play(.preview)
+                    model.openFirstClean()
+                }
                 if !model.scanning { trashTray(acct) }
                 if model.scanning {
                     Text(L("扫完之前，底栏不会出现任何清理动作"))
@@ -2501,85 +3434,196 @@ struct OverviewView: View {
             }
 
             if !model.scanning && model.armedPath == nil && acct.reclaimable > 0 {
-                Text(L("点一段两次才收走那一段（防误删）；点动不了的段只会告诉你它为什么动不了。"))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                // 代价读法整圈不接上膛（`select == nil`），那句「点一段两次」在那儿是假话；
+                // 换成同一位置的「这一笔怎么定」，否则那圈色块看起来像能直接点走。
+                //
+                // 这一格在预演那一档**不换**（稿子⑫那一条挪到环底下了，见 `heroCard` 里那处）。
+                // 留在这儿不动是本意的：这一列从头到尾说同一句话，按空格时长这本账的行不跳位。
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(costReading
+                         ? L("代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。")
+                         : L("点一段两次才收走那一段（防误删）· 3 秒不点自动撤；点动不了的段只会告诉你它为什么动不了。"))
+                        .fixedSize(horizontal: false, vertical: true)
+                    // 稿子 `#footHint` 的第二行（`<kbd>空格</kbd> 预演清完的样子`）：
+                    // 空格这一把在真机上早就绑好了（`SpaceHoldTap`，钮上还带着角标），
+                    // 缺的只是把它说出来——一个没人知道的键位等于没有这个键位。
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        KeyCap(text: L("空格"))
+                        Text(L("预演清完的样子 · 只进废纸篓，随时可撤销"))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkTertiary)
             }
         }
     }
 
-    /// 导语：这一圈被分成四笔账，一次说完。
+    /// 预演那一档的决策条（稿子⑫）：一笔还没发生的账 + 两次按下 + 一句退路。
+    /// **浮在**环的正下方那一片空白里（`PreviewBarHost`），不排在环下面——样稿 `.dbar`
+    /// 就是 `position:absolute`，条子出现时环不动。它为什么先离开右边那本账、后又离开
+    /// 环下面那一格，两笔实测数都记在 `heroCard` 里那一处调用上。
     ///
-    /// 「没量到的另算」这句不能省。以前把量到的和没量到的混在一句「共用了多少」里，
-    /// 人就把那 16.4 当成「清不动的东西」，而它下一秒就会缩。
-    private func lede(_ acct: RingAccount) -> some View {
-        let n = acct.places
-        let text: String
-        // 样稿 `.lede b` 只染一个数：能动走的那几 G。其余三个读数保持原样，
-        // 全句才有唯一一处重音——所以这里传的是 `human(reclaimable)`，不是「所有数字」。
-        var run = ""
-        if n == 0 {
-            text = L("这一圈里没有本工具动得了的地方——下面每一段都点名说了为什么动不了。")
-        } else {
-            run = human(acct.reclaimable)
-            text = LF("%1$d 处 %2$@ 动得了；已量到的其余 %3$@ 先不动，没量到的 %4$@ 另算。",
-                      n, run, acct.measuredIdleShown, acct.untouchedShown)
+    /// 「就这样清」走的是弧上那同一把刀：第一下 `arm(SweepRing.armAll)` 上膛（整圈描边、
+    /// 3.2 秒自己解除），第二下才搬。这里不另写一条「一键清理」——两条路砍得不一样，
+    /// 迟早有一天一边搬得动一边搬不动。
+    ///
+    /// 那盏灯的颜色只在这一条上出现（那颗主钮），跟环上那截光弧、盘心那个数、每一行小字
+    /// 末尾那截 `+N` 是同一种：这一档在屏幕上说的每一件事，都用同一种颜色认领。
+    private func previewBar(_ acct: RingAccount, width: CGFloat) -> some View {
+        let armed = model.armedPath == SweepRing.armAll
+        // 「比现在多」拿**印出来的**两个数相减，与盘心那两行同源：各按字节四舍五入一次，
+        // 这一条就跟盘心差出 0.1（`RingAccount` 上面记着这类实拍）。
+        let more = diffShown(acct.afterClearShown, acct.availableShown)
+            ?? human(acct.reclaimable + acct.inBin)
+        // 竖着排：这一条只有环那么宽（`maxWidth: ring`，最小那档实测 236 pt），
+        // 横排的两句话加两颗钮在那个宽度里一定折，折了就说不完这句话。
+        return VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(LF("全部清空后可用 %1$@ · 比现在多 %2$@", acct.afterClearShown, more))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                // 「撤销」说的是**这一步搬走的那些**，不是上面那个差值——差值里还含着
+                // 已经在废纸篓、等访达清空的那几 G，那部分不靠这颗钮，也不归这颗钮管。
+                //
+                // 上膛之后这两行**一个字都不改**，只换那颗钮（`就这样清` → `确认移入废纸篓 ⌘↵`）：
+                // 「已选中 N 处、再点一次才搬、3 秒不点自动取消、搬走后还能找回」这四件事实由
+                // 这一条（处数、找回）、那颗钮（再点一次）和盘心那一档（自动取消）分说完了，
+                // 少一件这一屏就少一句实话。
+                Text(LF("这一步点名的 %1$@，搬走后都能在废纸篓页撤销", cnt(acct.places, "处")))
+                    .font(theme.bodyFont(.caption2))
+                    .foregroundStyle(theme.palette.inkTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                ThemeButton(kind: .lamp,
+                            title: armed ? L("确认移入废纸篓") : L("就这样清"),
+                            // 第二下才配 ⌘↵：这一屏「回车=确认」只对已经上膛的那一把，
+                            // 第一下（上膛）不绑键，否则回车就成了「先举刀」的暗门。
+                            // 常驻的那几档更要守这条：静帧里这颗钮是看不见的，
+                            // 再绑上 ⌘↵ 就是一颗吃掉回车却什么都不做的键。
+                            shortcut: armed ? KeyboardShortcut(.return, modifiers: .command) : nil,
+                            keyHint: armed ? "⌘↵" : nil) {
+                    tapCleanAll(acct)
+                }
+                // 退路那颗钮**两档都在**。从前它只在预演那一档出现（上了膛之后「松开返回」
+                // 是一句假话——空格此刻没按着），而现在这一整棵子树常驻，少一颗钮就是换树，
+                // 换树正是这一档付不起的那一笔（见 `PreviewBarHost`）。话照旧各说各的：
+                // 预演里退路是松开空格，上了膛之后那一按该走的是卸膛，于是给它一句真话。
+                ThemeButton(kind: .ghost, title: armed ? L("取消") : L("松开返回")) {
+                    armed ? model.disarm() : model.endPreview()
+                }
+                .help(armed ? L("取消") : L("松开空格也回到现在这一档"))
+            }
         }
-        // 15 pt 是样稿 `.lede` 的字号。上一版走 `.callout`（macOS 上 11 pt），
-        // 这句「整圈怎么分成四笔账」比它下面那列账的正文还小一档，层级是倒的。
-        //
-        // 被点的这个数样稿写的是 `--lamp-hot` 并加一档字重（不是行里那个 `--lamp`）：
-        // 全页只有这一处用近白的暖金，它才是「这一屏第一句该被读到的东西」。
-        return Text(lampRun(text, run, SweepRing.lampHot(theme.palette.tint),
-                            base: theme.palette.inkSecondary,
-                            font: theme.prose(size: 15, weight: .medium)))
-            .font(theme.prose(size: 15))
-            // 样稿 `.lede` 有 `max-width:46ch`：导语排两行，下面那列账排满一列宽。
-            // 不限宽的话这一句会拉成一行 60 字，右边那列的宽度优势当场没了。
-            // 46ch 在 15 px 的 SF 上是 382 px，取整到 400 pt。
-            .frame(maxWidth: 400, alignment: .leading)
-            .lineSpacing(4)
-            .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .frame(width: width, alignment: .leading)
+        .background(theme.controlShape().fill(theme.palette.safeFG.opacity(0.07)))
+        .overlay(theme.controlShape().stroke(theme.palette.safeFG.opacity(0.22), lineWidth: 1))
+    }
+
+    /// 账本列的小节头：左边给这一列一个名字，右边一次说完「分了几类、其中几类现在动得了」。
+    ///
+    /// 「现在能清」数的是 `reclaim > 0` 的那几类——跟弧上不给动不了的段画「点我」亮沿
+    /// 是同一条判据（见 `GaugeSegment.reclaim`），所以这句话不会跟环上对不上账。
+    /// 代价读法下它是「4 类 · 2 类现在能清」：不可逆与不碰那两类 reclaim 恒为 0。
+    private func ledgerHead(_ acct: RingAccount) -> some View {
+        let clean = acct.segs.filter { $0.reclaim > 0 }.count
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(L("这本账"))
+                .font(theme.bodyFont(.caption2).weight(.semibold))
+                .kerning(1.5)
+                .foregroundStyle(theme.palette.inkTertiary)
+            Spacer(minLength: 8)
+            Text(LF("%1$d 类 · %2$d 类现在能清", acct.segs.count, clean))
+                .font(theme.numeric(size: 10))
+                .monospacedDigit()
+                .foregroundStyle(theme.palette.inkTertiary)
+                .fixedSize()
+        }
+        .padding(.bottom, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(theme.palette.separator).frame(height: theme.metric.stroke)
+        }
     }
 
     /// 主按钮：从「直接搬」改成入口。这一下不写盘，只把可回收的摆成一列，
     /// 让人先看每一处的代价，再决定勾哪几处（样稿 S1→S2）。
     ///
-    /// 按钮上的数必须和导语是**同一个来源**，否则同一屏隔两行长出两个「可回收」。
+    /// 按钮上的数必须和环上那本账是**同一个来源**，否则同一屏隔两行长出两个「可回收」。
     /// 样稿那张 mock 里只有一个数（2.3 GB / 6 处），真机上有两套：环上「动得了」只认
     /// 知识库标 safe 的那几处（这台量到 2.4 GB / 11 处），清单还要把 `redo`（删了要重新
-    /// 下载）摆出来让人自己决定，于是 27.2 GB / 32 处。拿清单那套写字节（导语 2.4 /
-    /// 按钮 27.2）或写处数（导语 11 / 按钮 32）都会在招牌画面上打架——2026-10-19 中英
-    /// 两边实拍各命中一次。所以这里取 `acct.places`，与导语同一个数；清单页头那句
+    /// 下载）摆出来让人自己决定，于是 27.2 GB / 32 处。拿清单那套写字节（环上 2.4 /
+    /// 按钮 27.2）或写处数（环上 11 / 按钮 32）都会在招牌画面上打架——2026-10-19 中英
+    /// 两边实拍各命中一次。所以这里取 `acct.places`，与环上同一个数；清单页头那句
     /// 「默认只勾了没影响的」负责解释多出来的那几行为什么也在列。
-    private func takeAllButton(_ acct: RingAccount) -> some View {
-        let n = acct.places
-        let can = n > 0 && !model.scanning && !model.cleanScanning
+    ///
+    /// 样稿那颗主钮写的是「把可回收的 **10.8 GB** 移进废纸篓」，两笔都不照搬（2026-10-22）：
+    /// 一是话——这一下不写盘，它是入口，写成"移进废纸篓"会让人以为按完就没了；二是字节——
+    /// 勾满时这里只报处数，合计留给确认页那颗灯钮（那一屏只许有一个总数），只在人自己挑过
+    /// 一部分时才报字节，因为那时"选中的这堆有多少"是本屏唯一还没人报过的数。
+    ///
+    /// 选择在清理清单里做，所以**一个都没选中时这颗按钮也得能按**：它是回到那张
+    /// 清单的唯一入口。禁用只有两种：还在量、或者这一圈本来就没有能收的东西。
+    private struct PickMainButton: View {
+        @ObservedObject var model: OverviewModel
+        let acct: RingAccount
+        let run: () -> Void
+
+        /// 此刻「这一笔」的合计：现读池子，不读上一次整页算账时留下的那一份旧值。
+        private var live: (bytes: Int64, places: Int, all: Bool) {
+            model.pickedTotals(of: acct.segs)
+        }
+        private var sub: Bool { !live.all }
+        private var count: Int { sub ? live.places : acct.places }
+        private var empty: Bool { count == 0 && acct.places == 0 }
+        private var can: Bool { !model.scanning && !model.cleanScanning && !empty }
+
+        // 全选中时沿用原来那句话，一个字的门槛都不给老用户添。
+        //
         // 扫描中禁用态不能写「这一圈里没有可回收的」：这句话是在报结论，而账还没量完。
         // S0 的规矩是当场说清「为什么按不动」——量完才能动手。
-        let title: String
-        if can {
-            title = LF("查看可回收的 %d 处 →", n)
-        } else if model.scanning {
-            title = L("量完才能动手")
-        } else if model.cleanScanning {
+        private var title: String {
+            if model.scanning { return L("量完才能动手") }
             // 盘量完了、缓存清单还在量。此时下面几行已经报出「可回收」，
             // 按钮却写「没有可回收的」——同一屏两句话打架，只是因为它还没数完。
-            title = L("正在量缓存…")
-        } else {
-            title = L("这一圈里没有可回收的")
+            if model.cleanScanning { return L("正在量缓存…") }
+            if empty { return L("这一圈里没有可回收的") }
+            if count == 0 {
+                // 东西都在，是人自己在清单里把它们都拿掉了。这里必须还能点开那张清单。
+                return L("打开清理清单挑要清的 →")
+            }
+            return sub ? LF("查看选中的 %1$d 处、共 %2$@ →", count, human(live.bytes))
+                       : LF("查看可回收的 %d 处 →", count)
         }
-        return ThemeButton(
-            kind: .lamp,
-            title: title,
-            isDisabled: !can
-        ) {
-            arcNote = nil
-            cleanDetail = nil
-            model.openFirstClean()
+
+        var body: some View {
+            ThemeButton(
+                kind: .lamp,
+                title: title,
+                isDisabled: !can,
+                // 样稿 `.act{width:100%}`：这一栏多宽它就多宽，右边不给空白。
+                // 原来它按标签长短收（实拍 159.5 pt，栏宽 363），于是主钮读起来像
+                // 账本里的一行而不是一屏的出口——出口是要人按的，不是给人挑的。
+                fillsWidth: true
+            ) { run() }
+            .accessibilityHint(L("先看清单，再决定清哪些"))
         }
-        .accessibilityHint(L("先看清单，再决定清哪些"))
+    }
+
+    /// 起一趟回收时叫一声：接下来那一格里，废纸篓的条子要等水珠落地才动。
+    ///
+    /// 判的是「这一次 `frac` 变化是不是那趟飞行带起来的」。用时间窗而不是把条子的值
+    /// 直接按着不放：`frac` 由账推（`inBin / (reclaimable + inBin)`），页面手里没有
+    /// 那条写入的口子，也不该再造一条。窗比 `dawnAt` 多出 0.2 秒：账落数走的是后台
+    /// 回填那一拍，可能比第一颗水珠砸进篓子那一下晚半拍，窗掐得太准会让那半拍走快档。
+    private func trayWaitsForLanding() {
+        trayLanding = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + ReclaimTimeline.dawnAt + 0.2) {
+            trayLanding = false
+        }
     }
 
     /// 废纸篓那一格：搬进来的已经占着盘，进度条说的是「这堆里已经收了多少」。
@@ -2595,7 +3639,8 @@ struct OverviewView: View {
                 .fixedSize()
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(ringGrey.opacity(darkSkin ? 0.13 : 0.18))
+                    Capsule().fill(SweepRing.greyInk(theme: theme, dark: darkSkin)
+                        .opacity(darkSkin ? 0.13 : 0.18))
                     // 斜纹填充，不是实心条：样稿写的是 `repeating-linear-gradient(115deg, …)`。
                     // 实心进度条在说「已经完成」，而这 4 px 说的是「收进来的还占着盘、
                     // 只是换了个格子住」——纹就是这两态的区别，抹平了就只剩颜色在说。
@@ -2614,12 +3659,32 @@ struct OverviewView: View {
                         }
                     }
                     .mask(alignment: .leading) {
-                        Rectangle().frame(width: geo.size.width * frac)
+                        // 动画挂在**遮罩自己**的宽度上，不挂给上面那个 ZStack——挂给 ZStack
+                        // 等于把整棵子树的几何都收进这一条动画的管辖：换读法时账本从七行缩成
+                        // 四行、这一行当场往上挪，而 `frac` 的分母也同时换了（就是下面那行
+                        // `%1$@ / %2$@` 里后半个数），
+                        // 于是「挪位置」被当成一次可插值的几何变化，条子按 1.04 秒的延迟慢慢
+                        // 爬到新格子，左边的「废纸篓」和右边的数却当场到位。2026-10-24 实拍
+                        // 错开两百多 pt：条子落在原位置下方的空地里，他那句「需要几秒钟才能
+                        // 对齐文字废纸篓」量的就是这一段。挂在遮罩上，能动的只剩这个宽度。
+                        Rectangle()
+                            .frame(width: geo.size.width * frac)
+                            // **只有回收那一趟**值得让它等：水珠到 `releaseAt`（1.04 秒）才真
+                            // 离开带面，第一颗在 `dawnAt`（2.09 秒）落进篓子——条子正好摊在
+                            // 这两格之间，落定的那一响也就是摊满的那一下。点完当场跳满等于说
+                            // 那趟飞行没发生过。
+                            //
+                            // 但这一档不能挂给**每一次**变化：换读法也在改 `frac`，而那一刻
+                            // 没有水珠在飞，等 1.04 秒读起来就是「卡了一下」。那种时候按稿子
+                            // 的 `.abar i{transition:width .5s}` 走。「减弱动态效果」下不飞，
+                            // 条子也就不等。
+                            .animation(trayLanding && !reduceMotion
+                                ? .easeInOut(duration: ReclaimTimeline.dawnAt - ReclaimTimeline.releaseAt)
+                                    .delay(ReclaimTimeline.releaseAt)
+                                : .easeInOut(duration: 0.5), value: frac)
                     }
                 }
                 .clipShape(Capsule())
-                // 走的是和那枚筹码同一个时长：一边飞、一边涨，两件事才算一件。
-                .animation(.easeInOut(duration: TrashFlight.travel), value: frac)
             }
             .frame(height: 4)
             Text(LF("%1$@ / %2$@", human(acct.inBin),
@@ -2642,9 +3707,9 @@ struct OverviewView: View {
             .disabled(!has)
             .opacity(has ? 1 : 0.32)
         }
-        // 这一格就是飞行的落点。整行报中心而不是那根条：筹码要落在「废纸篓」这三个字、
-        // 那根纹条、那个数和「去清空」组成的那一格上，落在那根 4pt 的条上偏得看不出来。
-        .heroAnchor("tray", in: Self.heroSpace)
+        // 这一格就是落点。报整行矩形：水珠只落在左半段（右半段是数与按钮，
+        // 溅上去读作「按钮坏了」），而那半段的宽度只有这一格知道。
+        .heroFrame("tray", in: Self.heroSpace)
     }
 
     private func fraction(_ v: Int64, of total: Int64) -> CGFloat {
@@ -2821,6 +3886,10 @@ struct OverviewView: View {
     /// 后者是导语和按钮的话。把它顶在圆心，快满的机器只留下一个比已用小三十倍的数，
     /// 人一眼读成「我这盘挺空」——正好读反。
     /// 扫描和上膛那两态仍然抢圆心，因为它们说的是此刻这件事，不是盘的常态。
+    ///
+    /// 这里**不写预演那一档**：那一档要说另一笔账（「全部清空后」，稿子⑩），句子由
+    /// `centerTopPreview` 单独给、`RingCenterReadout` 自己挑。页面一读 `model.previewing`
+    /// 就得订阅它，一发空格于是变成整页重算——`PreviewSignal` 上面记的正是这一笔。
     private func centerTop(_ acct: RingAccount) -> String {
         if model.scanning { return L("正在扫描") }
         if model.armedPath != nil { return L("确认移入废纸篓") }
@@ -2846,12 +3915,36 @@ struct OverviewView: View {
     /// 第二行留给出完力之后的样子——「还能腾出」没消失，只是从招牌降成承诺。
     private func centerCap(_ acct: RingAccount) -> String {
         if model.scanning {
-            let head = LF("已读 %1$@ / %2$@", human(model.covered), human(acct.total))
-            // 换行只在两个词条外面拼：词条里带换行的话，词表对账那条规矩当场就破了。
-            return head + "\n" + scanEtaLine(acct.total)
+            // 处数摆最前：一趟整盘扫描里「十五处走了三处」比「读掉几 G」更直接地说清
+            // 这一圈还没量完。字节会骗人——一处 `~/Library` 顶得掉三成进度，
+            // 走完它像走完了全程，其实后面还有十二处没轮到。
+            // 那句「还没量完」不是废话：圆心那个大数字是**量盘**的百分比，
+            // 而这一屏别处出现的百分比（页头那颗）说的也是它——先说清这一圈是活的，
+            // 人才不会把 7% 读成「只回收了 7%」。
+            // 字节数与整盘分母都不在这里重复：账目列底下那句「已读 x / y · 只读」带着它们，
+            // 同一屏摆两处同样的除法只是噪声。
+            //
+            // 这里原来还有**第二行**「还剩约 N 分钟 · 只读」，2026-10-24 删了。那个数是拿
+            // `covered / 分母` 线性反推的，两头都不成立：
+            // ① **分母不可达**——这一圈量的是 69 处目标目录，不是整块已用空间。真机走完那一趟
+            //    `covered` 只到 90 G，而盘上已用 286.8 G，所以剩余时间永远收敛不到 0；
+            // ② **每处的耗时差一个量级**——头一处 `~/Desktop` 自己就占 37 G，换成按处数推一样歪。
+            // 实测那一趟 **86 秒**走完，圆心写的却是「还剩约 3 分钟」（2026-10-24 实拍那张：
+            // 18 % · 已量 66/69 处 · 还剩约 3 分钟）。一句没根据的倒计时比一句「不知道」更坏——
+            // 人就在这行字前面把软件关掉了。
+            // 样稿扫描态的圆心本来就只有一行（`diskwise-v2.6-crystal.html:2904`、`:2915`
+            // 两处 `coreCap.textContent='已量 N/M 处 · 这一圈还没量完'`），没有剩时间这一说。
+            return LF("已量 %1$d/%2$d 处 · 这一圈还没量完",
+                      model.done, model.scanTargets.count)
         }
         if model.armedPath != nil {
             return L("再点一次才移进废纸篓 · 3 秒不点自动取消")
+        }
+        // 代价读法不写「全部清空后可用」：这里的 `reclaimable` 是零代价＋需重下两类的
+        // 可勾字节，跟按空间那本账的 `reclaimable`（只认 safe）不是同一个数。
+        // 同一屏摆两个「清空后可用」，就是这一屏最容易塌的那种假账。
+        if costReading {
+            return LF("整块盘 %1$@ · 已用 %2$@", acct.totalShown, acct.usedShown)
         }
         let head = LF("整块盘 %1$@ · 已用 %2$@", acct.totalShown, acct.usedShown)
         // 还能搬走的 + 已经在废纸篓还没让位的，加回可用才是「走完这一步之后」。
@@ -2861,79 +3954,20 @@ struct OverviewView: View {
             : L("这一圈里没有本工具动得了的东西"))
     }
 
-    /// 页头右上那枚进度胶囊：一圈细环 +「扫描中 · 58%」。
-    ///
-    /// 不放进圆心是因为圆心已经被百分比占着；这一枚的作用是**在滚动之后**
-    /// 也还看得见「仍在量」，而页头钉在滚动区外面。
-    private func scanBadge(_ pct: Int) -> some View {
-        HStack(spacing: 7) {
-            ZStack {
-                Circle()
-                    .stroke(theme.palette.separator, lineWidth: 2)
-                Circle()
-                    .trim(from: 0, to: CGFloat(max(0, min(100, pct))) / 100)
-                    .stroke(theme.palette.tint,
-                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            }
-            .frame(width: 13, height: 13)
-            Text(LF("扫描中 · %1$d%%", pct))
-                .font(theme.bodyFont(.caption))
-                .monospacedDigit()
-                .foregroundStyle(theme.palette.inkSecondary)
-                .fixedSize()
-        }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 6)
-        .overlay(Capsule().stroke(theme.palette.separator, lineWidth: 1))
-    }
-
     /// 扫描百分比：按**整块盘**算，不按已用。样稿 S0 的圆心是 286.8 / 494.4 = 58%，
     /// 读数头也停在这条边界上——两处拿同一个分母，图才和数对得上。
     private func scanPercent(_ total: Int64) -> Int {
         Int((Double(model.covered) / Double(max(1, total)) * 100).rounded())
     }
 
-    /// 「还剩约 N 秒 · 只读」。比例太小的时候不报：头两处目录量完时，
-    /// 用 2% 反推出来的剩余时间能从 10 秒跳到 3 分钟，报它比不报更像故障。
-    private func scanEtaLine(_ total: Int64) -> String {
-        let frac = Double(model.covered) / Double(max(1, total))
-        let elapsed = model.scanStartedAt.map { scanTick.timeIntervalSince($0) } ?? 0
-        guard frac > 0.02, elapsed > 1 else { return L("只读 · 正在估算剩余时间") }
-        let left = elapsed * (1 - frac) / frac
-        guard left.isFinite, left > 0 else { return L("只读 · 正在估算剩余时间") }
-        let seconds = Int(left.rounded())
-        // 按秒报只在两分钟以内：再长就是「还剩约 754 秒」，人得当场做除法。
-        return seconds < 90
-            ? LF("还剩约 %1$d 秒 · 只读", seconds)
-            : LF("还剩约 %1$d 分钟 · 只读", (seconds + 59) / 60)
-    }
-
-    /// 扫描期间那道光停在哪儿：按**量到的字节**走，不是按时间编一段动画。
-    /// 环是按字节长的，所以光束永远钉在「量到的边界」上——它慢下来就是真慢下来。
+    /// 量盘这一圈走到哪儿了：按**量到的字节**算，不按时间编一段动画。
+    ///
+    /// 它只喂 `SweepRing.scanProgress` 一个入口，那条上挂着两样东西：环底下那截进度条，
+    /// 和减弱动态/静图里那道光的落点（`RingLayers.scanBeam` 的静态分支）。圆心那个百分比
+    /// 走的是 `scanPercent`，同一个分子分母各算各的。真机上那道光**不吃这条**——它匀速绕环，
+    /// 理由和节拍都记在 `scanOrbitSeconds` 那条上：进度由数报，光只报「还在转」。
     private func scanFraction(_ u: VolumeUsage) -> Double {
         min(1, max(0, Double(model.covered) / Double(max(1, u.total))))
-    }
-
-    /// 环上刚点出来的那句话。上膛那一版跟着 `armedPath` 走而不是跟着 @State：
-    /// 3.2 秒到点自己解除，这句也得跟着消失，不然弧都暗下去了话还挂着。
-    ///
-    /// 数与名字都从 `acct` 上按 `armKey` 查，不再拿 `armedPath` 当路径去 `arcSize`：
-    /// 「其他已统计」那条弧的键不是路径，且它真能搬走的只是名下点名的几处。
-    private func arcFeedback(_ acct: RingAccount) -> (text: String, urgent: Bool)? {
-        if let armed = model.armedPath {
-            if armed == SweepRing.armAll {
-                return (LF("已选中这一圈里动得了的全部 %1$d 处、共 %2$@。再点一次按钮才移进废纸篓；3 秒不点自动取消，移进去之后还能在废纸篓页找回。",
-                           acct.places, human(acct.reclaimable)), true)
-            }
-            guard let seg = acct.segs.first(where: { $0.armKey == armed }) else { return nil }
-            let what = LF("把它名下点名的 %1$@、共 %2$@ 移进废纸篓",
-                          cnt(seg.targets.count, "处"), seg.reclaimShown)
-            return (LF("已选中「%1$@」：%2$@。再点一次那一段确认；3 秒不点自动取消，移进去之后还能在废纸篓页找回。",
-                       seg.label, what), true)
-        }
-        if let note = arcNote { return (note, false) }
-        return nil
     }
 
     /// 这一行要把整块盘的账一路减到底：494 = 可用 128 + 已用 366，已用 = 量到 320 + 量不到 46。
@@ -3085,22 +4119,6 @@ struct OverviewView: View {
                   model.extraScanRoots.count, model.extraScanRoots.joined(separator: "、"))
     }
 
-    private func callout(text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(theme.palette.warnFG)
-            Text(text)
-                .font(theme.bodyFont(.caption))
-                .foregroundStyle(theme.palette.warnFG)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.controlShape().fill(theme.palette.warnBG))
-    }
-
     /// 环形这一屏的账本：弧、以及从同一批数派生出的四句话。
     ///
     /// 只算一次。导语、圆心、主按钮、废纸篓那条进度共用「还能腾出多少」——各算各的
@@ -3171,33 +4189,31 @@ struct OverviewView: View {
         }
     }
 
-    /// 环上灰弧的底色。样稿的灰从来不是中性灰：`.seg.dust` 写的是
-    /// `rgba(150,164,182,.30)`——一条**蓝灰**。深皮这一圈底下垫着金色余晖，
-    /// 正文 ink 透上去读出来是芥末（实拍量到蓝道比红道低 47，样稿只低 19）。
-    /// 把蓝道抬回去，灰才读成灰；透明度按 247/164 补回亮度，灰阶三档的落差原样不动。
-    private var ringGrey: Color {
-        darkSkin ? Color(red: 150 / 255, green: 164 / 255, blue: 182 / 255) : theme.palette.ink
-    }
-
-    /// 扫描中的那本账：只把**量到的**画出来，其余留给暗轨。
+    /// 扫描中的那本账：**账目列只报量到的，环上那一条弧都不画**。
     ///
     /// 跟 `ringAccount` 分家的理由不是省事，是那本账里绝大多数属性此刻还不存在：
-    /// 「没量到 / 系统可清除 / 空闲」是量完之后的结论，扫描中把它们画成有值的弧
-    /// 等于先报一个还没算出来的答案。这一本只有三种东西：
+    /// 「没量到 / 系统可清除 / 空闲」是量完之后的结论，扫描中把它们写成有值的行
+    /// 等于先报一个还没算出来的答案。所以账目列只有前三名和「其他已统计」是真数，
+    /// 其余几行留着「排队中」占位；整圈由一段透明填充补满。
     ///
-    /// - 已经量完的前三名：值是真的，弧是亮的，但 `reclaim` 记 0——量完之前不许上膛。
-    /// - 「其他已统计」：= 已读 − 前三名，每完成一处就长一截；它还没闭合，所以不给数。
-    /// - 一段透明填充：把整圈补满，让 `ringArcs` 按整块盘的比例分角度。
-    ///   没有它，量到一半的时刻整圈会被归一成「已量到的那点东西占满一圈」。
+    /// 环上那一条都不画是样稿说了算的：`scan()` 一进门就把每条弧 `opacity=0`，
+    /// 量完才由 `reveal()` 按 105 ms 一档逐段贴回来。扫描那一屏环带只回答一个问题
+    /// ——「这一圈还没量完」——答它的是暗轨、刻度、那道读数头和盘心下面那截进度线，
+    /// 不是字节。
+    ///
+    /// 这里曾把量完的前三名画成亮弧（值是真的，先看见先安心）。2026-10-23 真机实拍
+    /// 把它否了：那一屏扫到 42% 时环上是 40.5 / 38.9 GB 两条暗灰弧 + 「其他已统计」
+    /// 81.0 GB 一整块灯芯蓝（还带着 40.5、38.9 两枚弧上数），另外半圈是死黑轨道。
+    /// 带中圈逐道量下来最亮 L 161、最暗 L 18——一圈里亮差 9 倍，他看到的就是「颜色严重不均」。
+    /// 量完之前环上没有结论，也就不该有结论的颜色。
     ///
     /// 账目列固定七行（前三 + 其他 + 没量到 + 系统可清除 + 空闲），跟量完那一屏
     /// 是同一本账的名字；屏幕上是**这一行**从「排队中」换成「已量完」，不是一个新列表。
     private func scanningAccount(_ u: VolumeUsage) -> RingAccount {
         let dark = darkSkin
-        let warm = dark ? Color(red: 247 / 255, green: 246 / 255, blue: 243 / 255)
-                        : theme.palette.ink
-        // 量到了、还不许说能收：跟正常态那档「动不了」同一个灰，不借灯色许愿。
-        let measured = warm.opacity(dark ? 0.26 : 0.09)
+        // 量到了、还不许说能收：跟正常态那档「动不了」同一个灰（配方在「环上的墨」），
+        // 不借灯色许愿。
+        let measured = SweepRing.blockedInk(theme: theme, dark: dark)
         let ghost = theme.palette.inkTertiary
         let lamp = SweepRing.lamp(theme.palette.tint)
         let top = Array(model.hotspots.prefix(3))
@@ -3241,14 +4257,12 @@ struct OverviewView: View {
         out.append(GaugeSegment(label: L("空闲"), value: 0, color: ghost,
                                 tone: .neutral, sub: L("排队中")))
         for i in out.indices { out[i].sizeText = out[i].value > 0 ? human(out[i].value) : "—" }
-        var ringSegs: [GaugeSegment] = []
-        let unmeasured = max(0, u.total - model.covered)
-        ringSegs.append(contentsOf: out.filter { $0.value > 0 })
-        if unmeasured > 0 {
-            // 透明不等于不存在：它占着剩下的角度，环的暗轨才是「还没量到的那一圈」。
-            ringSegs.append(GaugeSegment(label: "", value: unmeasured,
-                                         color: .clear, tone: .neutral))
-        }
+        // 整圈一段透明：环上此刻只该有暗轨。`label` 留空，弧上那枚数与命中映射本就
+        // 按「有没有名字」筛（`Components.swift` 的 `arcLabel` 门槛），所以不会有人
+        // 在半圈空气上读到一个 500 GB。
+        let ringSegs: [GaugeSegment] = [GaugeSegment(label: "", value: u.total,
+                                                     color: .clear, tone: .neutral)]
+        model.recordHoverLabels(out.filter { $0.value > 0 }.map(\.label))
         return RingAccount(segs: out, ringSegs: ringSegs, reclaimable: 0,
                            measuredIdle: model.covered, untouched: 0, inBin: 0,
                            free: u.free, purgeable: u.purgeable, total: u.total)
@@ -3282,33 +4296,12 @@ struct OverviewView: View {
         let topSum = top.reduce(Int64(0)) { $0 + $1.size }
         let netTopSum = top.reduce(Int64(0)) { $0 + model.arcSize(of: $1.path) }
         let ded = model.ringDeduction
-        // 三档不上色的底：动得了的段用主色，其余只能靠灰的深浅分层。
-        //
-        // 这三档必须**分得开**，而且必须**比金色暗**。上一版 blocked 0.17 / unmeasured 0.45 /
-        // 空闲用 separator，实拍逐段量出来是 (71,68,62)、(70,65,55)、(58,52,44)——三档灰差不到 12，
-        // 眼睛读成「一坨等大的灰」，也就是默认饼图。原型敢让空闲段几乎不画，
-        // 是因为它把「一整块盘」这个形状交给轨道去闭合。
-        // 0.10 / 0.22 是照着轨道 0.035 这条底线排的，三档每一步都看得见，
-        // 而最亮那档也还不到金色的一半。
-        // 深皮换成 `ringGrey` 之后透明度按 247/164≈1.5 乘上来补回亮度，分层原样不动：
-        // 实拍带中圈灰弧 L 77.6（金色那档 215），而红道减蓝道从 ink 版的 +47 收到 +23
-        // （样稿同位 +20）——环带上的芥末味就是这么没的。
-        // 2026-09-25 用 measure_ring.py 在**同名槽位**上重量了一遍，三档全都比样稿暗
-        // 20~34 个灰阶：我这边 (63,61,53) / (82,84,80) / (51,48,35)，样稿带中圈
-        // mix(其他已统计) (97,89,77)、dust(没量到) (93,90,88)、free(空余) (71,60,47)。
-        // 于是整圈只剩那一条金弧看得见，「这一圈 = 整块盘」当场不成立——
-        // 样稿那张图首先是一块**亮**的盘，其次才是金。
-        // 分层也不再按「越亮越要紧」排：样稿的 mix 与 dust 一样亮（差 4 个灰阶），
-        // 把它们分开的是色温，R−B 一个 +20 一个 +5。所以这里暖＝量到了、冷＝没量到，
-        // 空闲单独压到 L≈62 当这条带的地板（它比轨道亮，但一眼读得出「没画东西」）。
-        // 差多少按当天的实测比补：样稿带中圈 / 我这边 = 97/86、93/84、71/61，
-        // 于是 0.23→0.26、0.40→0.44、0.09→0.105。透明度到像素不是线性的（底下还压着
-        // 轨道和卡面），所以补完必须再量一遍，不能当算完了。
-        let warm = darkSkin ? Color(red: 247 / 255, green: 246 / 255, blue: 243 / 255)
-                            : theme.palette.ink
-        let blocked = warm.opacity(dark ? 0.26 : 0.09)       // 量到了，动不了：暖白那一档
-        let unmeasured = ringGrey.opacity(dark ? 0.44 : 0.16) // 压根没量到：冷灰那一档
-        let freeArc = warm.opacity(dark ? 0.105 : 0.025)      // ≈ 轨道，几乎不画但要闭合整圈
+        // 三档不上色的底：动得了的段用主色，其余只能靠灰的深浅分层。每档为什么是那个
+        // 透明度、实拍量到哪几个数，全记在 `Components.swift` 的「环上的墨」那一段上
+        // （首次运行那一屏的示例环读的是同一份配方，所以它不再长在这里）。
+        let blocked = SweepRing.blockedInk(theme: theme, dark: dark)   // 量到了，动不了
+        let unmeasured = SweepRing.unmeasuredInk(theme: theme, dark: dark)  // 压根没量到
+        let freeArc = SweepRing.freeInk(theme: theme, dark: dark)      // ≈ 轨道，闭合整圈
         var out: [GaugeSegment] = []
         // 分段算术由 Core 的纯函数把关（自检钉的是「四块加起来等于已用」）；
         // 不成立就两块都不画，宁可留一块大的「没量到」也不画一张对不上的图。
@@ -3370,8 +4363,7 @@ struct OverviewView: View {
                 // 虚线：这些字节还占着盘，只是换了地方。画成实线就是在说「已经腾出来了」，
                 // 而真正让位要等用户在废纸篓页交给访达。
                 out.append(GaugeSegment(label: L("本次移入废纸篓"), value: s.trash,
-                                        color: SweepRing.lamp(theme.palette.tint)
-                                            .opacity(dark ? 0.62 : 0.48),
+                                        color: SweepRing.movedInk(theme: theme, dark: dark),
                                         tone: .moved,
                                         sub: L("还占着盘 · 去废纸篓页才让位"),
                                         jumpTo: Self.trashAnchor, dashed: true,
@@ -3408,11 +4400,103 @@ struct OverviewView: View {
         // 宁可各说各的，也不许凑出一列加得起来的假账。
         let sizeTexts = addableHumanColumn(out.map { $0.value }, total: u.total)
         for i in out.indices { out[i].sizeText = sizeTexts[i] }
+        // 「这一笔」的两个数由 `pickedTotals` 现读池子：清单里取消过的项关掉再回来
+        // 还得算数，这本账不替它缓存一份旧值。
+        model.recordHoverLabels(out.filter { $0.value > 0 }.map(\.label))
         return RingAccount(segs: out, reclaimable: reclaim,
                            measuredIdle: max(0, netTopSum - topReclaim)
                                         + max(0, restMeasured - restReclaim),
                            untouched: untouched, inBin: trash,
                            free: u.free, purgeable: u.purgeable, total: u.total)
+    }
+
+    /// 「按代价」那一本账：同一块盘，按**清掉它要付什么**切成四段。
+    ///
+    /// 不照样稿给原来那批弧换一套色——那本账四行混着两个分母（零代价按整段体积、
+    /// 需重下按可收量），四行加起来 62.4 GB 而盘是 96 GB。这里四段是**字节的划分**：
+    /// 每一段字节归给覆盖它的最轻那一档，四段相加正好是整块盘（`CostLedger` 的恒等式，
+    /// SelfTest 钉着）。所以环上的角度、行尾的数、行尾「各段之和」是同一次除法。
+    ///
+    /// 前两类里池子真有的那些处才带 `reclaim`：它们进清理清单，改的就是主按钮那一笔，
+    /// 和缓存页是同一批路径。不可逆与不碰 `reclaim = 0`——它们不进一键，
+    /// 给一条能点的弧就是把「本工具不碰」说成了一个选项。
+    ///
+    /// 桶里的字节：`free` 是池里 `safe` 那些处，`poolTargets` 与 `CostLedger` 同源，
+    /// 所以「零代价」那一行的数就是那几处的合计。`redo` 会少一截可能：某个 `redo`
+    /// 父项底下压着 `safe` 子项时，池子只摆子项（按整条搬更危险），父项自己不摆——
+    /// 那一截仍归「需重下」，但不在这一笔里，行内小字会说清。
+    private func costAccount(_ u: VolumeUsage) -> RingAccount {
+        let ledger = model.costLedger ?? CostLedger(sums: CostSums(), total: u.total)
+        let freeTargets = model.poolTargets(.safe)
+        let redoTargets = model.poolTargets(.redo)
+        let freePickable = freeTargets.reduce(Int64(0)) { $0 + $1.size }
+        let redoPickable = redoTargets.reduce(Int64(0)) { $0 + $1.size }
+        let freeBytes = ledger.bytes(.free)
+        let redoBytes = ledger.bytes(.redo)
+        let irreversible = ledger.bytes(.irreversible)
+        let off = ledger.bytes(.off)
+        var out: [GaugeSegment] = [
+            GaugeSegment(label: L("零代价"), value: freeBytes,
+                         color: costColor(.free), tone: .cost,
+                         sub: freePickable >= freeBytes
+                              ? L("缓存与构建产物 · 都能一键收走，删了会自己长回来")
+                              : LF("缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来",
+                                   human(freePickable)),
+                         reclaim: freePickable, targets: freeTargets,
+                         hint: L("零代价：缓存与构建产物，删了会自己长回来。勾上就进这一笔。"),
+                         costClass: true),
+            GaugeSegment(label: L("需重下"), value: redoBytes,
+                         color: costColor(.redo), tone: .cost,
+                         sub: costRedoNote(redoPickable, of: redoBytes),
+                         reclaim: redoPickable, targets: redoTargets,
+                         hint: L("需重下：删了要重新下载或重建。勾上就进这一笔；缓存页默认不勾它。"),
+                         costClass: true),
+            GaugeSegment(label: L("不可逆"), value: irreversible,
+                         color: costColor(.irreversible), tone: .cost,
+                         sub: L("删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认"),
+                         hint: L("不可逆：删了就没了。一键清从不碰它。"),
+                         costClass: true),
+            GaugeSegment(label: L("不碰"), value: off,
+                         color: costColor(.off), tone: .cost,
+                         sub: L("空闲、系统区与知识库不认得的字节 · 本工具不动"),
+                         hint: L("不碰：空闲、系统区，以及知识库不认得的字节。"),
+                         costClass: true),
+        ]
+        let sizeTexts = addableHumanColumn(out.map { $0.value }, total: u.total)
+        for i in out.indices { out[i].sizeText = sizeTexts[i] }
+        model.recordHoverLabels(out.filter { $0.value > 0 }.map(\.label))
+        return RingAccount(segs: out, reclaimable: freePickable + redoPickable,
+                           measuredIdle: 0, untouched: 0,
+                           inBin: model.movedLedger.trashArc,
+                           free: u.free, purgeable: u.purgeable, total: u.total)
+    }
+
+    /// 「需重下」那一行的小字：只有池里漏掉一截父项时才报「其中多少」。
+    /// 那一截**不在这一笔里**，但不能写成「回缓存页逐条看」——池子本来就没有它，
+    /// 那句会把一个不存在的入口指给用户。
+    private func costRedoNote(_ pickable: Int64, of bytes: Int64) -> String {
+        if pickable <= 0 { return L("删了要重新下载或重建 · 这次不收它") }
+        if pickable >= bytes { return L("删了要重新下载或重建 · 都能一键收走") }
+        return LF("删了要重新下载 · 其中 %1$@ 这次收得走，其余不在这一笔里", human(pickable))
+    }
+
+    /// 四类的颜色。用皮肤自己的语义色，六套皮各自成立：绿=删了会自己长回来，
+    /// 琥珀=要重下，红=不可逆，灰=不碰。不另配一份绝对色——那会让换肤时
+    /// 这一圈与全站的语义色脱节。
+    private func costColor(_ tier: CostTier) -> Color {
+        switch tier {
+        case .free: return theme.palette.safeFG
+        case .redo: return theme.palette.warnFG
+        case .irreversible: return theme.palette.danger
+        case .off: return theme.palette.inkTertiary
+        }
+    }
+
+    /// 行尾「各段之和」印什么。代价四类相加是 `CostLedger.accounted`：平时恒等于整盘，
+    /// 用量快照落后时才会多出来（多出多少由紧挨着的那行警告说明）。
+    private func segmentsSumText(_ acct: RingAccount) -> String {
+        if costReading, let led = model.costLedger { return human(led.accounted) }
+        return human(acct.total)
     }
 
     /// 前几名各自那一行小字。三种情况三句话说，别拿一句套三种：
@@ -3435,9 +4519,12 @@ struct OverviewView: View {
 // MARK: - 摊开后的下一级行
 
 /// 明细往右缩进多少：跟上方账目行的**名字**对齐在同一条竖线上（行内边距 8 +
-/// 展开槽 12 + 间距 12 + 色块 8 + 间距 12）。明细行、条子、尾巴那句对账共用这一个数——
-/// 差一截的话那句对账就悬在列表外面，读不出它说的是哪一组。
-private let drillIndent: CGFloat = 52
+/// 行首那一格 16 + 间距 12 + 展开槽 12 + 间距 12）。明细行、条子、尾巴那句对账共用这
+/// 一个数——差一截的话那句对账就悬在列表外面，读不出它说的是哪一组。
+///
+/// 行首那一格是 16 pt 的槽（色块居中），这一档跟着从 52 抬到 60：
+/// 两个数必须由同一份行首尺寸说话，否则明细比名字低半截。
+private let drillIndent: CGFloat = 60
 
 /// 摊开后的一行明细。行解剖跟账目行同一副：图形在名字左边、名字在上、条子在下、
 /// 数在右肩，只有真动得了的那一档给灯色。

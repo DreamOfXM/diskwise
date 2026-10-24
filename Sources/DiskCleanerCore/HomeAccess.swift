@@ -10,11 +10,20 @@ import Foundation
 //   3. 没给到之前，界面只显示授权页，不显示任何扫描结果。
 
 /// 不受容器改写的真实家目录。
+///
+/// 取一次存住：本进程的 passwd 项在运行期不会变，而 `homeDir()` 是**每个候选路径**都要
+/// 走到的（`isDeletable` → `homePath`），每趟都去问一次目录服务是白花钱。
+/// 嵌套 `struct` 的 `static let` 是 Swift 里线程安全的一次性初始化写法。
 public func realHomeDir() -> URL {
-    guard let pw = getpwuid(getuid()) else {
-        return FileManager.default.homeDirectoryForCurrentUser
+    struct Cached {
+        static let home: URL = {
+            guard let pw = getpwuid(getuid()) else {
+                return FileManager.default.homeDirectoryForCurrentUser
+            }
+            return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir), isDirectory: true)
+        }()
     }
-    return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir), isDirectory: true)
+    return Cached.home
 }
 
 public enum HomeAccess {
@@ -26,9 +35,12 @@ public enum HomeAccess {
 
     /// 当前进程是否跑在沙盒里。运行时判定，不靠编译开关——同一个二进制在两种环境下
     /// 都该表现正确，而且容器路径本身就是最直接的证据。
-    public static var runsSandboxed: Bool {
+    ///
+    /// 用 `let` 而不是算一次的 `var`：沙盒状态进程活着期间不会变，而这条判断要造一个
+    /// URL 再比子串，`homeDir()` 在每个候选路径上都会走到它，实测在重归缓存账的热路径里
+    /// 占得不小一块。Swift 的全局 `let` 首次访问时初始化且线程安全（自检并发跑也不会打架）。
+    public static let runsSandboxed: Bool =
         FileManager.default.homeDirectoryForCurrentUser.path.contains("/Library/Containers/")
-    }
 
     /// 需要授权但还没拿到，界面就该停在授权页。
     public static var needsGrant: Bool { runsSandboxed && granted == nil }
@@ -106,7 +118,7 @@ public enum HomeAccess {
 /// DISKWISE_HOME_SHIM 指到一棵假目录树时，全盘扫描/废纸篓统计都只在那棵树里跑。
 /// README 截图靠它，免得把作者的真实目录晒出去。
 public func homeDir() -> URL {
-    let shim = ProcessInfo.processInfo.environment["DISKWISE_HOME_SHIM"] ?? ""
+    let shim = envString("DISKWISE_HOME_SHIM")
     if !shim.isEmpty {
         return URL(fileURLWithPath: (shim as NSString).expandingTildeInPath, isDirectory: true)
     }

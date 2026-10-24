@@ -13,9 +13,9 @@ import SwiftUI
 // 但 shim 只管我们自己的路径解析，管不到 Docker 页：那一页问的是 `docker` 命令背后的
 // 真守护进程，镜像名照实进图。所以 `06-docker` 只能当本机取证用，别搬进 README。
 //
-// DISKWISE_SKIN=<皮肤 id> 指定用哪套皮肤拍。注意这只是给渲染器注入 Theme，
-// 不写解锁记录——`Channel.showsPricing` 为真时进阶皮肤在正常启动路径里依然要解锁才能穿上，
-// 默认（false）则全部可用。
+// DISKWISE_SKIN=<皮肤 id> 指定用哪套皮肤拍：走 `useForSnapshot`，连「使用中」徽章一起换，
+// 但不写偏好、不写解锁记录——`Channel.showsPricing` 为真时进阶皮肤在正常启动路径里
+// 依然要解锁才能穿上，默认（false）则全部可用。
 //
 // 用法（两语言 × 多皮肤，逐页出图）：
 //   DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots/en-dawn \
@@ -24,6 +24,12 @@ import SwiftUI
 // 只拍某几页（定位问题不必重跑全套）：再加 DISKWISE_ONLY=overview,dup
 // 要拍「底部那颗全选按下去 / 再按回来」：再加 DISKWISE_PICK=dup 或 dup,caches，
 //   命中的页各补两张 -selected / -deselected。
+// 要拍首次运行那一屏（引导页）：再加 DISKWISE_FIRST_RUN=1。总览那一张就是盖着引导页的画面，
+//   外面再补一张 01-overview-after-guide.png——按的是「以后再说」那颗的同一个 action，
+//   拍的是收回之后露出来的那一页。这一趟不往盘上登记「已看完」，同一台机器可以反复拍。
+//   再加 DISKWISE_SKIN_FLIP=<皮肤 id>，收回之前会先在这一屏上真换一次皮肤，
+//   补 01-overview-after-skin-flip.png——引导页那排皮肤按钮挂的话是「换的是整张脸」，
+//   六趟各拍一张照不出这句话（它是关于「点下去会变」的）。这张和语言翻转一样会写偏好。
 // 要拍「点开页顶那句才存在的名单」（sheet 自己一扇窗，父窗那张没有它）：
 //   再加 DISKWISE_SHEET=dup，补 04-duplicates-envlist.png。
 // 要拍「列表页刚进去、一行都还没出来」那张加载态：再加 DISKWISE_MIDSCAN=overview,nodemodules
@@ -32,6 +38,9 @@ import SwiftUI
 // 01-overview-drill.png（列表里没有这个名字时就不补，只拍普通那张）。
 // 环形那道绕环的反光在静止帧里默认钉在正上方；要取证「它在走」：
 //   DISKWISE_RING_GLINT=110 / 230 各跑一趟，三张并排看亮斑落点。
+// 量盘那几秒绕环走的**光束**另有一只旋钮：配 DISKWISE_RING=scan，再取
+//   DISKWISE_SCAN_BEAM=0 / 90 / 180 / 270 各跑一趟，四张并排看它落在环上哪一格
+//   ——反光留在默认那一格不动，只有它在挪，这才分得清图里那团亮斑是谁。
 // 要取证余晖「在呼吸」：DISKWISE_RING_BREATH=0 与 =1 各一张，两档求差。
 // 要取证「搬进废纸篓那一枚筹码画在哪」：DISKWISE_FLIGHT=<0~1>，0 = 刚离开环心、
 //   0.5 = 抛到最高、1 = 已落进废纸篓那一格。它整个 0.62 秒都在动，静帧判定等不到它停。
@@ -104,6 +113,41 @@ enum SnapshotMode {
         }
     }
 
+    /// DISKWISE_FIRST_RUN=1：把首次运行那一屏顶出来，截图模式和正常启动都认。
+    ///
+    /// 这一屏只在**没写过盘**的机器上出现，而批量截图像数最多的那几台机器早就写过了——
+    /// 不覆盖就只能换一台干净用户，或者往 plist 里手动删键（沙盒包里那条更难使，
+    /// 见 `requestedLang` 上面那段）。覆盖只影响画不画，不往盘上写：
+    /// `Prefs.finishFirstRun()` 在这一趟里收画面、但跳过那条登记，
+    /// 所以截图不会把真用户的引导吃掉。带上它，总览那一页会多出两张图——
+    /// `01-overview.png` 是盖着的引导页，`01-overview-after-guide.png` 是真按一次之后露出来的那一页。
+    /// 不认这个变量时截图那一趟**默认不画**这一屏，见 `Prefs.init` 里那句判断。
+    static var forceFirstRun: Bool {
+        (ProcessInfo.processInfo.environment["DISKWISE_FIRST_RUN"] ?? "") == "1"
+    }
+
+    /// DISKWISE_GUIDE=1~4：把「清理说明」那四页钉在第 N 页拍一张。
+    ///
+    /// 理由同 `forceFirstRun`：这一套是盖在总览上的模态，不认这个变量时截图那一趟
+    /// 压根不画它（见 `Prefs.init`），于是这四页永远没有证据图。四页要各拍一张，
+    /// 跑四趟、每趟换一个号——和 `DISKWISE_FLIGHT` 逐相位拍动效是同一个套路。
+    static var guidePage: Int? {
+        guard let raw = ProcessInfo.processInfo.environment["DISKWISE_GUIDE"],
+              let n = Int(raw), (1...4).contains(n) else { return nil }
+        return n
+    }
+
+    /// DISKWISE_READ=cost|space：把总览那一圈钉在指定读法上拍一张。
+    ///
+    /// 按代价那一副面孔只在页头那颗开关按下去之后才存在，而截图这一路没有键鼠。
+    /// 覆盖只决定**这一趟开局读到哪一档**，不往盘上写（`Prefs.setOverviewRead` 认这条），
+    /// 所以拍完这一套，用户自己的默认读法还是原来的。
+    static var readMode: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_READ"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        return (raw == "space" || raw == "cost") ? raw : nil
+    }
+
     /// DISKWISE_DRILL=<行名>：拍完总览之后，把列表里那一行就地摊开再补一张
     /// （`01-overview-drill.png`）。摊开出来的下级只有点下去才看得见，
     /// 而截图这一路没有键鼠，所以直接调行上那颗箭头走的同一个方法——不另画一份假界面。
@@ -131,7 +175,10 @@ enum SnapshotMode {
     /// `01-overview-taken.png`（重新上膛后同一条弧第二下，真搬进废纸篓）；
     /// `refuse` 出一张 `01-overview-refused.png`（点一条动不了的弧，看它当场怎么解释）。
     /// `scan` 出一张 `01-overview-scanning.png`：重跑一趟扫描，趁量到一半时拍——
-    /// 「光束钉在量到的边界上」这件事只有这一帧能证明，静下来的图里那道光永远停在起点。
+    /// 「正在量」那一屏只在扫描那几十秒里存在，静下来的图里环已经长满了。
+    /// 那道光此刻是**匀速绕环**的（`RingLayers.scanBeam`）：静图默认仍走静态那一档，
+    /// 把它钉在字节边界上；要取证「它在走」就配 `DISKWISE_SCAN_BEAM=<度>`，
+    /// 它和 `DISKWISE_RING_SPIN=on` 一样把绘制挪到真机那条图层路上，只是相位各管各的。
     /// `arm` 拍完会自己把搬走的每一处放回原处，不用人在外面补一条 `mv`。
     ///
     /// 走的是弧上 `onTapGesture` 那个 `tapArc`（经 `store.overviewRing`），
@@ -140,18 +187,57 @@ enum SnapshotMode {
     /// 上膛那一张**不能**用 `waitSettled`：它一泡就是九秒，而膛只保 3.2 秒——
     /// 等到画面静下来时那句「再点一次」早就自己收回去了，拍出来永远是没上膛的环。
     /// 扫描那一张同理，而且更紧：整趟只有几十秒，`pump` 到点就得拍。
+    ///
+    /// `preview` 出两张：`01-overview-preview.png`（按住空格那一档：绿弧长满、盘心换成
+    /// 「全部清空后」、每行一颗 `+N`、底下一条决策条）和 `01-overview-previewback.png`
+    /// （发 `previewoff` 松手，三样一起退干净）。它落在 `arm` **之前**拍：`arm` 那一钩子
+    /// 是真搬文件的，拍完靠 `restoreAllMoved` 放回，而预演一张文件都不该动。
     private static var ringHooks: Set<String> {
         Set((ProcessInfo.processInfo.environment["DISKWISE_RING"] ?? "")
             .split(separator: ",").map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
-            .filter { $0 == "arm" || $0 == "refuse" || $0 == "scan" })
+            .filter { $0 == "arm" || $0 == "refuse" || $0 == "scan" || $0 == "preview" })
+    }
+
+    /// DISKWISE_PREVIEW=on：把「按住空格」这一档**钉住**，让性能配对量得到它。
+    ///
+    /// 测量链路里没有手指，而这一档只在按着的时候存在——不加这只假手指，
+    /// `DISKWISE_PERF_HOLD=overview` 量到的永远是松手之后那张静图，绿弧那几层的代价
+    /// 就等于根本没测过。它按的是页面里同一个 `holdPreview()`，不是另画一份预演皮。
+    static var previewHold: Bool {
+        ProcessInfo.processInfo.environment["DISKWISE_PREVIEW"]?
+            .trimmingCharacters(in: .whitespaces).lowercased() == "on"
     }
 
     /// DISKWISE_RING_GLINT=<度>：静止帧里把那道绕环走的反光钉在指定相位上。
-    /// 「流动」这件事一张图证明不了——同一版连拍两三张不同相位，才看得出它真的在走
-    /// 而不是环上刮了一道白痕。不给这个变量就停在 0°（一圈量完的边界，正上方），
-    /// 那正是扫描结束后第一帧真机上看到的样子。
+    /// 「流动」这件事一张图证明不了——同一版拍两三张不同相位，才看得出它真的在走
+    /// 而不是环上刮了一道白痕。不给度数就是**不钉**：图层照常转，拍出来是快门那一瞬。
     static var ringGlintPhase: Double? {
         let raw = (ProcessInfo.processInfo.environment["DISKWISE_RING_GLINT"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let v = Double(raw) else { return nil }
+        return v.truncatingRemainder(dividingBy: 360)
+    }
+
+    /// DISKWISE_RING_SPIN=on：截图里也走真机那条环——反光交给 `CALoopView`
+    /// 的图层动画去转，不走 `rotationEffect` 的静态相位。
+    ///
+    /// 静图的默认那条路和真机**不是同一段绘制代码**（一个在 SwiftUI 里转，一个在
+    /// Core Animation 的图层上转），所以「真机上光晕跑偏」这类事拍静图永远拍不到。
+    /// 开这一档：配 `DISKWISE_RING_GLINT=<度>` 就把相位钉死（写模型角，不靠动画时间），
+    /// 静帧判定等得到；不配就让它照常转，拍出来是快门那一瞬。
+    static var forceRingSpin: Bool {
+        (ProcessInfo.processInfo.environment["DISKWISE_RING_SPIN"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased() == "on"
+    }
+
+    /// DISKWISE_SCAN_BEAM=<度>：量盘那几秒把绕环走的光束钉在指定相位上。
+    ///
+    /// 为什么不能借 `DISKWISE_RING_GLINT`：扫描那几张图里常驻反光**也在环上**（S0 那一条），
+    /// 两者共用一个相位钉就永远叠在同一格——图上那团亮斑到底是哪一道光，看不出来，
+    /// 而「光束在走」正是这一张要证的事。单独一只旋钮：反光留在默认那一格，光束挪到 N°。
+    /// 给了度数就是走图层那条路（同 `forceRingSpin`），不给就退回静态那档——钉在字节边界上。
+    static var scanBeamPhase: Double? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_SCAN_BEAM"] ?? "")
             .trimmingCharacters(in: .whitespaces)
         guard let v = Double(raw) else { return nil }
         return v.truncatingRemainder(dividingBy: 360)
@@ -167,10 +253,11 @@ enum SnapshotMode {
         return min(1, max(0, v))
     }
 
-    /// DISKWISE_FLIGHT=<0~1>：把「正飞往废纸篓」那枚筹码钉在行程的指定档上拍一张
-    /// （0 = 刚离开环心，0.5 = 抛到最高处，1 = 已落进废纸篓那一格）。
-    /// 同 `ringGlintPhase`：它整个 0.62 秒都在动，静帧判定永远等不到它停下来，
+    /// DISKWISE_FLIGHT=<0~1>：把「点第二下之后那一趟回收」钉在指定档上拍一张
+    /// （0 = 水珠刚从弧上浮现，0.5 = 飞到半路，1 = 已落进废纸篓那一格）。
+    /// 同 `ringGlintPhase`：这趟动效整个一秒半都在动，静帧判定永远等不到它停下来，
     /// 而这条轨迹恰恰是「它在动」本身——那就只能钉住相位再拍。
+    /// 截图这一趟不写真账（不调 `take`），只按环上此刻真能回收的那一段搭参数。
     static var flightPhase: CGFloat? {
         let raw = (ProcessInfo.processInfo.environment["DISKWISE_FLIGHT"] ?? "")
             .trimmingCharacters(in: .whitespaces)
@@ -397,6 +484,29 @@ enum SnapshotMode {
         AppLanguage(rawValue: ProcessInfo.processInfo.environment["DISKWISE_LANG_FLIP"] ?? "")
     }
 
+    /// DISKWISE_SKIN_FLIP=<皮肤 id>：只在引导页那一趟（`DISKWISE_FIRST_RUN=1`）里起作用，
+    /// 收画面之前先在同一进程里当场换一次皮肤，补一张引导页换了脸的样子。
+    ///
+    /// 为什么不能用 `DISKWISE_SKIN` 代替：那是启动时注入，六套皮肤 = 六趟互不相干的进程，
+    /// 每趟从第一眼就是定好的那张脸。而引导页那一排挂的话是「这一排换的是整张脸：
+    /// 颜色、字体、环怎么画都跟着走」——它承诺的是**点下去之后这一屏会跟着变**，
+    /// 只有当场换一次才照得出来。这里调的就是那一排自己的那颗 `select`。
+    ///
+    /// 和 `DISKWISE_LANG_FLIP` 一样，这一趟会把选择写进偏好（`select` 本来的副作用，
+    /// 要验的正是它）。演示机上跑，不需要收拾；真用户不会碰这个变量。
+    private static var skinFlip: Theme? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_SKIN_FLIP"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard !raw.isEmpty else { return nil }
+        guard let skin = SkinCatalog.byID(raw) else {
+            FileHandle.standardError.write(
+                ("    ! DISKWISE_SKIN_FLIP 里的「\(raw)」对不上任何皮肤，可用："
+                 + SkinCatalog.all.map(\.id).joined(separator: ", ") + "\n").data(using: .utf8)!)
+            return nil
+        }
+        return skin
+    }
+
     /// DISKWISE_WIN=1280x820：正常启动时也用这个尺寸开窗。真窗口截图要固定画幅，
     /// 而皮肤页那种长页一屏装不下。数值不合理就当没写，别打错一个字符拍出一张没用的图。
     static var requestedWindowSize: NSSize? {
@@ -425,6 +535,26 @@ enum SnapshotMode {
         }
     }
 
+    /// 截图那扇窗的根：皮肤从 `ThemeManager` 现取，不在建窗时定死。
+    ///
+    /// 这一层存在的唯一理由，是让截图链路和 `DiskCleanerApp.body` 用同一条注入路径。
+    /// 少了它，「当场换皮肤」这一钩子只能拍到勾选跟着动、脸不跟着动（`\.theme` 是死值），
+    /// 而那种画面既证不了真 App 的行为，也证不了它的反面——一张谁都不代表的图。
+    /// 值本身和以前一样：`useForSnapshot` 已经把 `current` 换成了这一趟要用的皮肤。
+    private struct SnapshotRoot: View {
+        let store: AppStore
+        @ObservedObject var manager: ThemeManager
+
+        var body: some View {
+            ContentView()
+                .environmentObject(store)
+                .environmentObject(manager)
+                .themed(manager.effective)
+                .preferredColorScheme(manager.effectiveScheme)
+                .tint(manager.effective.palette.tint)
+        }
+    }
+
     @MainActor
     static func run(outDir: String) {
         let app = NSApplication.shared
@@ -437,14 +567,18 @@ enum SnapshotMode {
         // 连 `current` 一起换掉：皮肤页的「使用中」徽章读的是它，只注入渲染器会拍出一张
         // 画着晨雾、徽章却指着作者上次那套的图。不写偏好，退出后一切照旧。
         manager.useForSnapshot(skin)
-        let paper = NSColor(skin.palette.paper)
+        // 兜底路径（问窗口服务器要不到合成像素时）垫的那张纸。合成路径不读它。
+        var paper = NSColor(skin.palette.paper)
 
-        let content = ContentView()
-            .environmentObject(store)
-            .environmentObject(manager)
-            .themed(skin)
-            .preferredColorScheme(skin.scheme)
-            .tint(skin.palette.tint)
+        // 皮肤走的是**和 `DiskCleanerApp.body` 同一条注入路径**，不是在这里按启动时那套写死。
+        // 之前这里是三个死值（`.themed(skin)` / `skin.scheme` / `skin.palette.tint`），
+        // 于是「同一进程里当场换皮肤」拍出来是一张假证：那一排按钮的勾选跟上了
+        // （它读 `@EnvironmentObject`），整张脸却纹丝不动（它读 `\.theme`，值早就定死了）。
+        // 真 App 会重画，靠的是 `@StateObject themeManager` 一变就重跑 `body`、把新值再注一遍——
+        // 这一层壳做的正是同一件事。写死的那版还有个更阴的偏差：明暗用的是 `skin.scheme`，
+        // 而真 App 用 `effectiveScheme`（外观皮肤里那颗强制明暗的开关优先，见 `ThemeManager.forcedScheme`）——
+        // 在那台机器上截图和真机拍的就不是一张脸。
+        let content = SnapshotRoot(store: store, manager: manager)
 
         let size = windowSize
         let window = SnapshotWindow(
@@ -542,8 +676,31 @@ enum SnapshotMode {
                 pump(midscanDelay)   // 只等布局，不等数据
                 shoot(name + "-midscan")
             }
+            // 总览这一张说的是「量完之后这一圈长什么样」，所以先要真的量完，再谈画面静没静。
+            if panel == .overview { waitRound(maxSeconds: 900) }
             waitSettled(window, paper: paper, canvas: canvas, minSeconds: minWait, maxSeconds: maxWait)
             shoot(panel == .big && bigDrillDir != nil ? name + "-drilled" : name)
+            // 引导页那一排皮肤挂的是「这一排换的是整张脸：颜色、字体、环怎么画都跟着走」。
+            // 这句话以前只由六趟各拍一张间接撑着，而它承诺的是**点下去这一屏会变**，
+            // 分六趟各拍一张照不出来。这里真按一次那一排自己的那颗 `select`，再补一张。
+            if panel == .overview, SnapshotMode.forceFirstRun, let flipSkin = SnapshotMode.skinFlip,
+               manager.select(flipSkin) {
+                // 兜底那张纸跟着换，否则离屏路径会拍成新脸配旧纸底。
+                paper = NSColor(flipSkin.palette.paper)
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 30)
+                shoot(name + "-after-skin-flip")
+            }
+            // 引导页那一趟：把「以后再说」那颗的**同一个 action** 真按一次，再补一张。
+            // 静图只照得出这一屏盖住了什么，照不出按下去它收不收——而「看完才收」正是
+            // 这一屏对用户的承诺（见 `Prefs.finishFirstRun`）。放在这一页其余钩子前面，
+            // 是为了让同一趟后面的 `-jump` / `-drill` / `arm` 那几张拍在收回之后的页面上，
+            // 而不是拍成十几张一模一样的引导页。只有上面那张皮肤翻转排在它之前：
+            // 那一张要拍的正是引导页还盖着的时候。
+            if panel == .overview && SnapshotMode.forceFirstRun {
+                Prefs.shared.finishFirstRun()
+                waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 30)
+                shoot(name + "-after-guide")
+            }
             if shootBack {
                 store.goBack()
                 waitSettled(window, paper: paper, canvas: canvas, minSeconds: 2, maxSeconds: 60)
@@ -605,6 +762,21 @@ enum SnapshotMode {
                 shoot(name + "-refused")
                 store.overviewRing = nil      // 那句解释跟着收，别糊到下一张上
                 pump(0.4)
+            }
+            if panel == .overview, ringHooks.contains("preview") {
+                // 稿子③那一整块（预演 + 盘心⑩ + 每行 +N⑪ + 决策条⑫）。走的是空格落下
+                // 那同一条路：`store.overviewRing = "preview"` → 页面里的 `holdPreview()`，
+                // 连它「量完之前不许预演」那些拒绝分支一起验；松手发 `"previewoff"`，
+                // 走的是同一个 `endPreview()`。所以这两张图证的是真链路，不是摆拍。
+                store.overviewRing = "preview"
+                // 光弧是从 0 长到「可回收 ÷ 整盘」的，材质里写的整数是 1.05 秒；
+                // 1.6 秒留 0.55 给主队列排空——拍早了是一张只长半截的弧，
+                // 而那恰好是「动画坏了」最像的样子，会把人引去查一根没坏的管子。
+                pump(1.6)
+                shoot(name + "-preview")
+                store.overviewRing = "previewoff"
+                pump(0.7)
+                shoot(name + "-previewback")   // 松手退干净了没有：绿弧、+N、决策条三样都不该留
             }
             if panel == .overview, ringHooks.contains("arm") {
                 store.overviewRing = "arm"
@@ -805,9 +977,48 @@ enum SnapshotMode {
     /// 静止态该长什么样，真机和截图看到的是同一张脸。
     static var active: Bool { requestedDir != nil }
 
+    /// 拍「量完」那一张之前，先让这一轮真的走完。
+    ///
+    /// 为什么 `waitSettled` 不够：它认的是「连续六帧一模一样」，而几百 G 的盘回填一段
+    /// 就能安静十几秒——2026-10-23 在真机（500 G 盘、量到 42 %）上实测，它就在这儿收工了，
+    /// 拍出来一张半截账。那等于让截图替一张「还没定稿的账」签字，后面所有的对色、对账
+    /// 都跟着错。判据换成界面自己那句：`Prefs.gaugeRunning` 与 `OverviewModel.scanning`
+    /// 同起同停（见 `Prefs.swift` 那条注释），它说跑完才算跑完。
+    ///
+    /// 两段都要看见（跟 `PerfProbe.watchCostLedger` 同一个理由）：一上来 `gaugeRunning`
+    /// 还是 false——扫盘没起来，直接判「静了」就把开局那一张当成了收尾那一张。
+    /// 演示树十几秒扫完，这段等待通常一眼带过；真机几百 G 才是它服务的对象。
+    ///
+    /// `startGrace` 那一段是补的：2026-10-24 在演示树上白挂了 900 s——那一趟根本没有新一轮
+    /// 要等（账是从缓存恢复的），而旧写法只认「见过 true 再见过 false」，等一个永远不来的
+    /// 上升沿就是把 15 分钟烧在 `pump` 里。截图链路必须像真机那样想：没有一轮，就直接拍。
+    @MainActor
+    private static func waitRound(maxSeconds: Double, startGrace: Double = 8) {
+        let prefs = Prefs.shared
+        var seenRunning = false
+        let deadline = Date().addingTimeInterval(maxSeconds)
+        let graceEnd = Date().addingTimeInterval(startGrace)
+        while Date() < deadline {
+            if prefs.gaugeRunning {
+                seenRunning = true
+            } else if seenRunning {
+                FileHandle.standardError.write("    · 这一轮量完了（等 \(Int(maxSeconds - deadline.timeIntervalSinceNow)) s）\n"
+                    .data(using: .utf8)!)
+                return
+            } else if Date() > graceEnd {
+                FileHandle.standardError.write("    · \(Int(startGrace)) s 内没有新一轮开跑（账是从缓存恢复的），直接拍\n"
+                    .data(using: .utf8)!)
+                return
+            }
+            pump(1.0)
+        }
+        FileHandle.standardError.write("    ! \(Int(maxSeconds)) s 还没等到这一轮量完，下面这张可能拍在半截账上\n"
+            .data(using: .utf8)!)
+    }
+
     /// 扫描是后台 Task + @MainActor 回填，拍到一半就是「Counting…」。
     /// 光看「两帧一样」不够——进度条隔几秒才动一下，静帧会骗人，所以先泡够
-    /// 最短时间，再要求连续三帧完全一致；一直动的页面就泡到上限为止。
+    /// 最短时间，再要求连续六帧完全一致；一直动的页面就泡到上限为止。
     private static func waitSettled(_ window: NSWindow, paper: NSColor, canvas: NSSize,
                                     minSeconds: Double, maxSeconds: Double) {
         pump(minSeconds)

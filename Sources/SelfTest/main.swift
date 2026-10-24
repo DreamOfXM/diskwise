@@ -447,6 +447,44 @@ let thinHit = ringArcIndex(x: ringDia / 2 + 145 * sin(thinMid * .pi / 180),
                            diameter: ringDia, rIn: ringRIn, rOut: ringROut, arcs: thin)
 check(thinHit == 1, "细段在自己的中点上点得着")
 
+// ── GaugeLayout：换了壳，壳里必须还是同一套数学 ────────────────────────────
+//
+// 2026-10-21 把 `ringArcs`/`ringArcIndex` 收进 `RadialGaugeLayout` 时，验收是
+// 「六套皮肤的总览截图逐字节相同」（dawn 72a6efdc…、graphite 899d3d7f…、mint ac6738ef…、
+// midnight dcaae6a6…、aurora 88285e1e…、inkwash 24f7f5a4…，改动前后一一对上）。
+// 但截图只证得了**今天**这两条路一致。下面这几条证的是**以后也不许分叉**：
+// 一旦 conformer 里偷偷加了自己的口径，画与点就各算各的半径，而那一次的代价是
+// 第二下点击把别的目录搬进废纸篓（见 `Components.swift` 里 NSTrackingArea 那条事故记录）。
+let rgl = RadialGaugeLayout()
+let rglCanvas = GaugeCanvas(width: ringDia, height: ringDia)
+check(rgl.regions(for: ringVals) == segs,
+      "layout 切出来的区间与 ringArcs 逐个字段相同")
+check(rgl.thickness(of: rglCanvas) == ringBand,
+      "带宽由 layout 一家算，且仍是 diameter×0.145 那一档（拆协议不许顺手改数）")
+var rglDead = 0, rglDiff = 0
+for deg in stride(from: 0.0, through: 359.9, by: 0.2) {
+    let a = deg * .pi / 180
+    let p = GaugePoint(x: ringDia / 2 + 145 * sin(a), y: ringDia / 2 - 145 * cos(a))
+    let viaLayout = rgl.regionIndex(at: p, canvas: rglCanvas, regions: segs, reveal: 1)
+    if viaLayout != at(deg, 145) { rglDiff += 1 }
+    if viaLayout == nil { rglDead += 1 }
+}
+check(rglDiff == 0 && rglDead == 0,
+      "整圈 1800 个采样方位上 layout 的命中与 ringArcIndex 逐点一致、且无死区")
+// 半径边界也要一致：带子以外一律 nil，这条是「孔里/环外不许点到弧上」在壳内的版本
+for r in [60.0, 117.0, 119.0, 145.0, 171.0, 173.0, 179.0] {
+    let a = 45.0 * .pi / 180
+    let p = GaugePoint(x: ringDia / 2 + r * sin(a), y: ringDia / 2 - r * cos(a))
+    check(rgl.regionIndex(at: p, canvas: rglCanvas, regions: segs, reveal: 1) == at(45, r),
+          "半径 \(r) 处 layout 与直算同结论（带内外沿那几档正是当年踩过的位置）")
+}
+// reveal 也得穿过壳：入场压缩期间不许提前接受悬停
+check(rgl.regionIndex(at: GaugePoint(x: ringDia / 2, y: ringDia / 2 - 145),
+                      canvas: rglCanvas, regions: segs, reveal: 0) == nil,
+      "layout 在 reveal=0 时整环都不接受悬停（没画出来的东西不该点得着）")
+check(RadialGaugeLayout.layoutID == "radial",
+      "layoutID 是配置里选形状用的名字，改名等于改了已出厂的配置文件")
+
 var midBad = [String]()
 for (i, s) in segs.enumerated() where at((s.from + s.to) / 2 * 360, 145) != i {
     midBad.append("\(i)")
@@ -1080,6 +1118,93 @@ if let e = try? JSONDecoder().decode(SafetyEntry.self, from: Data(rawNoCost.utf8
 } else {
     check(false, "缺 cost 字段的条目要能解得出来，不能整条解不动")
 }
+
+// 12b. 四类代价口径（`CostTier` / `costSums` / `CostLedger`）：总览那枚
+//      「按空间 / 按代价」开关背后就是这本账。设计稿原来那四行混着两个分母
+//      （零代价、不可逆按整段体积算，需重下按可回收量算，不碰按系统 + 空闲算），
+//      加起来 62.4 GB 而盘是 96 GB——四行答的是四个不同的问题，用户没法判断哪一头更大。
+//      这里只认一条：每一段字节归给覆盖它的**最轻**那一档，四类相加正好是整盘。
+check(VerdictTier.safe.cost == .free && VerdictTier.redo.cost == .redo
+        && VerdictTier.risky.cost == .irreversible && VerdictTier.unknown.cost == .off,
+      "判词四档各归各的堆；`unknown` 归「不碰」——本工具不动的字节是补集，不是「删了没事」")
+
+let g10 = 10 * GB, g8 = 8 * GB, g2 = 2 * GB, g1 = GB
+// 非嵌套的三处 + 一整盘：补集＝空闲 + 系统区 + 知识库不认得的字节。
+let flat = costSums(of: [
+    CostItem(path: "/Users/a/Library/Caches/x", bytes: 3 * GB, tier: .safe),
+    CostItem(path: "/Users/a/.ollama/models", bytes: g2, tier: .redo),
+    CostItem(path: "/Users/a/Library/Developer/CoreSimulator/Devices", bytes: g1, tier: .risky),
+])
+check(flat.free == 3 * GB && flat.redo == g2 && flat.irreversible == g1
+        && flat.actionable == 6 * GB,
+      "三处各进各的堆，前三类合计就是它们之和（得 \(human(flat.actionable))）")
+let flatLedger = CostLedger(sums: flat, total: 96 * GB)
+check(flatLedger.off == 90 * GB && flatLedger.accounted == flatLedger.total
+        && flatLedger.balanced,
+      "四类相加正好是整盘：3 + 2 + 1 + 90 = 96（得 \(human(flatLedger.accounted)) / \(human(flatLedger.total))）")
+
+// 嵌套两条方向都要钉住。父 redo 10 G、底下压着一块 safe 2 G：池子只会搬那块 2 G，
+// 所以它按零代价记账、父项剩下的 8 G 才按需重下——清单和圆环不能一个说 10、一个说 2。
+let nestUp = costSums(of: [
+    CostItem(path: "/Users/a/Library/Caches", bytes: g10, tier: .redo),
+    CostItem(path: "/Users/a/Library/Caches/pip", bytes: g2, tier: .safe),
+])
+check(nestUp.free == g2 && nestUp.redo == g8 && nestUp.actionable == g10,
+      "父 redo / 子 safe：子那块零代价、父剩下的重下，合计不重不漏（得 \(human(nestUp.free)) + \(human(nestUp.redo))）")
+// 反过来：父 safe 盖着子 redo——那块字节顺着父项就能零代价拿走，
+// 不许因为它自己被标了重下就记成贵的。
+let nestDown = costSums(of: [
+    CostItem(path: "/Users/a/Library/Developer/Xcode/DerivedData", bytes: g10, tier: .safe),
+    CostItem(path: "/Users/a/Library/Developer/Xcode/DerivedData/Proj", bytes: g2, tier: .redo),
+])
+check(nestDown.free == g10 && nestDown.redo == 0,
+      "父 safe / 子 redo：整块都按零代价算（得 \(human(nestDown.free)) + \(human(nestDown.redo))）")
+// 同档嵌套只算一次并集：10 G 里含 2 G，不是 12 G，也不是 8 G。
+let nestSame = costSums(of: [
+    CostItem(path: "/Users/a/Library/Caches", bytes: g10, tier: .redo),
+    CostItem(path: "/Users/a/Library/Caches/Homebrew", bytes: g2, tier: .redo),
+])
+check(nestSame.redo == g10, "父 redo / 子 redo：合计按并集 10 G 记（得 \(human(nestSame.redo))）")
+// 三层链：最轻那档盖住整条内层，外层只报自己不重叠的那截。
+let chain = costSums(of: [
+    CostItem(path: "/Users/a/Library", bytes: g10, tier: .redo),
+    CostItem(path: "/Users/a/Library/Caches", bytes: 6 * GB, tier: .safe),
+    CostItem(path: "/Users/a/Library/Caches/Devices", bytes: g1, tier: .risky),
+])
+check(chain.free == 6 * GB && chain.redo == 4 * GB && chain.irreversible == 0,
+      "三层链按各层覆盖关系拆开：零代价 6 + 需重下 4（得 \(human(chain.free)) + \(human(chain.redo)) + \(human(chain.irreversible))）")
+// 同一路径被两条知识库命中：取更轻的判词（池子也是 safe 先）。
+let dupTier = costSums(of: [
+    CostItem(path: "/Users/a/Library/Caches", bytes: g10, tier: .redo),
+    CostItem(path: "/Users/a/Library/Caches", bytes: g10, tier: .safe),
+])
+check(dupTier.free == g10 && dupTier.redo == 0, "同一路径重复命中取更轻的判词")
+let junk = costSums(of: [
+    CostItem(path: "相对路径", bytes: 5 * GB, tier: .safe),
+    CostItem(path: "/Users/a/zero", bytes: 0, tier: .safe),
+    CostItem(path: "/Users/a/neg", bytes: -3, tier: .safe),
+])
+check(junk.actionable == 0, "相对路径、零字节、负字节都不进账")
+
+// 归账合计必须等于这些路径的并集：多一个字节就是「能清」虚高，
+// 少一个就是一段盘上的字节从四类里凭空消失。
+let unionItems = [
+    CostItem(path: "/Users/a/Library/Caches", bytes: g10, tier: .redo),
+    CostItem(path: "/Users/a/Library/Caches/pip", bytes: g2, tier: .safe),
+    CostItem(path: "/Users/a/Library/Caches/Homebrew", bytes: 3 * GB, tier: .redo),
+    CostItem(path: "/Users/a/.ollama/models", bytes: 4 * GB, tier: .redo),
+]
+let unionSum = costSums(of: unionItems)
+check(unionSum.actionable
+        == contentsUnionSize(unionItems.map { (path: $0.path, bytes: $0.bytes) })
+        && unionSum.free == g2,
+      "四类合计与路径并集同一个数（得 \(human(unionSum.actionable))，零代价 \(human(unionSum.free))）")
+
+// 认得比整盘还多时不许印负字节：`off` 压到 0，多出来的那截另记。
+let overdrawn = CostLedger(sums: CostSums(free: 100 * GB, redo: 0, irreversible: 0),
+                           total: 96 * GB)
+check(overdrawn.off == 0 && overdrawn.overdrawn == 4 * GB && !overdrawn.balanced,
+      "记账超出整盘时「不碰」是 0、超出量单独记（得 \(overdrawn.off) / \(human(overdrawn.overdrawn))）")
 
 // 13. 导航历史：去重那一条是这套「返回」里唯一会算错的地方。
 //     「上一级」往回走时父目录本来就在栈里，当成新的一站追加的话，

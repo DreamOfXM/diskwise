@@ -68,16 +68,23 @@ public struct SafetyDB: Decodable {
 public func homePath() -> String { homeDir().path }
 
 /// 家目录是否被换到演示用的假树上（见 build_app/make_demo_home.sh）
-public var homeIsDemo: Bool {
-    !(ProcessInfo.processInfo.environment["DISKWISE_HOME_SHIM"] ?? "").isEmpty
+public var homeIsDemo: Bool { !envString("DISKWISE_HOME_SHIM").isEmpty }
+
+/// 读环境变量走 libc，不用 `ProcessInfo.processInfo.environment`。
+///
+/// 后者每读一次键，就把整份进程环境复制成一个字典（几十上百条，含分配）。这几个开关
+/// 不是「偶尔看一下」：它们坐在**每个候选路径**都要经过的判断里
+/// （`isDeletable` → `homePath` → `homeDir`），一趟重归缓存账能读上千次。
+/// 换掉之后 `setenv` 依然立刻生效——自检就是先 `setenv` 再断言的（SelfTest:62、
+/// SelfTest:1214 特意注释了顺序），所以这里**缓存值**会读错，只换 API 不会。
+func envString(_ key: String) -> String {
+    key.withCString { c in getenv(c).map { String(cString: $0) } ?? "" }
 }
 
 /// 商店产品页取图模式。演示横幅是给挑图的人防身用的（真拿假账当实测数字汇报），
 /// 而真实用户永远不会去设 `DISKWISE_HOME_SHIM`，也就永远看不到它——所以出商店图时
 /// 把它收起来，让画面回到用户实际会看到的样子。README 截图和日常使用不受影响。
-public var storeShotMode: Bool {
-    ProcessInfo.processInfo.environment["DISKWISE_STORE_SHOTS"] == "1"
-}
+public var storeShotMode: Bool { envString("DISKWISE_STORE_SHOTS") == "1" }
 
 /// 界面上要不要自报「这一屏是演示数据」。
 public var demoDisclosed: Bool { homeIsDemo && !storeShotMode }

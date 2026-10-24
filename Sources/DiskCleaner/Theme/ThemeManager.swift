@@ -44,8 +44,9 @@ final class ThemeManager: ObservableObject {
         let unlocked = Set(defaults.stringArray(forKey: Keys.unlocked) ?? [])
         unlockedPremiumIDs = unlocked
         current = Self.usable(candidate, unlocked: unlocked) ? candidate : SkinCatalog.defaultSkin
-        // 逐屏实拍要用深色/玻璃皮验外框，但偏好里存的是浅皮：给个环境变量入口，
-        // 只在正常启动时生效（截图模式自己注入 Theme，走不到这里）。
+        // 逐屏实拍要用深色/玻璃皮验外框，而偏好里存的是浅皮：给个环境变量入口。
+        // 截图模式随后还会自己 `useForSnapshot(同一个 id)`，两边算出来是一张脸；
+        // 这一支管的是「不带 DISKWISE_SHOTS、直接双击开起来看外框」那条路。
         if let forced = SnapshotMode.requestedSkinID, let skin = SkinCatalog.byID(forced) {
             current = skin
         }

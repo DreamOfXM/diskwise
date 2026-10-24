@@ -14,10 +14,11 @@
     "motion": "动效签名 still | calm | springy",
     "tileShape": "图标块形状 circle | squircle | rounded",
     "tileStrategy": "图标块上色策略 spectrum（一类一色）| duotone（主色与墨色交替）",
+    "ring": "环的材质：standard（线上那一版）| crystal（水晶棒，横截面有折射亮线）。名字认不出时回 standard，不影响这套皮肤其余部分。可选值只有这几个，因为材质是写在 Swift 里的一堆数（Sources/DiskCleaner/Theme/RingStyle.swift），加一款新材质要先在那里加数——JSON 能**选**材质、能选形状，但不能定义几何，理由记在 DiskCleanerCore/RingGeometry.swift 的「几何不进配置」那条线上。缺这一字段 = standard，所以老文件不用改。",
     "_铁律": "所有皮肤共用：正文只用 ink / inkSecondary，绝不染色；彩色只给图标块、环形图、按钮、徽章；页头禁止整块高饱和底色。"
   },
   "version": 1,
-  "updated": "2026-09-30",
+  "updated": "2026-10-21",
   "skins": [
     {
       "id": "dawn",
@@ -61,7 +62,8 @@
       },
       "motion": "calm",
       "tileShape": "squircle",
-      "tileStrategy": "spectrum"
+      "tileStrategy": "spectrum",
+      "ring": "crystal"
     },
     {
       "id": "graphite",
@@ -105,7 +107,8 @@
       },
       "motion": "calm",
       "tileShape": "squircle",
-      "tileStrategy": "spectrum"
+      "tileStrategy": "spectrum",
+      "ring": "crystal"
     },
     {
       "id": "mint",
@@ -149,7 +152,8 @@
       },
       "motion": "calm",
       "tileShape": "circle",
-      "tileStrategy": "spectrum"
+      "tileStrategy": "spectrum",
+      "ring": "crystal"
     },
     {
       "id": "midnight",
@@ -193,7 +197,8 @@
       },
       "motion": "still",
       "tileShape": "rounded",
-      "tileStrategy": "duotone"
+      "tileStrategy": "duotone",
+      "ring": "crystal"
     },
     {
       "id": "aurora",
@@ -237,7 +242,8 @@
       },
       "motion": "springy",
       "tileShape": "squircle",
-      "tileStrategy": "spectrum"
+      "tileStrategy": "spectrum",
+      "ring": "crystal"
     },
     {
       "id": "inkwash",
@@ -281,7 +287,8 @@
       },
       "motion": "still",
       "tileShape": "rounded",
-      "tileStrategy": "duotone"
+      "tileStrategy": "duotone",
+      "ring": "crystal"
     }
   ]
 }

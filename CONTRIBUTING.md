@@ -207,7 +207,7 @@ The README images are that output downscaled to 1500 px wide, from `DISKWISE_WIN
 (the skins grid needs `1280x920`) — keep those two numbers so a re-shoot lands on the same
 canvas and the README tables don't start wrapping.
 
-Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
+These knobs narrow a run so you're not re-rendering 13 pages to look at one:
 
 - `DISKWISE_ONLY=overview,dup` — only these pages (the names are the `AppPanel` cases).
 - `DISKWISE_BIGDRILL='~/Library/Developer'` with `DISKWISE_ONLY=big` — shoot the Large Files page as
@@ -227,6 +227,15 @@ Five knobs narrow a run so you're not re-rendering 13 pages to look at one:
 - `DISKWISE_PICK=dup,caches` — press that page's bottom-bar select-all twice and shoot
   `-selected` / `-deselected`. A checkbox list you can't un-check is a defect, and only an
   actual press proves it's gone.
+- `DISKWISE_FIRST_RUN=1` — shoot the first-run screen over the Overview, then press its own
+  **Later** button and save `01-overview-after-guide.png`. A still only shows what the overlay
+  covers; the second frame is what proves it dismisses onto a finished ledger. This pass never
+  writes the "seen it" flag, so one machine can re-shoot it forever.
+- `DISKWISE_SKIN_FLIP=midnight` — with `DISKWISE_FIRST_RUN=1`, swap the skin once mid-run using
+  that screen's own skin row, and save `01-overview-after-skin-flip.png` before the dismissal
+  frame. The row promises *this row changes the whole face*, and six separate runs — each born
+  wearing one skin — cannot show a change happening. Like `DISKWISE_LANG_FLIP`, this one does
+  write the stored choice.
 - `DISKWISE_WIN=1280x920` — window size, default `1280x820`. Raise it for long pages such as
   the skins grid. Shots come from the window server's composite of that window, so a window
   taller than your display gets its bottom cut off — keep it inside the screen.

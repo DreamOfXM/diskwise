@@ -384,7 +384,9 @@ private struct SchemePicker: View {
 
 // MARK: - 语言
 
-private struct LanguagePicker: View {
+/// 语言开关。内部不用 `private`：首次运行那一屏（`FirstRunView`）右上角也要这一颗——
+/// 不懂中文的人必须**在读完整屏中文之前**就能换掉，那一屏没有侧栏，只能自带。
+struct LanguagePicker: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
 

@@ -91,6 +91,12 @@ private let weights: [String: Font.Weight] = [
     "regular": .regular, "medium": .medium, "semibold": .semibold,
     "bold": .bold, "heavy": .heavy, "black": .black,
 ]
+/// 环的材质。表由 `RingLook` 自己生成，不在这里手抄第二份名单：
+/// 加一款材质时忘了同步这张表的话，JSON 里那行会被 `pick` 静悄悄兜回 standard——
+/// 皮肤照常显示，环照常是旧那个，谁都不会发现「新材质根本没上屏」。
+/// 少一个 key 是看得见的编译错误，抄漏一格不是。
+private let ringLooks: [String: RingLook] =
+    Dictionary(uniqueKeysWithValues: RingLook.allCases.map { ($0.rawValue, $0) })
 
 // MARK: - 兜底皮肤
 
@@ -214,7 +220,8 @@ private func parseSkin(_ any: Any?) -> Theme? {
         metric: parseMetric(m["metric"]),
         motion: pick(m["motion"], motions, .calm),
         tileShape: pick(m["tileShape"], tileShapes, .squircle),
-        tileStrategy: pick(m["tileStrategy"], tileStrategies, .spectrum)
+        tileStrategy: pick(m["tileStrategy"], tileStrategies, .spectrum),
+        ring: pick(m["ring"], ringLooks, .standard)
     )
 }
 

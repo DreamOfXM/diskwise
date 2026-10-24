@@ -44,6 +44,14 @@ struct DiskCleanerApp: App {
         // 不换窗口、不开第二个壳：这一屏本来就在侧栏里，按了就把它带到那一行。
         // 一个窗口都没有时先把 App 激活，落点存着不丢，下一扇窗开起来时接住
         // （见 `ContentView.onAppear` 那条 drain）。
+        //
+        // 样稿那张 ⌘K 命令面板**不搬**（2026-10-22 判定，理由留在这儿免得下次重推）：
+        // 面板列的九条里六条已经有直达键、且就在当前这一屏——⌘? 清理说明、⌘, 设置、
+        // ⌘R 重新扫描（`SharedViews` 那颗钮带着 `shortcut`）、⌘↵ 移进废纸篓、空格预演、
+        // Esc 退出。「切菜单取色 ⌘M」和 G-F/G-N/G-T 跳页是样稿讲环时的演示，产品里侧栏
+        // 常驻，不该再拿一个面板当目录。唯一确实没接的是撤销：它属于刚清完那一屏和废纸篓
+        // 页那一行，给一个只在"有上一步可回"时才成立的动作挂全局键，等于在其余时间里
+        // 留一颗按下去只会响一声的键。
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button(L("设置")) {
@@ -52,6 +60,18 @@ struct DiskCleanerApp: App {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 .keyboardShortcut(",", modifiers: .command)
+            }
+            // 稿子②那句「? 打开清理说明」。系统那条「DiskWise 帮助」是死路：这个包里没有
+            // help book，按下去只会响一声。所以把「帮助」这一整组换成我们自己那一屏——
+            // 用户按 ⌘? 或打开「帮助」菜单，落点都是「这一版哪几处和上一版不一样」。
+            // 键写在菜单上而不是裸 `?`：裸 `?` 会先进菜单键等价这一层，把反馈邮箱里那个
+            // 问号吃掉（稿子的 `?` 是无修饰键，网页里不会跟输入框抢，原生窗口里会）。
+            CommandGroup(replacing: .help) {
+                Button(L("清理说明")) {
+                    Prefs.shared.reopenGuide()
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut("?", modifiers: .command)
             }
         }
     }
@@ -92,32 +112,6 @@ final class ScanStore: ObservableObject {
         model.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &bag)
-    }
-
-    /// 侧栏一行的容量：这一类**已经量出来**的那笔账，与各页顶上那块账同源。
-    ///
-    /// 没扫过返回 nil，画面上留空。写 0 是谎报「这一类是空的」，写「未知」
-    /// 是给一个还没发生的事占一格——两者都不如什么都不写。
-    func amount(_ panel: AppPanel) -> Int64? {
-        switch panel {
-        case .big:         return big.started ? big.rows.reduce(0) { $0 + $1.size } : nil
-        case .old:         return old.started ? old.totalBytes : nil
-        case .dup:         return dup.started ? dup.waste : nil
-        case .nodemodules: return nodemodules.started ? nodemodules.totalBytes : nil
-        case .docker:      return docker.started ? docker.totalBytes : nil
-        // 缓存页只量得出体积的那些行才算：没量出来的那格印的是「统计中…」，加不进任何账。
-        case .caches, .devcache: return cacheAmount(panel == .devcache ? devcache : caches)
-        case .orphans:     return orphans.started ? orphans.totalBytes : nil
-        // 下钻页的那笔账是「当前这一层」，跟侧栏那一列（各页总量）不是一个口径，
-        // 报上去只会让同一格数字随用户点进点出地跳。
-        // AI Agent 页同理不报数：那一页的账是「移进废纸篓多少」，不是「还能清多少」，
-        // 摆在同一列里会被读成又一笔待清理的空间。
-        case .overview, .trash, .appearance, .feedback, .folderDrill, .menuLaunch, .agent: return nil
-        }
-    }
-
-    private func cacheAmount(_ model: CachesModel) -> Int64? {
-        model.started ? model.items.reduce(Int64(0)) { $0 + max(0, $1.size ?? 0) } : nil
     }
 }
 
@@ -409,11 +403,25 @@ struct ContentView: View {
     @StateObject private var scans = ScanStore()
     @State private var selection: AppPanel? = SnapshotMode.requestedPanel ?? .overview
 
+    /// 标题带附件里是**另一棵** SwiftUI 树（`TitlebarAccessory`），根上那几样 Environment
+    /// 传不进去，逐条补一遍：`AppStore`、`ThemeManager`、皮肤、tint。
+    /// 漏皮肤是最贵的一条——`\.theme` 的保命默认值是 `builtIn`（`Theme.swift:280`），
+    /// 不注入的话顶栏会穿着另一套色，还只在附件那一格。
+    @ViewBuilder private func inTitlebar<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        content()
+            .environmentObject(store)
+            .environmentObject(themeManager)
+            .themed(themeManager.effective)
+            .tint(themeManager.effective.palette.tint)
+    }
+
     var body: some View {
         NavigationSplitView {
             // 侧栏的 `max` 钉在 `ideal` 上：`max` 一旦高于 `ideal`，这一列实际就停在
             // `max`（AX 实测 `max: 280` 时侧栏宽 288），而侧栏里最长的那行
-            // （图标 22 + 「开发缓存」+ 行尾金额）内容宽只有 ~208，多出来的全是空的。
+            // （图标 22 + 「开发缓存」）内容宽只有 ~160——行尾那一格金额 2026-10-23
+            // 撤了之后更空。232 这一档不是内容撑出来的，是留给「设置」这类组标题和
+            // 英文译文的余量，多出来的空白由行背景的圆角块自己收。
             // `min` 留 216 只是给这一列 16 pt 的可拖区间。**开窗宽不由这一列决定**：
             // 它跟着下面那行 `.frame(minWidth:)` 走——两档都实拍过：这一列三档钉成
             // 同一个数、minWidth 还是 900 时开 900x700；把 minWidth 提到 1000 后开 1000x700。
@@ -431,8 +439,93 @@ struct ContentView: View {
             // 分页去摆迟早会长出两种按法：大文件页原先那颗写死的「返回空间总览」
             // 就是这么来的，而文件夹详情页那边压根不走同一条路。
             ToolbarItem(placement: .navigation) { BackButton() }
-            ToolbarItem(placement: .primaryAction) { VolumeChip() }
+            // 卷名和容量条排在红绿灯之后（稿子 `.vol{margin-right:auto}`：顶栏读起的
+            // 第一句是「哪块盘、还剩多少」）。
+            //
+            // 它**不能**走标题带附件：`.leading` 那一格实测落在 x=88，正是系统侧栏切换
+            // 按钮的位置，两组叠在一格里，系统只能把那颗按钮挤成工具条溢出——
+            // 2026-10-25 他那张实拍：右边多出 ▢⋯，「量完」「重新扫描」整段被裁没，
+            // 「?」被推出窗口右沿。留在 toolbar 里则和那颗按钮同一条流，谁也不压谁。
+            if !prefs.showsFirstRun {
+                ToolbarItem(placement: .navigation) {
+                    // 总览把「可用」交给环心的大数，顶栏这一句让位；子页留着。
+                    VolumeChip(showsFree: (selection ?? .overview) != .overview)
+                        .background(ToolbarItemUnbordered())
+                }
+            }
         }
+        // 稿子 `.titlebar` 是两段：`.vol{margin-right:auto}` 把盘符那一组钉在左，
+        // `.tb-right` 因此落到窗口右沿。真机原来不是这样——1700 pt 窗里整条工具条从
+        // 内容区左沿一路排到底，右边空着九百多 pt（2026-10-24 他圈的就是这一条）。
+        // 贴右这件事系统工具条给不了（三条理由记在 `TitlebarAccessory` 的头注里），
+        // 所以右组走 `.trailing` 附件那一格，自己画、不套胶囊。
+        .background(TitlebarAccessory(attribute: .trailing) {
+            // 引导页盖着的时候，窗口顶上那一格读数也收起来。
+            // 这一屏要讲的是「一整圈就是这块盘」，而它底下站的正是盘上真实的可用量——
+            // 一个还没被解释过的数挂在自我介绍上面，等于让读者先看见答案再看题。
+            if !prefs.showsFirstRun {
+                inTitlebar {
+                    HStack(spacing: 14) {
+                        // 右边这一组按样稿 `.tb-right` 的顺序：落款 → 扫描 → 声音 → 「?」。
+                        // （稿子中间那颗「菜单」是原型切 1.8 / 1.9 侧栏配色的演示开关，
+                        // 产品里没有对应功能，不搬——`DiskCleanerApp.swift:51` 记着这条。）
+                        // 声音排在落款右边、问号左边：它管的是「这一下有没有声」，
+                        // 和新鲜度一样是整扇窗的事，所以挂在标题带上、不塞进任何一页的页头。
+                        // 「?」挂在最右、读数之外：它回答的是「这一版怎么动手」，
+                        // 需要它的时刻是人正卡在主画面上，而不是已经退进设置里翻。
+                        GaugeFreshness()
+                        // 总览的重扫从页头搬到了这里（稿子 `.tb-right` 中间那颗）。
+                        // 它扫的仍是总览那一趟：顶栏是整扇窗的 chrome，不可能跟着八页
+                        // 各扫各的；别的页页内那颗照旧扫本页。⌘R 只在总览这一页绑给它，
+                        // 见 `ScanControl.showsShortcut`。
+                        ScanControl(scanning: scans.overview.scanning,
+                                    kind: .compact,
+                                    showsShortcut: (selection ?? .overview) == .overview,
+                                    rescan: {
+                                        // 发脉冲在前：`refresh` 会当场把 `scanning` 置真，
+                                        // 别的页要在这同一轮里把各自的旧账作废掉。
+                                        store.rescanPulse += 1
+                                        scans.overview.refresh(scope: store.scope)
+                                    },
+                                    stop: { scans.overview.stop() })
+                        SoundToggle()
+                        GuideButton()
+                    }
+                    // 稿子 `.titlebar{padding:0 16px}`：贴右沿不是贴到像素上，右边还留
+                    // 16 pt。这一格归我们自己排，AppKit 只把附件推到窗口的直角处——
+                    // 不补这道留白，「?」那枚圆钮会压在窗口右上的圆角上（2026-10-24 实拍）。
+                    .padding(.trailing, 16)
+                    // 这一组**不许被压**：附件那格的宽是宿主按 SwiftUI 报上来的尺寸排的，
+                    // 而被压过的布局报上来的就是压后的宽——量出来扫描期整格停在 174 pt，
+                    // 比「停止+声音+?」的理想宽少十几 pt，少的全从「停止」两个字里扣，
+                    // 扣成一颗只有方块和省略号的钮（2026-10-25 他圈的那颗）。钉死理想宽，
+                    // 宿主才量得到真值，这一格才跟着内容长。
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+        })
+        // 首次运行那一屏：盖在两列之上，侧栏和页面都摸不到，看完才收。
+        // 用 overlay 而不是 sheet——sheet 是另一扇子窗，截图链路拍不到（见 `FirstRunView` 头注）。
+        .overlay {
+            if prefs.showsFirstRun {
+                FirstRunView()
+                    .transition(.opacity)
+            }
+        }
+        .animation(theme.animation, value: prefs.showsFirstRun)
+        // 「清理说明」那四页排在引导屏**之后**：两扇模态叠着挡道没有意义，
+        // 而这一套讲的「点两下」「进篓≠腾出」必须有数可对才能讲——引导屏那会儿
+        // 沙盒版连盘都还没量到。所以判据是「引导屏已经收了 且 这一版还没看过」。
+        // 同一个 overlay 槽位，靠 `showsFirstRun` 让位，不用 z-index 抢。
+        .overlay {
+            if !prefs.showsFirstRun && prefs.showsGuide {
+                CleanupGuide(startPage: SnapshotMode.guidePage) {
+                    Prefs.shared.finishGuide()
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(theme.animation, value: prefs.showsGuide)
         .onChange(of: store.jumpTo) { target in
             guard let target else { return }
             withAnimation(theme.animation) { selection = target }
@@ -447,8 +540,21 @@ struct ContentView: View {
             // 历史里先站一站：少了它，第一跳之后栈底是空的，返回会退到没有页面的地方。
             store.seedNav(selection ?? .overview)
             MenuBar.readout.apply(shows: prefs.menuBarEnabled)
+            // 性能探针：只有设了 `DISKWISE_PERF` 才有任何动作，见 `PerfProbe` 头注。
+            // 总览模型单独递给它：悬停那一发要按手指走的那条路，`AppStore` 上没有直达口子。
+            PerfProbe.shared.start(store: store, overview: scans.overview, on: selection ?? .overview)
+            // 四类代价账的验收读数：只有设了 `DISKWISE_COST` 才有任何动作。
+            PerfProbe.watchCostLedger(scans.overview)
+            // 声音：合成在后台算，算完之前谁也不等它。截图那一趟整套静音
+            // （`Sound.prepare` 自己看 `SnapshotMode.active`）。
+            Sound.shared.prepare(enabled: prefs.soundEnabled)
         }
         .background(WindowContentUnderTitleBar())
+        // Esc 撤下膛——总览那两下确认对外承诺的三条退路之一（见 `EscapeTap`）。
+        // 挂在窗口这一层而不是总览那一页里：`disarm()` 自己带「没上膛就不发变更」的
+        // 闸门（`OverviewModel.disarm`），所以在别的页按 Esc 是一次空转，不重画任何东西；
+        // 反过来若跟着页面销毁，切走之后再按就彻底没人接了。
+        .background(EscapeTap { scans.overview.disarm() })
     }
 
     // MARK: 侧边栏
@@ -490,7 +596,11 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 2) {
             sideHeader(title).padding(.bottom, 2)
             ForEach(panels, id: \.self) { panel in
-                SidebarRow(panel: panel, amount: scans.amount(panel),
+                // 行尾不报各页的数（样稿 `renderSidebar` 那张表：每一行都是 `amt:null`）。
+                // 这一列是导航，不是账本：各页那笔账不同源（缓存那格套在别的条目里、
+                // 重复那格只数多出来的副本），加不到一起，排成一列就是一张加不起来的假账，
+                // 而它看起来又像在排名。要数，进那一页看页头。
+                SidebarRow(panel: panel,
                            showsNew: panel == .agent && prefs.agentPageIsNew,
                            isSelected: selection == panel) {
                     // 走 store 而不是直接改 selection：点侧栏是「重新挑目的地」，
@@ -525,10 +635,26 @@ struct ContentView: View {
         .background(SidebarMaterial().ignoresSafeArea())
     }
 
-    private var versionString: String {
+    /// 左下角那格「v1.9 · 10-24 17:44」。**在进程起来那一刻取一次，钉住不重算。**
+    ///
+    /// 原来它是个每次渲染都现读二进制 mtime 的计算属性，于是这一格跟着**磁盘**走而不是
+    /// 跟着**进程**走：换构建时磁盘上的 mtime 往前走，还开着的老窗口跑的仍是老代码，
+    /// 那一格就报出一个比屏幕上这份代码更新的时间。2026-10-24 实拍命中：一个 12:33 起来的
+    /// 进程左下角写着 17:44，于是「我看的是不是最新版」这个问题被这一格答成了「是」，
+    /// 而那一版里本轮的动效修复根本还没有。这一格存在的理由就是回答「我看到的这份是什么
+    /// 时候编的」，那它必须说进程的事，不能说文件的事。
+    static let launchedBuildStamp: String = {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        return "v\(v)"
-    }
+        guard let exe = Bundle.main.executableURL,
+              let date = (try? exe.resourceValues(forKeys: [.contentModificationDateKey]))?
+                  .contentModificationDate else { return "v\(v)" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MM-dd HH:mm"
+        return "v\(v) · \(f.string(from: date))"
+    }()
+
+    private var versionString: String { Self.launchedBuildStamp }
 
     // MARK: 详情
 
@@ -540,9 +666,6 @@ struct ContentView: View {
         // 内容才真的在自己框里滚。
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                // 提示条原来浮在页头上（ZStack + 顶部内边距），一有撤销提示就把标题糊住。
-                // 现在它是版面的一行：出现时把内容顶下去，谁也不盖谁。
-                NoticeBar()
                 Group {
                     // 没授权就一屏数字都不给：拿容器路径扫出来的「几乎没东西」比报错坏得多
                     if grant.needsGrant {
@@ -557,6 +680,18 @@ struct ContentView: View {
                 .id(store.languageChoice)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            // 提示条**浮在内容区底沿**，不占版面一行——这是设计稿自己的做法：
+            // `.dbar{position:absolute;left:252px;right:20px;bottom:14px;z-index:50}`、
+            // `.pgtip{position:absolute;left:50%;bottom:16px;z-index:70}`，稿子里两处提示
+            // 都是浮的。之前把它排成 VStack 的一行，理由是「浮在页头上会把标题糊住」——那条
+            // 成立，但稿子的解法是浮到**底沿**：既不糊标题，也不用把整页顶下去。
+            // 「顶下去」这一动作本身有代价：环居中的那一片按滚动视口高算
+            // （`OverviewView` 的 `ringBox(viewportH, ring)`），视口一矮，环就在**自己卡片的
+            // 局部坐标里**挪了位；而双击回收那一趟吃的是按下时量到的矩形，于是环在动效底下
+            // 走掉，水珠留在这头——不同心。它不占版面，这一路就不会发生。
+            .overlay(alignment: .bottom) {
+                NoticeBar()
+            }
         }
         .animation(theme.animation, value: store.notice)
         // 红绿灯那一条：只让位、不撑高（同侧边栏）
@@ -617,8 +752,6 @@ private struct SidebarRow: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     var panel: AppPanel
-    /// 这一类量出来的容量；nil = 这一页还没扫过，那一格什么都不写。
-    var amount: Int64? = nil
     /// 这一页有没有「新」角标：只在真·新功能第一次亮相时画，进去一次就永久收起。
     var showsNew: Bool = false
     var isSelected: Bool
@@ -646,19 +779,8 @@ private struct SidebarRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 6)
-                // 各页那笔账不同源（缓存那格套在别的条目里、重复那格只数多出来的副本），
-                // 加不到一起，所以这一列不强行统一单位：统一成 GB 会把 300 MB 那类
-                // 印成 0.3 GB，反而看不清谁大谁小。
-                if let amount, amount > 0 {
-                    Text(human(amount))
-                        .font(theme.bodyFont(.caption2))
-                        .monospacedDigit()
-                        .foregroundStyle(isSelected ? theme.palette.inkSecondary
-                                                    : theme.palette.inkTertiary)
-                        .fixedSize()
-                }
-                // 「新」挂在行尾，也就是各页容量读数站着的那一格：这一页没有账可报
-                // （见 ScanStore.amount），那一格空着，正好给角标。
+                // 「新」挂在行尾：这一格原来站的是各页的容量读数，2026-10-23 跟着
+                // 样稿那张 `amt:null` 的表一起撤了（见 `sideSection`），于是它空着。
                 if showsNew { NewBadge() }
             }
             .padding(.horizontal, 8)

@@ -117,6 +117,18 @@ struct Theme: Identifiable {
     /// 图标块上色策略
     var tileStrategy: TileStrategy = .spectrum
 
+    /// 这一块盘上**环的材质**：皮肤自带的那份数（`RingStyle`）的名字。
+    ///
+    /// 为什么跟着皮肤走，而不是单独一格用户偏好：材质描述的是「这根棒怎么反光」，
+    /// 而它必须跟这套皮的色相、明暗、性格一起判——水墨那套要静，极光那套要透。
+    /// 分成两格就会出现「静皮配绕环高光」这种没人调过的组合，而每一格都合法。
+    ///
+    /// 这一格是**数据**，不是逻辑：它只回答「用哪一堆数」，画法全在
+    /// `RingStyle.swift` / `RingLayers.swift`。来历与「加一款材质改几个文件」那笔账
+    /// 记在 `RingStyle.swift` 顶部那条 L1 决策记录上。
+    /// 默认 `.standard` = 今天线上那一版，所以没写 `ring` 字段的旧 skins.json 像素不动。
+    var ring: RingLook = .standard
+
     /// `Channel.showsPricing` 为真时这套皮肤按商品展示；开关关闭时所有皮肤都是普通皮肤。
     var isPaid: Bool { Channel.showsPricing && tier == .premium }
 }
