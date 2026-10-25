@@ -24,9 +24,9 @@ DMG は約 8 MB で、Apple Silicon と Intel の両方を 1 ファイルに収�
 *スキャン → 行を開く → 2 回タップ → 元に戻す。合成したホームフォルダで撮っているので、画面の数字は
 すべて作りものです —— 上部のオレンジの帯がそう書いています。*
 
-[![App キャッシュ画面：各行に、消すとどうなるかが書かれている](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=ePKOkt2h70w)
+[![App キャッシュ画面：各行に、消すとどうなるかが書かれている](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-*▶ 43 秒のデモ映像（YouTube）。*
+*▶ 22 秒のデモ映像（YouTube）。*
 
 </div>
 

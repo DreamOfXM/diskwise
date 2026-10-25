@@ -24,9 +24,9 @@ English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한
 
 *Scan → open a row → two taps → undo. Shot against a synthetic home folder, so the numbers on screen are invented — the orange strip says so.*
 
-[![The App Caches page on screen: every row says what deleting it would cost](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=ePKOkt2h70w)
+[![The App Caches page on screen: every row says what deleting it would cost](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-*▶ The 43-second demo film (YouTube).*
+*▶ The 22-second demo film (YouTube).*
 
 </div>
 

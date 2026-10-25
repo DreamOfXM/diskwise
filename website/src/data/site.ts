@@ -8,7 +8,7 @@ export const RELEASES = "https://github.com/DreamOfXM/diskwise/releases/latest";
 export const APP_STORE = "https://apps.apple.com/app/id6813265402";
 export const BREW_CMD = "brew install --cask dreamofxm/diskwise/diskwise";
 // 演示片：仓库与产品页都指向同一条 YouTube 视频，链接以视频 ID 为准
-export const VIDEO = "https://www.youtube.com/watch?v=ePKOkt2h70w";
+export const VIDEO = "https://www.youtube.com/watch?v=0RfXNwNdzFg";
 // 反馈渠道与 README 保持同源：邮件 + GitHub Issue（中英文都行）
 export const ISSUES = "https://github.com/DreamOfXM/diskwise/issues";
 export const FEEDBACK_EMAIL = "hnyxgxm2009@163.com";

@@ -24,9 +24,9 @@
 *스캔 → 행 열기 → 두 번 탭 → 되돌리기. 합성한 홈 폴더에서 찍었기 때문에 화면의 숫자는 전부 지어낸
 것입니다 —— 맨 위 주황색 띠가 그렇게 적고 있습니다.*
 
-[![앱 캐시 화면: 각 행에 지우면 어떤 일이 벌어지는지 적혀 있다](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=ePKOkt2h70w)
+[![앱 캐시 화면: 각 행에 지우면 어떤 일이 벌어지는지 적혀 있다](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-*▶ 43초 데모 영상(YouTube).*
+*▶ 22초 데모 영상(YouTube).*
 
 </div>
 
