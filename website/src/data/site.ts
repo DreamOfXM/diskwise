@@ -3,7 +3,7 @@
 
 export const REPO = "https://github.com/DreamOfXM/diskwise";
 export const RELEASES = "https://github.com/DreamOfXM/diskwise/releases/latest";
-// 无地区码商店链接：中美两区均已上架（2026-10-06 复核，商店版 1.5），
+// 无地区码商店链接：中美两区均已上架（2026-10-25 复核，两区商店版都是 1.7，比 DMG 的 2.0 慢一拍），
 // 各区访客自动落到所属商店；若某区未上架，该区访客会被甩到商店首页，届时再钉死地区码。
 export const APP_STORE = "https://apps.apple.com/app/id6813265402";
 export const BREW_CMD = "brew install --cask dreamofxm/diskwise/diskwise";
