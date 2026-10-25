@@ -40,6 +40,10 @@ brew install --cask dreamofxm/diskwise/diskwise
 想直接下载文件？[最新的 GitHub Release](https://github.com/DreamOfXM/diskwise/releases/latest)——
 每条 Release 都附 DMG 的 SHA-256。
 
+想先知道哪些能删、删了会怎样？[docs/safe-to-delete.md](./docs/safe-to-delete.md)——macOS 上 80 个常见
+的占空间位置，每条写清它是什么、删掉会怎样、删错的代价分三级。这份文档由 App 扫描时实际读取的那份
+数据生成，不是宣传文案。
+
 ---
 
 ## 2.0 更新

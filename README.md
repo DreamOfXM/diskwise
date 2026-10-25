@@ -40,6 +40,11 @@ Or from the **Mac App Store** (macOS 13+, free, auto-updated by the store):
 Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
 every release ships the DMG's SHA-256.
 
+Want to know what's actually safe to delete first? [docs/safe-to-delete.md](./docs/safe-to-delete.md) —
+80 of the usual space hogs on macOS, each with what it is, what deleting it does and what it costs
+if you were wrong. Generated from the same data the app reads at scan time (the tables are in
+Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable original).
+
 ---
 
 ## What's new in v2.0

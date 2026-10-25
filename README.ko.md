@@ -43,6 +43,11 @@ brew install --cask dreamofxm/diskwise/diskwise
 파일을 직접 받는 편이 낫다면 [최신 GitHub 릴리스](https://github.com/DreamOfXM/diskwise/releases/latest)
 —— 릴리스마다 DMG의 SHA-256이 함께 올라갑니다.
 
+뭐가 지워도 되는지 먼저 알고 싶다면 [docs/safe-to-delete.md](./docs/safe-to-delete.md) —— macOS에서
+공간을 먹는 80곳을 "그게 뭔지 / 지우면 어떻게 되는지 / 잘못 지웠을 때의 대가"와 함께 정리했습니다.
+앱이 스캔할 때 실제로 읽는 데이터로 만든 문서이고, 표는 중국어입니다(기계 가독 원본은
+`Sources/DiskCleaner/Resources/safety_db.json`).
+
 ---
 
 ## v2.0 새 기능
