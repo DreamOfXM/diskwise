@@ -101,15 +101,20 @@ fi
 # 而函数的返回码是最后一条命令（查产物目录）的，编译崩了也照样返回 0。
 build_for_triple() {
 	local triple="$1"
+	# 每刀一个 scratch 目录，且显式传给 --show-bin-path。Xcode 27 的 SwiftPM 里
+	# --show-bin-path 会无视 --triple，两刀都报同一个 .build/out/Products/Release，
+	# 后一刀把前一刀盖掉，universal 就退化成单架构（lipo 直接 "same architectures" 死掉，
+	# 更坏的情况是缓存判定"不用重编"，出一张只有一刀的假通用包出厂）。
+	local scratch="$ROOT_DIR/.build/$triple"
 	local log="$ROOT_DIR/.build/compile.$triple.log"
 	mkdir -p "$(dirname "$log")"
-	if ! swift build -c release --triple "$triple" $SWIFT_FLAGS >"$log" 2>&1; then
+	if ! swift build -c release --scratch-path "$scratch" --triple "$triple" $SWIFT_FLAGS >"$log" 2>&1; then
 		echo "    $triple 编译失败，输出 $(wc -l < "$log" | tr -d ' ') 行，最后 60 行：" >&2
 		tail -n 60 "$log" | sed 's/^/    /' >&2
 		exit 1
 	fi
 	tail -n 2 "$log" >&2
-	swift build --show-bin-path -c release --triple "$triple" 2>/dev/null | tail -n 1
+	swift build --show-bin-path -c release --scratch-path "$scratch" --triple "$triple" 2>/dev/null | tail -n 1
 }
 
 echo "==> [3/7] release 编译（架构 ${ARCH}，渠道 ${CHANNEL}）"
