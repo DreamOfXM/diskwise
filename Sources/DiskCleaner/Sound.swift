@@ -254,7 +254,7 @@ enum Synth {
             frames += 1
             i += frame
         }
-        return String(format: "sound %@: 时长 %.2fs rms %.4f 峰值 %.4f 安静帧 %.0f%%",
+        return String(format: "sound %@: 时长 %.2fs rms %.4f 峰值 %.4f 安静帧 %.0f%%",  // l10n-scan: skip
                       name, Double(n) / rate, rms, peak,
                       frames > 0 ? Double(quiet) / Double(frames) * 100 : 0)
     }

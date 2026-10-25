@@ -1033,6 +1033,7 @@
 "删了要重新下载或重建 · 都能一键收走" = "Muss neu geladen oder gebaut werden · alles per Ein-Klick möglich";
 "按代价" = "Nach Kosten";
 "按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Nach Kosten: null Kosten, neu laden, unwiderruflich, nicht anfassen – die vier ergeben die ganze Platte.";
+"一圈 = 这块盘的真实字节" = "Ein Ring = die echten Bytes dieser Platte";
 "按代价：同一块盘，清掉它分别要付什么" = "Nach Kosten: dieselbe Platte, was das Löschen jeweils kostet";
 "按空间" = "Nach Speicher";
 "按空间：这一圈是「谁占了地方」" = "Nach Speicher: der Ring zeigt, wer den Platz belegt";
@@ -1128,7 +1129,8 @@
 "松开空格也回到现在这一档" = "Auch loslassen der Leertaste bringt die aktuelle Ansicht zurück";
 "松开返回" = "Loslassen zurück";
 "这一圈还没量完：「全部清空之后」要有账才量得出来。" = "Dieser Ring ist noch nicht zu Ende gemessen: „Nach dem Leeren“ rechnet sich erst, wenn die Abrechnung ganz da ist.";
-"这一步点名的 %1$@，搬走后都能在废纸篓页撤销" = "Die %1$@, die dieser Schritt nennt, lassen sich auf der Papierkorb-Seite alle rückgängig machen";
+"将移入废纸篓：%1$@ %2$@ · %3$@（%4$@）" = "Wird in den Papierkorb verschoben: %1$@ %2$@ · %3$@ (%4$@)";
+"这一步点名的 %1$@ · %2$@（%3$@），搬走后都能在废纸篓页撤销" = "Die %1$@ · %2$@ (%3$@), die dieser Schritt nennt, lassen sich auf der Papierkorb-Seite alle rückgängig machen";
 "这一笔还没发生 · 松开空格就回去" = "Noch nicht geschehen · Leertaste loslassen und zurück";
 "亮起来的那几段，现在就能收走" = "die leuchtenden Segmente kannst du jetzt aufräumen";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "Vorschau, wie es nach dem Aufräumen aussieht – nur in den Papierkorb, jederzeit umkehrbar";

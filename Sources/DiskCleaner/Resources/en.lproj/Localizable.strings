@@ -1029,6 +1029,7 @@
 "删了要重新下载或重建 · 都能一键收走" = "Must re-download or rebuild · all can go in one click";
 "按代价" = "By cost";
 "按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "By cost: zero cost, re-download, irreversible, hands off — the four add up to the whole disk.";
+"一圈 = 这块盘的真实字节" = "One ring = the real bytes on this disk";
 "按代价：同一块盘，清掉它分别要付什么" = "By cost: the same disk, what clearing each part costs you";
 "按空间" = "By space";
 "按空间：这一圈是「谁占了地方」" = "By space: this ring shows what takes up the room";
@@ -1124,7 +1125,8 @@
 "松开空格也回到现在这一档" = "Releasing space returns to the current reading too";
 "松开返回" = "Release to go back";
 "这一圈还没量完：「全部清空之后」要有账才量得出来。" = "This ring isn't measured yet: “after clearing all” needs the whole ledger before it can be counted.";
-"这一步点名的 %1$@，搬走后都能在废纸篓页撤销" = "The %1$@ this step names can all be undone on the Trash page";
+"将移入废纸篓：%1$@ %2$@ · %3$@（%4$@）" = "Moving to Trash: %1$@ %2$@ · %3$@ (%4$@)";
+"这一步点名的 %1$@ · %2$@（%3$@），搬走后都能在废纸篓页撤销" = "The %1$@ · %2$@ (%3$@) named by this step can all be undone on the Trash page";
 "这一笔还没发生 · 松开空格就回去" = "Not spent yet · release space to go back";
 "亮起来的那几段，现在就能收走" = "the lit segments are the ones you can clear now";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "preview how it looks cleared — to Trash only, undo anytime";

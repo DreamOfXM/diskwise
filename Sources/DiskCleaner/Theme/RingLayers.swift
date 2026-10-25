@@ -924,7 +924,7 @@ struct RingLayers {
         guard !Self.dumped.contains(key) else { return }
         Self.dumped.insert(key)
         func rgb(_ c: Color) -> String {
-            guard let n = NSColor(c).usingColorSpace(.deviceRGB) else { return "解析不出RGB" }
+            guard let n = NSColor(c).usingColorSpace(.deviceRGB) else { return "解析不出RGB" }  // l10n-scan: skip
             return String(format: "r%.3f g%.3f b%.3f a%.3f",
                           n.redComponent, n.greenComponent, n.blueComponent, n.alphaComponent)
         }

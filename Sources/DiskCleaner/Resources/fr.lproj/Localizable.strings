@@ -1038,6 +1038,7 @@
 "删了要重新下载或重建 · 都能一键收走" = "À retélécharger ou reconstruire · tout est faisable en un clic";
 "按代价" = "Par coût";
 "按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Par coût : coût nul, à retélécharger, irréversible, ne pas toucher — les quatre font le disque entier.";
+"一圈 = 这块盘的真实字节" = "Un anneau = les octets réels de ce disque";
 "按代价：同一块盘，清掉它分别要付什么" = "Par coût : le même disque, ce que coûte l'effacement de chaque part";
 "按空间" = "Par espace";
 "按空间：这一圈是「谁占了地方」" = "Par espace : cet anneau montre qui occupe la place";
@@ -1133,7 +1134,8 @@
 "松开空格也回到现在这一档" = "Relâcher la barre d'espace ramène aussi à la lecture actuelle";
 "松开返回" = "Relâcher pour revenir";
 "这一圈还没量完：「全部清空之后」要有账才量得出来。" = "Cet anneau n'est pas encore tout mesuré : « après tout avoir vidé » ne se calcule qu'avec le registre complet.";
-"这一步点名的 %1$@，搬走后都能在废纸篓页撤销" = "Les %1$@ nommés par cette étape sont annulables depuis la page Corbeille";
+"将移入废纸篓：%1$@ %2$@ · %3$@（%4$@）" = "Sera déplacé vers la corbeille : %1$@ %2$@ · %3$@ (%4$@)";
+"这一步点名的 %1$@ · %2$@（%3$@），搬走后都能在废纸篓页撤销" = "Les %1$@ · %2$@ (%3$@) nommés par cette étape sont annulables depuis la page Corbeille";
 "这一笔还没发生 · 松开空格就回去" = "Rien n'est encore joué · relâchez l'espace pour revenir";
 "亮起来的那几段，现在就能收走" = "les segments illuminés sont récupérables maintenant";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "aperçu une fois vidé · vers la Corbeille seulement, annulable";

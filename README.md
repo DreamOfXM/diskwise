@@ -42,8 +42,37 @@ every release ships the DMG's SHA-256.
 
 ---
 
+## What's new in v2.0
+
+v2.0 is the biggest visual and interaction pass since the app shipped — same one-way delete path
+and the same safety model, but almost everything you look at has been rebuilt.
+
+- **The ring is real material now.** The band, its inner edge lights and the outer rim are layered
+  crystal and glass with per-skin parameters, not flat colour fills. The six skins still change
+  typeface, radius and motion — and now the ring's material too.
+- **A radar sweep while it measures.** The scan light crosses the band once every 1.7 seconds: fast
+  enough to read as *measuring*, not a slow decorative breathing.
+- **A first-run welcome, and a four-step guide.** First launch explains "one ring = your whole
+  disk" before a single number appears (the scan already runs behind it). A short four-page guide
+  then shows *how to act* — the ring's centre and the two-tap gesture both changed, and guessing
+  wrong means clicking the wrong thing.
+- **Hold Space to preview "after clearing everything".** Press and hold to see the disk with every
+  reclaimable spot gone; release and you're back. Nothing moves.
+- **By space / by cost.** Flip the ledger between "what takes up room" and "what cleaning it costs"
+  — four cost classes on the same denominator, so the rows add up to the disk.
+- **The first tap now says what will move.** Arming a slice prints the exact count, the bytes and
+  the first few folders the second tap will send to the Trash — no more guessing what "cache"
+  covers. The two-tap gesture and the 3-second auto-cancel are unchanged.
+- **Reclaim you can watch.** The bytes leave the tapped slice as droplets, cross the ring and land
+  in the Trash tray; the ledger settles to the real count afterwards.
+- **Sound, only when you act.** Every cue is synthesised in-app (no audio files, no network) and
+  fires only on an interaction — no looping background bed. One visible toggle, remembered.
+- **A titlebar that holds together.** The volume chip sits on the left, the controls on the right,
+  and the scan-time *Stop* button no longer truncates when the window narrows.
+
 ## Contents
 
+- [What's new in v2.0](#whats-new-in-v20)
 - [Quick start](#quick-start)
 - [For AI agents](#for-ai-agents)
 - [Why this exists](#why-this-exists)

@@ -1030,6 +1030,7 @@
 "删了要重新下载或重建 · 都能一键收走" = "Hay que volver a descargarlo o reconstruirlo · todo entra con un clic";
 "按代价" = "Por coste";
 "按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Por coste: coste cero, volver a descargar, irreversible, no tocar: las cuatro suman el disco entero.";
+"一圈 = 这块盘的真实字节" = "Un anillo = los bytes reales de este disco";
 "按代价：同一块盘，清掉它分别要付什么" = "Por coste: el mismo disco, qué cuesta borrar cada parte";
 "按空间" = "Por espacio";
 "按空间：这一圈是「谁占了地方」" = "Por espacio: este anillo muestra quién ocupa el sitio";
@@ -1125,7 +1126,8 @@
 "松开空格也回到现在这一档" = "Soltar el espacio también vuelve a la lectura actual";
 "松开返回" = "Soltar y volver";
 "这一圈还没量完：「全部清空之后」要有账才量得出来。" = "Este anillo aún no está del todo medido: «tras vaciarlo todo» necesita la cuenta completa para poder salir.";
-"这一步点名的 %1$@，搬走后都能在废纸篓页撤销" = "Los %1$@ que este paso nombra se pueden deshacer desde la página de la papelera";
+"将移入废纸篓：%1$@ %2$@ · %3$@（%4$@）" = "Se moverá a la papelera: %1$@ %2$@ · %3$@ (%4$@)";
+"这一步点名的 %1$@ · %2$@（%3$@），搬走后都能在废纸篓页撤销" = "Los %1$@ · %2$@ (%3$@) que este paso nombra se pueden deshacer desde la página de la papelera";
 "这一笔还没发生 · 松开空格就回去" = "Todavía no ha pasado · suelta el espacio y vuelve";
 "亮起来的那几段，现在就能收走" = "los segmentos iluminados se pueden liberar ahora";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "previsualiza cómo queda tras limpiar · solo a la Papelera, reversible";

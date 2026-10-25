@@ -139,7 +139,7 @@ final class PreviewSignal: ObservableObject {
 /// 环上那棵大树加右边六行账全跟着走一遍）；挂在这一颗叶子上，重算只有这一格。
 ///
 /// `armedAll` 由页面传：整圈上膛那一档本来就住在 `@Published armedPath` 上，页面跟着它
-/// 重算是已有的账。这一格让位之后环底下还剩不还剩一句话，全在 `ringBelow(showBar:ring:)`。
+/// 重算是已有的账。这一格让位之后环底下还剩不还剩一句话，全在 `ringBelow(showBar:ring:armedLine:)`。
 private struct AfterClearSlot<Content: View>: View {
     @ObservedObject var preview: PreviewSignal
     let armedAll: Bool
@@ -1578,26 +1578,36 @@ struct OverviewView: View {
             + "\n" + L("这一笔还没发生 · 松开空格就回去")
     }
 
-    /// 环正下方那一格装什么：只装「点了一条动不了的弧，为什么动不了」那一句；
-    /// 整圈那一档让它空着（条子在那时浮在环底下，见 `heroCard` 里的 `PreviewBarHost`）。
+    /// 环正下方那一格装什么：装「点了一条动不了的弧，为什么动不了」那一句，
+    /// 或「单条弧上了膛，这一按真会搬走哪些处」那份名单；整圈那一档让它空着
+    /// （条子在那时浮在环底下，见 `heroCard` 里的 `PreviewBarHost`）。
     ///
-    /// 上膛那一档**不在这里说话**。样稿 `?arm` 上只有盘心那两行（「确认移入废纸篓」/
-    /// 「再点一次才移进废纸篓 · 3 秒不点自动取消」）、那圈描边和那截琥珀弧；环底下
-    /// 没有第二块地方。2026-10-23 实拍：这里曾给上膛补过一条带警告底的框，把「几处、
-    /// 多少 G、还能在废纸篓页找回」又念一遍——稿子里没有，而且它跟盘心说的是同一个
-    /// 「下一步」，同一屏两个下一步。上膛之后弧暗下去、盘心那行自己收回，这句也就
-    /// 没有要跟着消失的东西了。
+    /// 上膛那一档**在这里念名单**（`armedLine`）：样稿 `?arm` 上只有盘心那两行
+    /// （「确认移入废纸篓」/「再点一次才移进废纸篓 · 3 秒不点自动取消」）和那圈描边，
+    /// 圆心写的是字节数，却没说这几字节是**哪些目录**——人只看见「缓存」两个字就得
+    /// 凭想象决定要不要按第二下。2026-10-25 他对着这一屏说「不知道自己到底回收的是啥」，
+    /// 于是把名单补在这一格：它念的不是盘心那句「下一步」的重复，而是盘心没有的信息
+    /// （具体哪几处、共几处、多少字节）。手势不变，第二下才真搬。
+    ///
+    /// 这一格是 `inkSecondary` 的一行 plain text，不是带警告底的框：它跟「为什么动不了」
+    /// 那句共用同一张嘴、同一种样式，眼睛此刻就在环底下，话就落在这儿。
     ///
     /// 从前这句跟在整张卡片的下面：默认那扇 700 pt 高的窗里它落在 807 pt 处，而
     /// 「点一条动不了的弧，当场把话说清」是这一屏唯一的反馈——2026-09-28 实拍：
     /// 1280x800 的 `-refused` 与静图零差异，换成 1500 高才看见那句话。
     /// 眼睛在环上，话就得落在环底下。
     @ViewBuilder
-    private func ringBelow(showBar: Bool, ring: CGFloat) -> some View {
+    private func ringBelow(showBar: Bool, ring: CGFloat, armedLine: String?) -> some View {
         if showBar {
             // 这一格这一档**什么都不装**。条子已经浮到环底下了（见 `heroCard` 里那颗
             // `PreviewBarHost`），这里剩下的活儿只有替它让位。
             EmptyView()
+        } else if let armedLine {
+            Text(armedLine)
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: ring, alignment: .leading)
         } else if let note = arcNote {
             Text(note)
                 .font(theme.bodyFont(.caption))
@@ -1799,6 +1809,41 @@ struct OverviewView: View {
             ? String(r.why.dropLast()) : r.why
         return cause.isEmpty ? LF("另有 %1$d 处没搬动。", r.failed)
                              : LF("另有 %1$d 处没搬动，第一处的原因是：%2$@。", r.failed, cause)
+    }
+
+    // MARK: 上膛那一刻把名单念出来（第一下点亮 → 看清将搬什么 → 第二下才搬）
+
+    /// 上膛（第一下）时，把「这一按真会搬走什么」当场念清楚：处数 + 字节 + 头几处的名字。
+    ///
+    /// 从前这一档只有圆心那个字节数和「再点一次才移进废纸篓」，人看不见名单，只能凭
+    /// 「缓存」两个字想象自己要丢什么——2026-10-25 他对着这一屏说「很容易给人一种错觉，
+    /// 不知道自己到底回收的是啥」。双击这个手势一字不改，只是第一下从「盲按两下」变成
+    /// 「看一眼名单再确认」：搬哪些处、共几处、多少字节，全在第二下落刀之前摆出来。
+    ///
+    /// 名字取 `displayPath`（家目录缩成 ~），最多念三处，多的用「…」收口——这一格只有环
+    /// 那么宽，念全了会折成一堵字，反而读不出重点。处数与字节都是**真会搬的那几处**
+    /// （`seg.targets` / `acct.hot` 的 targets），跟第二下 `moveTargets` 搬的是同一批，
+    /// 所以念出来的数和搬完那句「已移入废纸篓 N 处」对得上（差的只是当场没搬动的那几处，
+    /// 那部分由 `failTail` 自己说）。
+    private func pendingMoveLine(targets: [ReclaimTarget], label: String) -> String? {
+        guard !targets.isEmpty else { return nil }
+        let bytes = targets.reduce(Int64(0)) { $0 + $1.size }
+        return LF("将移入废纸篓：%1$@ %2$@ · %3$@（%4$@）",
+                  label, cnt(targets.count, "处"), human(bytes), namesTail(targets))
+    }
+
+    /// 头几处的名字，拼成「A、B、C…」。超过三处只念前三、尾巴一个省略号。
+    private func namesTail(_ targets: [ReclaimTarget]) -> String {
+        let names = targets.prefix(3).map { displayPath($0.url) }
+        return names.joined(separator: "、") + (targets.count > 3 ? "…" : "")
+    }
+
+    /// 单条弧上膛时，环底下那一格要念的名单。整圈那一档（`armAll`）返回 nil——
+    /// 它的名单由浮在环底下的预演条自己念（见 `previewBar`），同一屏不必念两遍。
+    private func armedPendingLine(_ acct: RingAccount) -> String? {
+        guard let armed = model.armedPath, armed != SweepRing.armAll else { return nil }
+        guard let seg = acct.segs.first(where: { $0.armKey == armed }) else { return nil }
+        return pendingMoveLine(targets: seg.targets, label: seg.label)
     }
 
     /// 这一趟回收的动效参数：被点的那一段弧、环那一格、废纸篓那一格、真搬走的字节。
@@ -3193,7 +3238,7 @@ struct OverviewView: View {
                                 }
                             }
                         // 环正下方那一格：装哪句话、什么时候让位，连同「为什么必须落在环
-                        // 底下」的实拍，都记在 `ringBelow(showBar:ring:)` 的注上。
+                        // 底下」的实拍，都记在 `ringBelow(showBar:ring:armedLine:)` 的注上。
                         // 稿子⑫那条决策条的账本记在两处：它原先坐在右边那本账的最后，
                         // 2026-10-22 逐层配对量下来那一格付不起（`DISKWISE_PERF_PREVIEW=0.4`
                         // 同一场，尾段 >100 ms——只换账目列那一格 46 格、整圈全开 55 格、
@@ -3216,7 +3261,8 @@ struct OverviewView: View {
                         AfterClearSlot(preview: model.previewSignal,
                                        armedAll: model.armedPath == SweepRing.armAll,
                                        hide: Self.barMode == "off") { showBar in
-                            ringBelow(showBar: showBar, ring: ring)
+                            ringBelow(showBar: showBar, ring: ring,
+                                      armedLine: armedPendingLine(acct))
                         }
                     }
                     // 环的居中框来自窗口，不来自这一本账（见 `ringBox(_:_:)`）。
@@ -3489,9 +3535,16 @@ struct OverviewView: View {
                 //
                 // 上膛之后这两行**一个字都不改**，只换那颗钮（`就这样清` → `确认移入废纸篓 ⌘↵`）：
                 // 「已选中 N 处、再点一次才搬、3 秒不点自动取消、搬走后还能找回」这四件事实由
-                // 这一条（处数、找回）、那颗钮（再点一次）和盘心那一档（自动取消）分说完了，
-                // 少一件这一屏就少一句实话。
-                Text(LF("这一步点名的 %1$@，搬走后都能在废纸篓页撤销", cnt(acct.places, "处")))
+                // 这一条（处数、字节、头几处的名字、找回）、那颗钮（再点一次）和盘心那一档
+                // （自动取消）分说完了，少一件这一屏就少一句实话。
+                //
+                // 名单那半句（`· X GB（名1、名2、名3…）`）是 2026-10-25 补的：从前这一条只写
+                // 「点名的 N 处」，人不知道这 N 处是**哪些目录**就得决定要不要按第二下——
+                // 跟单条弧上膛那份名单同一条道理，只是整圈这一档的名单由这条浮着的预演条念，
+                // 不由环底下那一格念（那一格在整圈档让位，见 `ringBelow`）。
+                Text(LF("这一步点名的 %1$@ · %2$@（%3$@），搬走后都能在废纸篓页撤销",
+                        cnt(acct.places, "处"), human(acct.reclaimable),
+                        namesTail(acct.hot.flatMap { $0.targets })))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .fixedSize(horizontal: false, vertical: true)
