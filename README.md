@@ -2,31 +2,21 @@
 
 # DiskWise
 
-**A free, open-source CleanMyMac alternative for macOS.**
+**See where your Mac's disk actually went — then clear a slice with two taps. It lands in the Trash, and one tap puts it back.**
+
+A free, open-source CleanMyMac alternative for macOS. No subscription, no telemetry, ~8 MB.
 
 ![stars](https://img.shields.io/github/stars/DreamOfXM/diskwise?style=social)
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
-![swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
 ![languages](https://img.shields.io/badge/UI%20languages-10-blue)
 ![license](https://img.shields.io/badge/License-Apache%202.0-4c8f52)
-![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
-A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
-caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
-the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription, and the whole UI in ten languages. A ~8 MB DMG, one
-file for Apple Silicon and Intel.
-
-English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
-
-![The Overview page in one loop: a rescan grows the ring segment by segment until it settles, its light sweeping round the band, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back](docs/demo/overview-en.gif)
+<img src="docs/demo/overview-en.gif" width="860" alt="The Overview page in one loop: a rescan grows the ring segment by segment until it settles, its light sweeping round the band, opening a ledger row unfolds that row's detail in place while the ring steps back to a small reference dial, the first tap on an arc arms it and the second moves it to the Trash, and Undo puts it back">
 
 *Scan → open a row → two taps → undo. Shot against a synthetic home folder, so the numbers on screen are invented — the orange strip says so.*
 
-[![The Overview ring on screen: one loop splits a 96 GB disk, and this clean just reclaimed 10.8 GB](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=0RfXNwNdzFg)
-
-*▶ The 22-second demo film (YouTube).*
+English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 </div>
 
@@ -34,11 +24,15 @@ English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Or from the **Mac App Store** (macOS 13+, free, auto-updated by the store):
-[DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
+Or the **Mac App Store** (free, auto-updated by the store): [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
+· [DMG from Releases](https://github.com/DreamOfXM/diskwise/releases/latest), every release with its SHA-256
+· ▶ [22-second demo film](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-Prefer downloading a local file? [Latest GitHub release](https://github.com/DreamOfXM/diskwise/releases/latest) —
-every release ships the DMG's SHA-256.
+A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
+caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
+the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
+server, no telemetry, no subscription, and the whole UI in ten languages. A ~8 MB DMG, one
+file for Apple Silicon and Intel.
 
 Want to know what's actually safe to delete first? [docs/safe-to-delete.md](./docs/safe-to-delete.md) —
 80 of the usual space hogs on macOS, each with what it is, what deleting it does and what it costs
