@@ -300,25 +300,6 @@ public struct OrphanItem: Identifiable {
     public var selected = false
 }
 
-private let orphanLocations: [(label: String, subpath: String, kind: String, level: String)] = [
-    ("Application Support", "Library/Application Support", "dir", "warn"),
-    ("Group Containers", "Library/Group Containers", "dir", "warn"),
-    ("Preferences", "Library/Preferences", "plist", "warn"),
-    ("Containers", "Library/Containers", "dir", "safe"),
-    ("Caches", "Library/Caches", "dir", "safe"),
-    ("Saved Application State", "Library/Saved Application State", "state", "safe"),
-    ("HTTPStorages", "Library/HTTPStorages", "file", "safe"),
-    ("WebKit", "Library/WebKit", "dir", "safe"),
-    ("Logs", "Library/Logs", "dir", "safe"),
-    ("Application Scripts", "Library/Application Scripts", "dir", "safe"),
-    // 第 11 处（稿子④，2026-09-30 拍板「只加一行」）：App 卸载了、它的自启动还留着。
-    // 这一档不是「列全自启动项」——那是启动管理工具的事；这里要的正是没主的那几个 plist。
-    // 系统态那两个目录（/Library/LaunchAgents、/Library/LaunchDaemons）不接：09-30 实测
-    // 沙盒里读得到，但本机那 3 条属于**在装**的软件（搜狗、OrbStack），「残留」这个语义
-    // 在它们身上不成立。
-    ("LaunchAgents", "Library/LaunchAgents", "plist", "warn"),
-]
-
 private let orphanDenylist: Set<String> = [
     "addressbook", "automator", "callhistory", "callhistorydb", "callhistorytransactions",
     "clouddocs", "dock", "knowledge", "syncservices", "tcc", "icloud", "familycircle",
@@ -333,58 +314,24 @@ private let orphanGuess: [(kw: String, label: String)] = [
     ("dingtalk", "钉钉"), ("qq", "QQ"), ("tencent", "腾讯系应用"),
 ]
 
-private func stripTeamID(_ s: String) -> String {
-    if s.count > 11, s[s.index(s.startIndex, offsetBy: 10)] == ".",
-       s.prefix(10).allSatisfy({ $0.isLetter || $0.isNumber }) {
-        return String(s.dropFirst(11))
-    }
-    return s
-}
-
-private func splitTokens(_ s: String) -> [String] {
-    s.lowercased().split { ". -_".contains($0) }.map(String.init).filter { $0.count >= 4 }
-}
-
 public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanItem], appCount: Int) {
-    // 1. 盘点已安装 App
-    var ids = Set<String>(), toks = Set<String>(), names = Set<String>()
+    // 1. 盘点已装 App。跟卸载页走同一份（`inventoryApps`），两边对「装着什么」不许有两个答案。
+    let inv = await inventoryApps(progress: progress)
     let home = homePath()
     // 清单三段：① 盘点已装 App（按 App 目录）② 找孤儿（按 `~/Library` 下那几处）
     // ③ 量体积（按每一处疑似残留）。三段都预列，因为三段各自的长短用户都该看得出来——
     // 这一段慢在哪，比「正在盘点…」一句话有用得多。
-    let appRoots = [applicationsDir(), "/System/Applications", home + "/Applications"]
-    let appStations = progress.map { $0.plan(appRoots) } ?? []
-    for (k, root) in appRoots.enumerated() {
-        progress?.enter(appStations[k])
-        guard let apps = try? FileManager.default.contentsOfDirectory(atPath: root) else {
-            progress?.finish(appStations[k], bytes: 0)
-            continue
-        }
-        progress?.walk(files: apps.count, bytes: 0, in: root)
-        for a in apps where a.hasSuffix(".app") {
-            let stem = String(a.dropLast(4)).trimmingCharacters(in: .whitespaces).lowercased()
-            names.insert(stem)
-            toks.insert(stem.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: ""))
-            toks.formUnion(splitTokens(stem))
-            let info = (root as NSString).appendingPathComponent(a + "/Contents/Info.plist")
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: info)),
-               let pl = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-               let bid = (pl["CFBundleIdentifier"] as? String)?.lowercased(), !bid.isEmpty {
-                ids.insert(bid)
-                toks.insert(bid)
-                toks.formUnion(splitTokens(bid))
-            }
-            if Task.isCancelled { return ([], names.count) }
-        }
-        progress?.finish(appStations[k], bytes: 0)
-    }
     func related(_ stem: String) -> Bool {
+        // 强匹配：这条目录就是某个已装 App 的。卸载页认哪几条，这一页就不许把它们叫成「没主」。
+        if !inv.strongMatches(stem).isEmpty { return true }
         let cl = stripTeamID(stem).lowercased().trimmingCharacters(in: .whitespaces)
-        if ids.contains(cl) || names.contains(cl) || orphanDenylist.contains(cl) { return true }
-        if toks.contains(where: { $0.count >= 5 && (cl.contains($0) || $0.contains(cl)) }) { return true }
+        if orphanDenylist.contains(cl) { return true }
+        // 弱匹配只在残留页用：token 的包含关系是猜的，猜错只是少显示一行；
+        // 卸载页要靠它删掉别人的数据，那边一条都不许用（见 Uninstall.swift）。
+        if inv.tokens.contains(where: { $0.count >= 5 && (cl.contains($0) || $0.contains(cl)) }) { return true }
         var segs = cl.split { ". -_".contains($0) }.map(String.init)
         if segs.first == "group" || segs.first == "team" { segs = Array(segs.dropFirst()) }
-        return segs.contains { $0.count >= 4 && (toks.contains($0) || ids.contains($0)) }
+        return segs.contains { $0.count >= 4 && (inv.tokens.contains($0) || inv.bundleIDs.contains($0)) }
     }
     func guess(_ stem: String) -> String {
         let cl = stripTeamID(stem).lowercased()
@@ -395,46 +342,17 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
     // 2. 找孤儿
     var cands: [(label: String, level: String, path: String, stem: String)] = []
     let locStations = progress.map {
-        $0.plan(orphanLocations.map { (home as NSString).appendingPathComponent($0.subpath) })
+        $0.plan(appDataLocations.map { (home as NSString).appendingPathComponent($0.subpath) })
     } ?? []
-    for (k, loc) in orphanLocations.enumerated() {
+    for (k, loc) in appDataLocations.enumerated() {
+        if Task.isCancelled { break }
         progress?.enter(locStations[k])
         let root = (home as NSString).appendingPathComponent(loc.subpath)
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root) else {
-            progress?.finish(locStations[k], bytes: 0)
-            continue
-        }
-        for n in entries {
-            if n.hasPrefix(".") { continue }
-            let p = (root as NSString).appendingPathComponent(n)
-            var stem: String
-            switch loc.kind {
-            case "plist":
-                guard n.lowercased().hasSuffix(".plist") else { continue }
-                stem = String(n.dropLast(6))
-            case "state":
-                guard n.hasSuffix(".savedState") else { continue }
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue else { continue }
-                stem = String(n.dropLast(11))
-            case "file":
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue else { continue }
-                stem = n
-            default:
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue else { continue }
-                stem = n
-            }
-            if loc.label == "Caches" || loc.label == "HTTPStorages" || loc.label == "Containers"
-                || loc.label == "Saved Application State" || loc.label == "LaunchAgents" {
-                if !stem.contains(".") { continue }  // 只认 id 形态，避免误报 pip 之类
-            }
-            if related(stem) { continue }
-            cands.append((loc.label, loc.level, p, stem))
+        for e in firstLevelEntries(loc, root: root) {
+            if related(e.stem) { continue }
+            cands.append((loc.label, loc.level, e.path, e.stem))
         }
         progress?.finish(locStations[k], bytes: 0)
-        if Task.isCancelled { break }
     }
     // 3. 并行统计大小。清单上这一段的短名就是那一处残留的目录名（`com.foo.bar` 那种 id），
     // 认不认得出来全靠它——「正在量哪一处」在这里比在任何一页都更该说得出来。
@@ -462,7 +380,7 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
         }
     }
     items.sort { ($0.size ?? 0) > ($1.size ?? 0) }
-    return (items, names.count)
+    return (items, inv.appCount)
 }
 
 // ══ node_modules：全盘找，聚合到项目级 ══

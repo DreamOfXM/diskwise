@@ -707,8 +707,10 @@ try! fm.createSymbolicLink(at: sbase.appendingPathComponent("link.bin"), withDes
 let locked = sbase.appendingPathComponent("locked")
 try! fm.createDirectory(at: locked, withIntermediateDirectories: true)
 chmod(locked.path, mode_t(0))
+// 任务必须 detached：顶层代码带 await 时整体跑在 async main（主 actor）上，
+// 普通 `Task {}` 会继承主 actor，而下面 `sem.wait()` 正堵着主线程——它永远起不来。
 let sem = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     let r = await dirSizeReport(sbase)
     check(r.bytes >= 2 * 1024 * 1024 && r.bytes < 3 * 1024 * 1024,
           "占盘约 2MB（得 \(r.bytes)，链接未重复计）")
@@ -741,7 +743,7 @@ try! fm.setAttributes([.modificationDate: newerMtime],
 try! fm.setAttributes([.modificationDate: newerMtime],
                       ofItemAtPath: dbase.appendingPathComponent("e.txt").path)
 let sem2 = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     let r = await walkFiles(dirs: [dbase])
     check(r.rows.count == 5 && r.matched == 5, "遍历到 5 个文件")
     let gs = findDupGroups(r.rows).groups
@@ -779,7 +781,7 @@ mk("proj/venv/lib/python3.12/site-packages/pkg/setup.bin", payload)
 mk("web/node_modules/esbuild/bin/setup.bin", payload)
 mk("Library/Developer/Xcode/DerivedData/App-abc/Build/setup.bin", payload)
 let semEnv = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     // 先只放一份自由副本：凑不成一组，就不该报「可回收」
     var rows = (await walkFiles(dirs: [ebase])).rows
     let only = findDupGroups(rows)
@@ -835,7 +837,7 @@ try! Data(count: 5 * 1024 * 1024).write(to: cbase.appendingPathComponent("big.bi
 try! fm.createSymbolicLink(atPath: cbase.appendingPathComponent("linkdir").path,
                            withDestinationPath: cbase.appendingPathComponent("big").path)
 let sem3 = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     let kids = await dirLevel(cbase, includeFiles: false, fileLimit: 0).entries
     check(kids.map(\.name) == ["big", "mid", "small"],
           "下一级按占盘从大到小排（得 \(kids.map(\.name))）")
@@ -877,7 +879,7 @@ makeSim("BBBB", ["name": "iPad Pro",
 makeSim("CCCC", nil, mb: 2)                                   // 没有 plist：不是台子
 try! fm.createDirectory(at: simbase.appendingPathComponent("Caches"), withIntermediateDirectories: true)
 let sem4 = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     let sims = await scanSimulators(under: simbase)
     check(sims.map(\.id) == ["AAAA", "BBBB"],
           "一台模拟器 = 一个装着 device.plist 的目录，空目录与 Caches 都不算（得 \(sims.map(\.id))）")
@@ -922,7 +924,7 @@ try! Data(count: 1 * 1024 * 1024).write(to: lbasePartial.appendingPathComponent(
 try! Data(count: 2 * 1024 * 1024).write(to: lbasePartialSub.appendingPathComponent("f.bin"))
 try! fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: lbasePartialSub.path)
 let sem5 = DispatchSemaphore(value: 0)
-Task {
+Task.detached {
     let lv = await dirLevel(lbase)
     check(lv.entries.first?.name == "top.bin",
           "目录和文件混在一张榜上按占盘降序（第一名 \(lv.entries.first?.name ?? "-")）")
@@ -1271,6 +1273,108 @@ check(oneNames == ["Applications", "opt", "Caches"],
 let twoCaches = ScanProgress.labels(for: ["\(hm)/Library/Caches", "\(hm)/Caches"])
 check(twoCaches == ["~/Library/Caches", "~/Caches"],
       "家目录里重名时补成从家目录起的两段（得 \(twoCaches)）")
+
+// 14.5 卸载 App：盘点与认领口径
+//      卸载页按「这个 App 的数据」删东西，认错一条就等于删了别人的数据，
+//      所以这里钉的全是「认 / 不认」的边界，不是扫描速度。
+do {
+    let uroot = "/tmp/diskwise-selftest-uninstall-\(getpid())"
+    let fm = FileManager.default
+    try? fm.removeItem(atPath: uroot)
+    func ufile(_ rel: String, _ bytes: Int = 1024) {
+        let p = uroot + "/" + rel
+        try? fm.createDirectory(atPath: (p as NSString).deletingLastPathComponent,
+                                withIntermediateDirectories: true)
+        _ = fm.createFile(atPath: p, contents: Data(repeating: 0x41, count: bytes))
+    }
+    func uapp(_ rel: String, _ bid: String, store: Bool = false) {
+        let p = uroot + "/" + rel
+        let plist: [String: Any] = ["CFBundleIdentifier": bid,
+                                    "CFBundleName": (rel as NSString).lastPathComponent]
+        let data = (try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml,
+                                                        options: 0)) ?? Data()
+        try? fm.createDirectory(atPath: p + "/Contents/MacOS", withIntermediateDirectories: true)
+        _ = fm.createFile(atPath: p + "/Contents/Info.plist", contents: data)
+        ufile(rel + "/Contents/MacOS/bin", 2048)
+        if store { ufile(rel + "/Contents/_MASReceipt/receipt", 32) }
+    }
+    uapp("Applications/Demo Notes.app", "com.demo.notes", store: true)
+    uapp("Applications/PixelForge.app", "com.pixelforge.editor")
+    uapp("Applications/Shared One.app", "com.shared.one")
+    uapp("Applications2/Shared One.app", "com.shared.one")
+    uapp("Elsewhere/Remote.app", "com.remote.elsewhere")
+    // 这个 App 的数据：包名、包名前缀、App 名去空格三条路各一份，另加一条「像但不是」
+    // （`com.demo.notes2`）钉住前缀的边界；`sharedone` 是两份同名 App 共用的。
+    ufile("Library/Application Support/com.demo.notes/data.bin")
+    ufile("Library/Application Support/com.demo.notes.helper/x.bin")
+    ufile("Library/Application Support/com.demo.notes2/x.bin")
+    ufile("Library/Application Support/demonotes/x.bin")
+    ufile("Library/Application Support/sharedone/x.bin")
+    ufile("Library/Application Support/com.orphan.gone/x.bin")
+    ufile("Library/Caches/com.demo.notes/c.bin")
+    ufile("Library/Caches/toolcache/x.bin")
+    ufile("Library/Preferences/com.demo.notes.plist")
+    ufile("Library/LaunchAgents/com.demo.notes.plist")
+    ufile("Library/Saved Application State/com.demo.notes.savedState/window.bin")
+    ufile("Library/Logs/com.demo.notes/run.log")
+
+    setenv("DISKWISE_HOME_SHIM", uroot, 1)
+    let inv = await inventoryApps(at: [uroot + "/Applications", uroot + "/Applications2"])
+    check(inv.appCount == 4, "盘点：两个 App 目录里的 4 份 App 都进表（得 \(inv.apps.map(\.name))）")
+    let demo = inv.apps.first { $0.name == "Demo Notes" }
+    check(demo?.isAppStore == true, "App Store 收据：带 _MASReceipt 才算「能免费装回来」")
+    check(demo?.canUninstall == true, "家目录里的 App 搬得走")
+    check(inv.strongMatches("com.demo.notes").map(\.name) == ["Demo Notes"], "包名全等算它自己的")
+    check(inv.strongMatches("com.demo.notes.helper").count == 1, "包名 + 点 + 后缀算同一个 App")
+    check(inv.strongMatches("com.demo.notes2").isEmpty, "前缀必须停在点上：notes2 不是它的")
+    check(inv.strongMatches("demonotes").count == 1, "App 名去空格也认（googlechrome 那种）")
+    check(inv.strongMatches("demo notes").isEmpty, "带空格的写法不是目录名，不许认")
+    check(inv.strongMatches("sharedone").count == 2, "两份同名 App 都认领 sharedone")
+
+    if let demo {
+        let plan = await scanUninstall(demo, inventory: inv)
+        check((plan.bundleBytes ?? 0) > 0, "本体体积量到了")
+        check(plan.items.contains { $0.loc == "Caches" && $0.selected }, "缓存默认勾上（删了会自己重建）")
+        check(plan.items.contains { $0.loc == "Preferences" && !$0.selected && ($0.size ?? 0) > 0 },
+              "偏好设置默认不勾，但把那几 KB 量出来给用户看")
+        check(plan.items.contains { $0.loc == "LaunchAgents" && !$0.selected }, "自启动项默认不勾")
+        check(plan.items.contains { $0.name == "com.demo.notes.helper" }, "包名前缀那条数据算进来")
+        check(plan.items.count == 8, "一个不多一个不少：8 处（得 \(plan.items.map { "\($0.loc)/\($0.name)" })）")
+        check(!plan.items.contains { $0.name == "sharedone" }, "两个 App 都认领的目录不列给任何一个")
+        check(plan.sharedPaths.isEmpty, "不是自己那份的共用目录也不进这一份计划")
+        check(!plan.items.contains { $0.name == "com.demo.notes2" }, "别的 App 的目录不算进来")
+        check(!plan.items.contains { $0.name == "com.orphan.gone" }, "没装的 App 的数据不算这一次卸载")
+        check(plan.selectedBytes > 0 && plan.selectedBytes < plan.dataBytes,
+              "默认勾选只覆盖安全那批：\(plan.selectedBytes) < \(plan.dataBytes)")
+    } else {
+        check(false, "盘点里找不到 Demo Notes")
+    }
+    if let shared = inv.apps.first(where: { $0.name == "Shared One" }) {
+        let p = await scanUninstall(shared, inventory: inv)
+        check(p.items.isEmpty, "共用目录全部跳过时一个数据行都不列（得 \(p.items.map(\.name))）")
+        check(p.sharedPaths.contains { $0.lastPathComponent == "sharedone" },
+              "共用目录单独记下来，好向用户解释为什么不删")
+    }
+
+    // 符号链接：搬走链接、真 App 还在盘上，数据却删了——那是「卸了一半」，不许入口。
+    try? fm.createSymbolicLink(atPath: uroot + "/Applications/Linked.app",
+                               withDestinationPath: uroot + "/Applications/PixelForge.app")
+    try? fm.createSymbolicLink(atPath: uroot + "/Applications2/Remote Link.app",
+                               withDestinationPath: uroot + "/Elsewhere/Remote.app")
+    let inv2 = await inventoryApps(at: [uroot + "/Applications", uroot + "/Applications2"])
+    check(inv2.apps.filter { $0.name == "PixelForge" }.count == 1, "同一份 App 链两次只算一行")
+    check(!inv2.apps.contains { $0.name == "Linked" }, "链到已在册的 App 时只留本体那条")
+    check(inv2.apps.first { $0.name == "Remote Link" }?.canUninstall == false,
+          "只以链接形式出现的那份不可卸载（搬走的是链接，真 App 还在）")
+
+    // 残留页还是老口径：真孤儿照列，已装 App 的数据不算孤儿，Caches 里不带点的工具目录不当 App 数据。
+    let (orphans, _) = await scanOrphans()
+    check(orphans.contains { $0.name == "com.orphan.gone" }, "残留页仍然列出真孤儿")
+    check(!orphans.contains { $0.name == "com.demo.notes" }, "已装 App 的数据不叫残留")
+    check(!orphans.contains { $0.name == "toolcache" }, "Caches 里不带点的工具目录不当成 App 数据")
+    unsetenv("DISKWISE_HOME_SHIM")
+    try? fm.removeItem(atPath: uroot)
+}
 
 // 15. Agent 通道（AgentAPI）：判定管线 / 两步确认 / 执行重校验 / 撤销日志
 //     整节跑在假家目录里；移废纸篓走注入的假实现（搬进 /tmp 下的目录），
