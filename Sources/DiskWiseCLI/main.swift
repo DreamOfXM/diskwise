@@ -35,6 +35,10 @@ func printHelp() {
 
     Usage:
       diskwise scan [--category all|dev|ai_models|apps] [--min 100MB] [--json]
+          Lists knowledge-base locations plus signature-discovered engine caches
+          (hub-layout model repositories, loose model weights, updater download
+          caches) — each item carries a "source" field. Signature items are
+          redo-tier and agent-untouchable; --i-am-human may take them.
       diskwise explain <path> [--json]
       diskwise plan <path>... [--i-am-human] [--json]
           Draw up a cleanup plan. Touches nothing. --i-am-human also admits
@@ -109,7 +113,7 @@ case "scan":
             failUsage("scan: unknown argument \(args[i])")
         }
     }
-    errLog("Scanning knowledge-base locations (category \(category.rawValue))…")
+    errLog("Scanning knowledge-base and signature-discovered locations (category \(category.rawValue))…")
     let items = await agentScan(category: category, minBytes: minBytes)
     if json {
         print(encodeJSON(items))

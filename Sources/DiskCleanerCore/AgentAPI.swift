@@ -60,6 +60,9 @@ public struct AgentItem: Codable {
     public let humanMayTrash: Bool
     /// 严格模式被拒时的原因；通过时为 nil。
     public let refusal: AgentRefusal?
+    /// 这条画像从哪来：knowledge_base（词条）或 signature（引擎自管缓存签名）。
+    /// 旧 JSON/计划文件里没有该字段，解码为 nil——当 knowledge_base 展示即可。
+    public let source: String?
 
     enum CodingKeys: String, CodingKey {
         case path, bytes, name, tier, exact, what
@@ -67,12 +70,13 @@ public struct AgentItem: Codable {
         case howToRestore = "how_to_restore"
         case agentMayTrash = "agent_may_trash"
         case humanMayTrash = "human_may_trash"
-        case refusal
+        case refusal, source
     }
 
     init(path: String, bytes: Int64, name: String?, tier: String, exact: Bool,
          what: String?, ifDeleted: String?, howToRestore: String?,
-         agentMayTrash: Bool, humanMayTrash: Bool, refusal: AgentRefusal?) {
+         agentMayTrash: Bool, humanMayTrash: Bool, refusal: AgentRefusal?,
+         source: String? = nil) {
         self.path = path
         self.bytes = bytes
         self.name = name
@@ -84,6 +88,7 @@ public struct AgentItem: Codable {
         self.agentMayTrash = agentMayTrash
         self.humanMayTrash = humanMayTrash
         self.refusal = refusal
+        self.source = source
     }
 }
 
@@ -294,6 +299,8 @@ struct AgentPathCheck {
     let refusal: AgentRefusal?
     /// --i-am-human 模式的拒绝原因；nil = 通过（risky 与管线硬拒两种模式下都拒）
     let humanRefusal: AgentRefusal?
+    /// 知识库不认、但签名认了（引擎自管缓存）：tier 封顶 redo、exact 恒 false。
+    var signature: Bool = false
 }
 
 /// 管线顺序：展开 → 保护 → 范围 → lstat → 判词。
@@ -323,6 +330,13 @@ func agentPipeline(_ raw: String, index: VerdictIndex) -> AgentPathCheck {
                      refusal: .symlink, humanRefusal: .symlink)
     }
     let v = index.verdict(for: url.path)
+    // 知识库不认时试签名：引擎自管缓存按布局认（HF 模型仓、更新器缓存、散装权重）。
+    // tier 封顶 redo、exact 恒 false——agent 契约一字不动：redo 非 exact 照走
+    // not_a_known_location，人经 --i-am-human 照旧能带走。
+    if v.tier == .unknown, let sig = signatureMatch(url) {
+        return .init(url: url, tier: .redo, exact: false, entry: sig.entry,
+                     refusal: .notAKnownLocation, humanRefusal: nil, signature: true)
+    }
     var refusal: AgentRefusal? = nil
     var humanRefusal: AgentRefusal? = nil
     switch v.tier {
@@ -357,7 +371,8 @@ func agentItem(_ c: AgentPathCheck, bytes: Int64) -> AgentItem {
                      howToRestore: en(c.entry?.rec),
                      agentMayTrash: c.refusal == nil,
                      humanMayTrash: c.humanRefusal == nil,
-                     refusal: c.refusal)
+                     refusal: c.refusal,
+                     source: c.signature ? "signature" : "knowledge_base")
 }
 
 // MARK: - 状态目录
@@ -515,6 +530,19 @@ public func agentScan(category: AgentCategory = .all, minBytes: Int64 = 0,
     for t in targets {
         let c = agentPipeline(t.url.path, index: index)
         let item = agentItem(c, bytes: sizes[t.url.path] ?? 0)
+        if item.bytes > 0 && item.bytes >= minBytes { out.append(item) }
+    }
+    // 签名发现补账：知识库没报过的引擎自管缓存按布局认——HF 模型仓可以长在
+    // 任何项目的 var 里，词条追不上。与词条结果按路径去重：浅路径先记账，
+    // 被盖住的深路径不再重报（~/.cache/huggingface/hub 不会在词条底下再出一条）。
+    var covered = seen
+    for m in await signatureScan().sorted(by: { $0.url.path.count < $1.url.path.count }) {
+        let p = m.url.path
+        guard !covered.contains(where: { p == $0 || p.hasPrefix($0 + "/") }) else { continue }
+        covered.insert(p)
+        guard category == .all || m.categories.contains(category) else { continue }
+        let c = agentPipeline(p, index: index)
+        let item = agentItem(c, bytes: await pathStat(m.url).bytes)
         if item.bytes > 0 && item.bytes >= minBytes { out.append(item) }
     }
     out.sort { $0.bytes > $1.bytes }

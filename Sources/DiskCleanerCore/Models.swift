@@ -38,6 +38,25 @@ public struct SafetyEntry: Decodable {
     /// 真图标优先，但「Xcode 已卸载、模拟器还留着」这种机器上就轮到标上岗，比一张通用文件夹认得出。
     public var icon: String?
 
+    /// 成员式构造：SignatureScan 合成词条用（自定义了 init(from:) 之后
+    /// 编译器不再送成员式 init，这里显式补上，语义与解码路径完全同源）。
+    public init(name: String, what: String, whatif: String, rec: String, path: String,
+                level: String, cost: String?, grp: String?, docs: String?, app: String?,
+                tags: [String]?, icon: String?) {
+        self.name = name
+        self.what = what
+        self.whatif = whatif
+        self.rec = rec
+        self.path = path
+        self.level = level
+        self.cost = cost
+        self.grp = grp
+        self.docs = docs
+        self.app = app
+        self.tags = tags
+        self.icon = icon
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name, what, whatif, rec, path, level, cost, grp, docs, app, icon, tags
     }

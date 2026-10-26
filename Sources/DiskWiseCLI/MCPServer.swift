@@ -132,7 +132,10 @@ enum MCPServer {
                         "description": "Absolute path; ~ and $HOME are expanded"] as [String: Any]
         return [
             tool("scan_disk",
-                 "Scan the knowledge base of known cache/developer locations and measure real disk usage. "
+                 "Scan known cache/developer locations from the knowledge base, plus "
+                 + "signature-discovered engine caches (hub-layout model repositories like HuggingFace, "
+                 + "loose model weights, updater download caches). Every item carries a source field "
+                 + "(knowledge_base | signature); signature items are redo-tier and agent-untouchable. "
                  + "Read-only. Categories: all | dev | ai_models | apps. min_bytes filters small entries (decimal).",
                  props: [
                      "category": ["type": "string", "enum": ["all", "dev", "ai_models", "apps"]] as [String: Any],

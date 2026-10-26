@@ -50,6 +50,12 @@ diskwise --version
 - 退出码：`0` 成功 · `1` 参数错误 · `2` 有项被拒（部分成功也是 2，明细在输出里）· `3` 计划过期或不存在；
 - 大小参数十进制（`500MB`、`2GB`、纯字节），与 App 同口径。
 
+`scan` 的结果由两路合并：**知识库词条**（人写的安全知识）加**签名发现**（引擎自管缓存按
+布局认：HuggingFace 布局的模型仓、散装模型权重、更新器下载缓存——不管它长在家目录还是某个
+项目的 var 里，`HF_HOME` 挪走的也算）。每项带 `source` 字段（`knowledge_base` |
+`signature`）。签名项 tier 封顶 redo、`agent_may_trash` 恒 false——agent 契约不变，
+`--i-am-human` 可以带走。
+
 状态目录：`~/Library/Application Support/DiskWise/agent/`（`plans/` 计划文件、
 `operations.jsonl` 操作日志）。每行操作记录**来源客户端**——MCP 按 initialize 里
 自报的 `clientInfo.name`（如 claude-code），终端默认 `diskwise-cli`；不带该字段的

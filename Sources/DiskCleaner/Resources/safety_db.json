@@ -1,7 +1,7 @@
 {
   "_说明": "DiskWise 安全知识库：name/what/whatif/rec/path/level(safe|warn)/cost(只在 warn 上写：redo＝删了重新下载或重装就能回来 | data＝删了就真没了，重下也回不来)/grp(general 应用缓存 | cn_app 国产 App | dev 开发工具)/app(归属 App 包名，行首挂它的真图标)/icon(官方品牌标文件名，只给没有 .app 的命令行工具)/tags(可选,跨分组标签,如 ai_models:CLI 的 --category 按它筛)/docs(可选,官方链接)。运行时按 name 覆盖或扩充内置条目；路径支持 * 通配；不存在的路径不会出现在扫描结果里。欢迎 PR 补充。",
   "version": 1,
-  "updated": "2026-10-17",
+  "updated": "2026-10-26",
   "entries": [
     {
       "name": "ChatGPT 桌面版崩溃转储",
@@ -461,7 +461,10 @@
       "cost": "redo",
       "grp": "dev",
       "icon": "openai",
-      "docs": "https://developers.openai.com/codex/cli"
+      "docs": "https://developers.openai.com/codex/cli",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Gradle 版本下载",
@@ -670,7 +673,10 @@
       "path": "~/.qoder/logs",
       "level": "safe",
       "grp": "dev",
-      "app": "com.qoder.app"
+      "app": "com.qoder.app",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Qoder 会话记录",
@@ -681,7 +687,10 @@
       "level": "warn",
       "cost": "data",
       "grp": "dev",
-      "app": "com.qoder.app"
+      "app": "com.qoder.app",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "ZCode 运行时数据",
@@ -692,7 +701,10 @@
       "level": "warn",
       "cost": "data",
       "grp": "dev",
-      "app": "dev.zcode.app"
+      "app": "dev.zcode.app",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Hermes 升级前快照",
@@ -702,7 +714,10 @@
       "path": "~/.hermes/state-snapshots",
       "level": "warn",
       "cost": "data",
-      "grp": "dev"
+      "grp": "dev",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "LM Studio 模型",
@@ -811,7 +826,10 @@
       "cost": "data",
       "grp": "dev",
       "icon": "openai",
-      "docs": "https://developers.openai.com/codex/cli"
+      "docs": "https://developers.openai.com/codex/cli",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Codex 运行日志",
@@ -822,7 +840,10 @@
       "level": "safe",
       "grp": "dev",
       "icon": "openai",
-      "docs": "https://developers.openai.com/codex/cli"
+      "docs": "https://developers.openai.com/codex/cli",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Codex 插件与市场检出",
@@ -834,7 +855,10 @@
       "cost": "redo",
       "grp": "dev",
       "icon": "openai",
-      "docs": "https://developers.openai.com/codex/cli"
+      "docs": "https://developers.openai.com/codex/cli",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Claude Code 会话记录",
@@ -855,7 +879,10 @@
       "level": "warn",
       "cost": "data",
       "grp": "dev",
-      "app": "com.qoder.app"
+      "app": "com.qoder.app",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "Qoder 文件历史",
@@ -866,7 +893,10 @@
       "level": "warn",
       "cost": "data",
       "grp": "dev",
-      "app": "com.qoder.app"
+      "app": "com.qoder.app",
+      "tags": [
+        "ai_models"
+      ]
     },
     {
       "name": "ZCode 内嵌浏览器网页缓存",

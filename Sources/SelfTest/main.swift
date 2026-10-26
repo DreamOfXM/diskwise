@@ -1877,5 +1877,60 @@ do {
     clientRecipeSelfTest()
 }
 
+// 16. 签名发现：引擎自管缓存按布局认（HF 模型仓 / 散装权重 / 更新器缓存），
+//     agent 契约一字不动——tier 封顶 redo、exact 恒 false、来源标 signature。
+let sem6 = DispatchSemaphore(value: 0)
+Task.detached {
+    defer { sem6.signal() }
+    let fm = FileManager.default
+    // 用 /tmp 当根：agent 管线的可删范围认 /tmp 下的条目，
+    // temporaryDirectory() 的 /var/folders 会被 outside_allowed 挡在门外。
+    let root = URL(fileURLWithPath: "/tmp/dw-sigtest", isDirectory: true)
+    try? fm.removeItem(at: root)
+    // HF 布局：hub 下 models--* 与 blobs/ 同层
+    let hub = root.appendingPathComponent("proj/hf/hub", isDirectory: true)
+    try? fm.createDirectory(at: hub.appendingPathComponent("models--org--m", isDirectory: true),
+                            withIntermediateDirectories: true)
+    try? fm.createDirectory(at: hub.appendingPathComponent("blobs", isDirectory: true),
+                            withIntermediateDirectories: true)
+    fm.createFile(atPath: hub.appendingPathComponent("blobs/69d0").path,
+                  contents: Data(repeating: 7, count: 8192))
+    // 散装权重：两个 .gguf
+    let w = root.appendingPathComponent("weights", isDirectory: true)
+    try? fm.createDirectory(at: w, withIntermediateDirectories: true)
+    fm.createFile(atPath: w.appendingPathComponent("a.gguf").path, contents: Data(repeating: 1, count: 4096))
+    fm.createFile(atPath: w.appendingPathComponent("b.gguf").path, contents: Data(repeating: 2, count: 4096))
+    // 更新器缓存：Caches 树里的 *-updater；同名但不在 Caches 里的不许被认
+    let upd = root.appendingPathComponent("Library/Caches/demo-updater", isDirectory: true)
+    try? fm.createDirectory(at: upd, withIntermediateDirectories: true)
+    fm.createFile(atPath: upd.appendingPathComponent("update.zip").path, contents: Data(repeating: 3, count: 512))
+    let fakeUpd = root.appendingPathComponent("fake-updater", isDirectory: true)
+    try? fm.createDirectory(at: fakeUpd, withIntermediateDirectories: true)
+
+    let matches = await signatureScan(roots: [root], minWeightsBytes: 1)
+    check(matches.first { $0.kind == .engineModelCache }?.url.path == hub.path,
+          "签名：HF 布局认出模型仓本体")
+    check(matches.first { $0.kind == .modelWeights }?.url.path == w.path,
+          "签名：散装权重按目录聚合")
+    check(matches.first { $0.kind == .updaterCache }?.url.path == upd.path,
+          "签名：Caches 里的 -updater 认出")
+    check(!matches.contains { $0.url.path == fakeUpd.path },
+          "签名：Caches 之外的同名目录不认")
+
+    let item = await agentExplain(path: hub.path)
+    check(item.tier == "redo" && item.source == "signature" && item.exact == false,
+          "签名：tier 封顶 redo、exact 恒 false、来源标 signature")
+    check(item.agentMayTrash == false && item.humanMayTrash == true
+          && item.refusal == .notAKnownLocation,
+          "签名：agent 仍按 not_a_known_location 拒，人可带走")
+    check(item.what != nil && item.howToRestore != nil,
+          "签名：合成词条四句带全")
+    let plain = await agentExplain(path: fakeUpd.path)
+    check(plain.tier == "unknown" && plain.source == "knowledge_base",
+          "签名：认不出的目录照旧 unknown，不冒充")
+    try? fm.removeItem(at: root)
+}
+sem6.wait()
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
