@@ -210,6 +210,11 @@ DiskWise 走相反的路子：
 |---|---|
 | <img src="docs/screenshots/zh/07-dev-cache.png" width="410" alt="开发缓存：Homebrew、npm、Maven、Gradle、模拟器逐台等"> | <img src="docs/screenshots/zh/08-leftovers.png" width="410" alt="卸载残留：已卸载 App 留下的孤儿数据"> |
 
+卸载 App 那一页：左边是装着的应用，右边是选中那个的本体，加上家目录里确实属于它的那几处。
+归属只认包名，不做模糊猜：
+
+<img src="docs/screenshots/zh/08b-uninstall.png" width="838" alt="卸载 App：左边是装着的应用，右边是选中那个的本体与它名下的数据，逐行带代价标签和勾选框">
+
 皮肤页里每张卡都实时渲染该皮肤下的迷你侧边栏 + 环形图 + 列表行 + 按钮，看得懂骨架再决定穿不穿：
 
 <img src="docs/screenshots/zh/10-skins.png" width="838" alt="外观皮肤：六张卡片，每张实时渲染该皮肤下的整页缩略">

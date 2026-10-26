@@ -235,6 +235,11 @@ anything moves:
 |---|---|
 | <img src="docs/screenshots/en/07-dev-cache.png" width="410" alt="Dev Caches: Homebrew, npm, Maven, Gradle, simulator devices and more"> | <img src="docs/screenshots/en/08-leftovers.png" width="410" alt="Leftovers: data orphaned by uninstalled apps"> |
 
+One page for whole apps — the app itself, plus the folders in your home that provably belong to
+it. A folder only appears here when it carries the app's bundle ID or a name derived from it:
+
+<img src="docs/screenshots/en/08b-uninstall.png" width="838" alt="Uninstall Apps: the installed apps on the left, and on the right the selected app's bundle plus the data folders it owns, each row with a cost badge and a tickbox">
+
 The skin store renders a **live thumbnail** of each theme — mini sidebar, ring gauge, rows and
 buttons, all drawn with that skin's real tokens — so you can see the skeleton before you wear it:
 

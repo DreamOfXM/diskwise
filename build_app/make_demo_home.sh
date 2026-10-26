@@ -235,6 +235,18 @@ app "PixelForge" com.pixelforge.editor 1450
 app "SamplePlayer" com.sample.player 620
 app "TermDeck" com.termside.termdeck 340
 
+# ── 卸载页右半边：装着的 App 名下各留了几处数据 ──
+# 没有这一段，演示树里每个 App 都只有本体，卸载页永远只列一行「应用本体」，
+# 「勾哪几处就搬哪几处」在 README 的图里就结构性看不见。四处故意盖住两档：
+# 配置类（Preferences，默认不勾）与缓存类（默认勾）各至少一条。
+mk "$H/Library/Application Support/com.pixelforge.editor/Presets" 360
+mk "$H/Library/Caches/com.pixelforge.editor/render-cache.bin" 540
+mk "$H/Library/Preferences/com.pixelforge.editor.plist" 1
+mk "$H/Library/Saved Application State/com.pixelforge.editor.savedState/window.bin" 40
+mk "$H/Library/Containers/com.pixelforge.editor/Data/Library/Caches/thumbnails.bin" 120
+mk "$H/Library/Application Support/com.demo.notes/notebooks.db" 180
+mk "$H/Library/Caches/com.demo.notes/index-cache.bin" 240
+
 # ── 卸载残留：App 没了、数据还在的那些包名 ──
 mk "$H/Library/Application Support/com.example.legacyeditor/data.bin" 420
 mk "$H/Library/Application Support/com.oldapp.filemagnet/state.bin" 260

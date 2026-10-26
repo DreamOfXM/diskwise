@@ -236,6 +236,11 @@ WeChat, DingTalk, WeCom이 들어 있는 이유는 많은 기기에서 이 셋�
 |---|---|
 | <img src="docs/screenshots/en/07-dev-cache.png" width="410" alt="개발 캐시: Homebrew, npm, Maven, Gradle, 시뮬레이터 등"> | <img src="docs/screenshots/en/08-leftovers.png" width="410" alt="잔여 파일: 지운 앱이 남긴 데이터"> |
 
+앱 하나를 통째로 정리하는 페이지입니다. 왼쪽은 설치된 앱, 오른쪽은 선택한 앱의 본체와 홈 폴더 안에서
+확실히 그 앱에 속하는 폴더입니다. 소유는 번들 ID로 판정하고 이름 비슷함으로 넘겨짚지 않습니다:
+
+<img src="docs/screenshots/en/08b-uninstall.png" width="838" alt="앱 제거: 왼쪽에 설치된 앱 목록, 오른쪽에 선택한 앱의 본체와 소유 폴더가 비용 배지와 체크박스와 함께 나열된다">
+
 스킨 페이지는 테마마다 **실제 썸네일** 을 그립니다 —— 미니 사이드바, 링 게이지, 행, 버튼까지 그 스킨의
 진짜 토큰으로 그리기 때문에, 입어 보기 전에 골격을 알 수 있습니다:
 
