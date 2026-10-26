@@ -1173,3 +1173,6 @@
 "这个 App 的程序本体（.app 那个包）" = "O programa do app (o pacote .app)";
 "这是 App Store 装的应用：删了之后，需要时可以在 App Store 免费装回来。" = "Instalado pela App Store: você pode reinstalar de graça quando precisar.";
 "选左边一个应用" = "Escolha um app à esquerda";
+
+/* 2.1 卸载 App · 自己那一行 */
+"就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "É o próprio DiskWise · para removê-lo, arraste-o para o Lixo no Finder";

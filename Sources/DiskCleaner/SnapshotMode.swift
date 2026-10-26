@@ -94,6 +94,15 @@ enum SnapshotMode {
         return raw
     }
 
+    /// DISKWISE_QUERY=<词>：卸载 App 页把搜索框预填成这个词。
+    /// 搜索是那一页唯一的筛选手段，而批量拍图这一路没有键盘；预填之后走的
+    /// 仍是 `shown` 那条过滤，不是另画一份名单。
+    static var requestedQuery: String? {
+        let raw = ProcessInfo.processInfo.environment["DISKWISE_QUERY"] ?? ""
+        guard !raw.isEmpty, requestedDir != nil else { return nil }
+        return raw
+    }
+
     /// DISKWISE_SKIN=<皮肤 id>：正常启动时也用这套皮肤。
     /// 同 DISKWISE_PANEL：验外框/对比度要真窗口，而浅皮看不出「内容有没有顶到窗口边」。
     static var requestedSkinID: String? {

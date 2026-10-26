@@ -51,6 +51,19 @@ final class UninstallModel: ObservableObject {
     var totalBytes: Int64 { (bundleBytes ?? 0) + selectedBytes }
     var moveCount: Int { 1 + items.filter(\.selected).count }
 
+    /// 本工具自己那几份：包名跟正在跑的这份一致就是自己，不论装在哪、是哪一版。
+    /// 商店版在 /Applications、手上跑的是开发版，两个包路径不同但同一个身份。
+    /// 包名不同的副本（旧 key 签的、复制的另一版）是另一件事，照常可卸。
+    static var ownBundleID: String { (Bundle.main.bundleIdentifier ?? "").lowercased() }
+
+    func isSelf(_ app: InstalledApp) -> Bool {
+        !Self.ownBundleID.isEmpty && app.bundleID.lowercased() == Self.ownBundleID
+    }
+
+    /// 这一页真正动得了的份数。页头那句「其中 N 个可以卸载」用它——
+    /// 自己那一行还列着（置灰），但不该算进「可以卸载」。
+    var uninstallableCount: Int { apps.filter { !isSelf($0) }.count }
+
     func scan() {
         scanTask?.cancel()
         planTask?.cancel()
@@ -67,12 +80,11 @@ final class UninstallModel: ObservableObject {
             if Task.isCancelled { return }
             self.inventory = inv
             self.scanned = inv.appCount
-            // 不列自己：把正在运行的这份搬进废纸篓，界面上会当场少一块、下次启动就没了，
-            // 而「卸掉 DiskWise」本来就该在访达里做。它仍在 inventory 里参与归属判断。
-            let own = Bundle.main.bundleURL.resolvingSymlinksInPath().path
-            self.apps = inv.apps.filter {
-                $0.canUninstall && $0.path.resolvingSymlinksInPath().path != own
-            }
+            // 自己那一份留在列表里、置灰，不删掉这一行：列表少一行没人说得清是为什么，
+            // 而「这一行动不了」本身就是要说清楚的事。判据是包名——商店版装在 /Applications、
+            // 手上跑的是开发版，两个包不同路径但同一个身份，都算「自己」。
+            // 包名不同的副本（旧 key 签的、复制的另一版）是另一件事，照常可卸。
+            self.apps = inv.apps.filter(\.canUninstall)
             self.scanning = false
         }
     }
@@ -90,7 +102,7 @@ final class UninstallModel: ObservableObject {
     /// 点开这一页要先等几分钟。
     func choose(_ app: InstalledApp?) {
         planTask?.cancel()
-        guard let app, let inv = inventory else { clearPlan(); return }
+        guard let app, !isSelf(app), let inv = inventory else { clearPlan(); return }
         current = app
         items = []
         bundleBytes = nil
@@ -144,7 +156,7 @@ struct UninstallView: View {
                     } else {
                         Text(LF("盘点了 %1$@，其中 %2$@ 可以卸载",
                                 cnt(model.scanned, "个应用"),
-                                cnt(model.apps.count, "个应用")))
+                                cnt(model.uninstallableCount, "个应用")))
                     }
                     ThemeBadge(text: L("只动家目录"), tone: .neutral)
                 } trailing: {
@@ -179,6 +191,7 @@ struct UninstallView: View {
         .frame(maxWidth: .infinity)
         .onAppear {
             if !model.started { model.scan() }
+            if let q = SnapshotMode.requestedQuery { model.query = q }
             pickSnapshotAppIfAsked()
         }
         // 盘完那一瞬才有人可选：进来时 `apps` 还是空的，光靠 `onAppear` 会早退。
@@ -251,26 +264,32 @@ struct UninstallView: View {
     }
 
     private func appRow(_ app: InstalledApp) -> some View {
-        let on = model.current?.id == app.id
+        let selfRow = model.isSelf(app)
+        let on = !selfRow && model.current?.id == app.id
         return Button {
             model.choose(app)
         } label: {
             HStack(spacing: 9) {
                 RowIconView(icon: .path(app.path), side: 26)
+                    .opacity(selfRow ? 0.45 : 1)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(app.name)
                         .font(theme.bodyFont(.callout))
-                        .foregroundStyle(theme.palette.ink)
+                        .foregroundStyle(selfRow ? theme.palette.inkTertiary : theme.palette.ink)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(app.bundleID.isEmpty ? app.path.path : app.bundleID)
+                    // 置灰那一行不留包名，改说「为什么点不动」——灰着不解释，
+                    // 读起来像是这一行坏了。
+                    Text(selfRow
+                         ? L("就是本工具自己 · 要卸载请在访达里拖进废纸篓")
+                         : (app.bundleID.isEmpty ? app.path.path : app.bundleID))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkTertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 Spacer(minLength: 4)
-                if app.isAppStore {
+                if app.isAppStore && !selfRow {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 10))
                         .foregroundStyle(theme.palette.inkTertiary)
@@ -285,6 +304,9 @@ struct UninstallView: View {
             .contentShape(theme.controlShape())
         }
         .buttonStyle(.plain)
+        // 置灰不是「淡一点的可点」：禁用之后连悬停高亮都不该有，否则手伸过去才发现按不动。
+        .disabled(selfRow)
+        .help(selfRow ? L("就是本工具自己 · 要卸载请在访达里拖进废纸篓") : "")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
