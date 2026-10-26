@@ -79,12 +79,15 @@ final class UninstallModel: ObservableObject {
             let inv = await inventoryApps(progress: p)
             if Task.isCancelled { return }
             self.inventory = inv
-            self.scanned = inv.appCount
+            // 沙盒渠道（商店版）只列家目录里的：`/Applications` 搬不动，列出来按了必失败。
+            // 页头那个数跟着同一把尺子，否则会出现「盘点了 100 个，其中 0 个可以卸载」。
+            let inScope = inv.apps.filter { isInUninstallScope($0.path) }
+            self.scanned = inScope.count
             // 自己那一份留在列表里、置灰，不删掉这一行：列表少一行没人说得清是为什么，
             // 而「这一行动不了」本身就是要说清楚的事。判据是包名——商店版装在 /Applications、
             // 手上跑的是开发版，两个包不同路径但同一个身份，都算「自己」。
             // 包名不同的副本（旧 key 签的、复制的另一版）是另一件事，照常可卸。
-            self.apps = inv.apps.filter(\.canUninstall)
+            self.apps = inScope.filter(\.canUninstall)
             self.scanning = false
         }
     }

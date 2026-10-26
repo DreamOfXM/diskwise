@@ -1367,6 +1367,17 @@ do {
     check(inv2.apps.first { $0.name == "Remote Link" }?.canUninstall == false,
           "只以链接形式出现的那份不可卸载（搬走的是链接，真 App 还在）")
 
+    // 商店版（沙盒）卸载页只列家目录里的：/Applications 读得到、搬不动，
+    // 列出来就是一排按了必失败的按钮。直装版照旧三个目录都列。
+    check(isInUninstallScope(URL(fileURLWithPath: uroot + "/Applications/PixelForge.app"), sandboxed: true),
+          "沙盒里家目录的 App 在卸载范围里")
+    check(!isInUninstallScope(URL(fileURLWithPath: "/Applications/Xcode.app"), sandboxed: true),
+          "沙盒里 /Applications 的 App 不进卸载列表")
+    check(!isInUninstallScope(URL(fileURLWithPath: "/System/Applications/Music.app"), sandboxed: true),
+          "沙盒里 /System/Applications 的 App 也不进")
+    check(isInUninstallScope(URL(fileURLWithPath: "/Applications/Xcode.app"), sandboxed: false),
+          "直装版照旧列 /Applications")
+
     // 残留页还是老口径：真孤儿照列，已装 App 的数据不算孤儿，Caches 里不带点的工具目录不当 App 数据。
     let (orphans, _) = await scanOrphans()
     check(orphans.contains { $0.name == "com.orphan.gone" }, "残留页仍然列出真孤儿")

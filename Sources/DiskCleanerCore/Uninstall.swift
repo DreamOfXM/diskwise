@@ -11,6 +11,9 @@ import Foundation
 //
 // 2.1 的范围刻意窄：只动家里（`~/Library` 下那几处）和 App 本体，不碰 `/Library`，
 // 不调管理员；一次只卸一个 App；删就是搬进废纸篓，跟着现有的整页撤销走。
+//
+// 沙盒渠道（商店版）比这更窄：`/Applications` 和 `/System/Applications` 读得到、搬不动，
+// 卸载页只列家目录里那处（见 `isInUninstallScope`）。
 
 // ── 已装 App 的盘点 ────────────────────────────────────────────────────────
 
@@ -97,10 +100,23 @@ func appNameKey(_ name: String) -> String {
 }
 
 /// 盘点本机装着的 App。默认就是三个 App 目录；`roots` 是给自检用的同一趟口径。
+///
+/// 这一趟**始终是三个目录**，沙盒渠道也不收窄：卸载页拿它判「一处数据还有没有别的主人」，
+/// 少认一个装在 `/Applications` 里的 App，它和家目录那份共用的目录就会被当成独有、跟着删掉。
 public func inventoryApps(progress: ScanProgress? = nil) async -> AppInventory {
     let home = homePath()
     return await inventoryApps(at: [applicationsDir(), "/System/Applications", home + "/Applications"],
                                progress: progress)
+}
+
+/// 卸载页列不列这一份。非沙盒渠道一律列；沙盒里只有家目录里的搬得动——
+/// `trashItem` 对 `/Applications` 只会报没权限，列出来就是一排按了必失败的按钮。
+///
+/// 只管**显示**：匹配仍走全量盘点，否则一份和 `/Applications` 里那个 App 共用的目录
+/// 会被当成独有，删掉之后另一个 App 就缺一块。
+public func isInUninstallScope(_ path: URL, sandboxed: Bool = HomeAccess.runsSandboxed) -> Bool {
+    guard sandboxed else { return true }
+    return path.standardizedFileURL.path.hasPrefix(homePath() + "/")
 }
 
 public func inventoryApps(at roots: [String], progress: ScanProgress? = nil) async -> AppInventory {
