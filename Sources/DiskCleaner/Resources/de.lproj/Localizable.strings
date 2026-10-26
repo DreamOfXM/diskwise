@@ -1135,3 +1135,36 @@
 "亮起来的那几段，现在就能收走" = "die leuchtenden Segmente kannst du jetzt aufräumen";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "Vorschau, wie es nach dem Aufräumen aussieht – nur in den Papierkorb, jederzeit umkehrbar";
 "空格" = "Leertaste";
+
+/* 2.1 卸载 App */
+"%1$@ 留在 %2$@ 里的数据" = "Daten, die %1$@ in %2$@ hinterlässt";
+"App 从「应用程序」里消失；从废纸篓拖回来就装回去了" = "Die App verschwindet aus «Programme»; zurückziehen aus dem Papierkorb installiert sie wieder";
+"「%1$@」的本体和勾选的 %2$@（共 %3$@）会一起进废纸篓，随时可撤销。" = "Die App «%1$@» selbst und die %2$@, die Sie angehakt haben (zusammen %3$@), wandern in den Papierkorb — jederzeit widerrufbar.";
+"不勾：设置和登录状态留着；勾上：下次启动回到初始状态，可能要重新登录或重新输入许可。" = "Nicht angehakt: Einstellungen und Anmeldung bleiben. Angehakt: Die App startet nächstes Mal wie neu und fragt evtl. nach Anmeldung oder Lizenz.";
+"从 App Store 安装" = "Aus dem App Store installiert";
+"卸载 App" = "Apps deinstallieren";
+"卸载并移进废纸篓" = "Deinstallieren in den Papierkorb";
+"另有 %1$@（%2$@）同时属于另一个已装应用，不列在这里，也不删。" = "%1$@ (%2$@) gehören auch zu einer anderen installierten App und werden weder gelistet noch gelöscht.";
+"只动家目录" = "Nur im Benutzerordner";
+"它名下没找到别的数据，这一趟只搬走本体。" = "Keine weiteren Daten zu dieser App gefunden — nur die App selbst wird verschoben.";
+"它名下的本体和数据会列在这里，勾哪几处就搬哪几处" = "App und Daten erscheinen hier; angehakt wird nur, was Sie auswählen";
+"它要是正在运行，先退出再卸载，否则可能删不干净。" = "Wenn sie läuft, beenden Sie sie zuerst — sonst bleibt womöglich etwas zurück.";
+"应用下次需要时会自己重建" = "Die App legt es bei Bedarf neu an";
+"应用和它留下的数据一起搬走——只动你的家目录" = "App samt hinterlassenen Daten verschieben — nur im Benutzerordner";
+"应用本体 · 一定会搬走" = "App selbst · wird immer verschoben";
+"搜索应用" = "Apps suchen";
+"本体加勾选的数据" = "App plus angehakte Daten";
+"正在盘点已装应用…" = "Installierte Apps werden erfasst…";
+"正在量「%@」的本体和数据…" = "App und Daten von «%@» werden gemessen…";
+"没有包名" = "Keine Bundle-ID";
+"没有匹配的应用" = "Keine passenden Apps";
+"没有可卸载的应用" = "Nichts hier lässt sich deinstallieren";
+"清空搜索" = "Suche löschen";
+"盘点了 %1$@，其中 %2$@ 可以卸载" = "%1$@ gefunden, davon %2$@ deinstallierbar";
+"确认卸载「%@」？" = "«%@» deinstallieren?";
+"系统目录里的 App 和以链接形式出现的 App 不列出来——它们要么搬不动，要么搬走的只是一个链接" = "Apps in Systemordnern und Apps, die nur als Verknüpfung erscheinen, fehlen — sie lassen sich nicht verschieben, oder es würde nur eine Verknüpfung verschoben";
+"要搬走 %@" = "%@ werden verschoben";
+"还没挑应用" = "Noch keine App gewählt";
+"这个 App 的程序本体（.app 那个包）" = "Das Programm der App selbst (das .app-Bundle)";
+"这是 App Store 装的应用：删了之后，需要时可以在 App Store 免费装回来。" = "Aus dem App Store installiert — bei Bedarf jederzeit kostenlos dort neu laden.";
+"选左边一个应用" = "Wählen Sie links eine App";

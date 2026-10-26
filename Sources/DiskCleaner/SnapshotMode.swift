@@ -84,6 +84,16 @@ enum SnapshotMode {
         return AppPanel.allCases.first { String(describing: $0).lowercased() == raw }
     }
 
+    /// DISKWISE_APP=<名字或包名片段>：卸载 App 页盘完之后自动挑中这一行。
+    /// 那一页的右半边只有「选了一个 App」之后才存在，而批量拍图这一路没有键鼠；
+    /// 挑中的就是左边那颗按钮自己的 action（`UninstallModel.choose`），不是另画一屏。
+    static var requestedApp: String? {
+        let raw = (ProcessInfo.processInfo.environment["DISKWISE_APP"] ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+        guard !raw.isEmpty, requestedDir != nil else { return nil }
+        return raw
+    }
+
     /// DISKWISE_SKIN=<皮肤 id>：正常启动时也用这套皮肤。
     /// 同 DISKWISE_PANEL：验外框/对比度要真窗口，而浅皮看不出「内容有没有顶到窗口边」。
     static var requestedSkinID: String? {
@@ -404,6 +414,7 @@ enum SnapshotMode {
         (.devcache, "07-dev-cache", 15, 90),
         (.caches, "07-caches", 15, 90),
         (.orphans, "08-leftovers", 15, 90),
+        (.uninstall, "08b-uninstall", 2, 30),
         (.trash, "09-trash", 6, 20),
         (.appearance, "10-skins", 4, 15),
         (.feedback, "13-feedback", 2, 8),

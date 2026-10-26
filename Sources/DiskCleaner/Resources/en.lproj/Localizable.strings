@@ -1131,3 +1131,36 @@
 "亮起来的那几段，现在就能收走" = "the lit segments are the ones you can clear now";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "preview how it looks cleared — to Trash only, undo anytime";
 "空格" = "Space";
+
+/* 2.1 卸载 App */
+"%1$@ 留在 %2$@ 里的数据" = "Data that %1$@ left in %2$@";
+"App 从「应用程序」里消失；从废纸篓拖回来就装回去了" = "The app leaves Applications; drag it back out of the Trash to reinstall";
+"「%1$@」的本体和勾选的 %2$@（共 %3$@）会一起进废纸篓，随时可撤销。" = "The app %1$@ itself plus the %2$@ you ticked (%3$@) will move to the Trash — undo anytime.";
+"不勾：设置和登录状态留着；勾上：下次启动回到初始状态，可能要重新登录或重新输入许可。" = "Unticked: settings and sign-in stay. Ticked: the app starts fresh next time and may ask you to sign in or enter a licence again.";
+"从 App Store 安装" = "Installed from the App Store";
+"卸载 App" = "Uninstall Apps";
+"卸载并移进废纸篓" = "Uninstall to Trash";
+"另有 %1$@（%2$@）同时属于另一个已装应用，不列在这里，也不删。" = "%1$@ (%2$@) also belong to another installed app, so they are neither listed nor deleted.";
+"只动家目录" = "Home folder only";
+"它名下没找到别的数据，这一趟只搬走本体。" = "No other data found under this app — only the app itself will move.";
+"它名下的本体和数据会列在这里，勾哪几处就搬哪几处" = "Its bundle and data show up here; tick the ones you want to move";
+"它要是正在运行，先退出再卸载，否则可能删不干净。" = "If it is running, quit it first — otherwise the cleanup may be incomplete.";
+"应用下次需要时会自己重建" = "The app rebuilds it when needed";
+"应用和它留下的数据一起搬走——只动你的家目录" = "Move an app along with what it left behind — home folder only";
+"应用本体 · 一定会搬走" = "App bundle · always moved";
+"搜索应用" = "Search apps";
+"本体加勾选的数据" = "App plus ticked data";
+"正在盘点已装应用…" = "Taking stock of installed apps…";
+"正在量「%@」的本体和数据…" = "Measuring “%@” and its data…";
+"没有包名" = "No bundle ID";
+"没有匹配的应用" = "No apps match";
+"没有可卸载的应用" = "Nothing here can be uninstalled";
+"清空搜索" = "Clear search";
+"盘点了 %1$@，其中 %2$@ 可以卸载" = "Found %1$@ — %2$@ can be uninstalled";
+"确认卸载「%@」？" = "Uninstall “%@”?";
+"系统目录里的 App 和以链接形式出现的 App 不列出来——它们要么搬不动，要么搬走的只是一个链接" = "Apps in system folders and apps that only appear as a link are left out — they cannot move, or only a link would move";
+"要搬走 %@" = "Moving %@";
+"还没挑应用" = "No app picked yet";
+"这个 App 的程序本体（.app 那个包）" = "The app program itself (the .app bundle)";
+"这是 App Store 装的应用：删了之后，需要时可以在 App Store 免费装回来。" = "Installed from the App Store — reinstall it there for free whenever you need it.";
+"选左边一个应用" = "Pick an app on the left";

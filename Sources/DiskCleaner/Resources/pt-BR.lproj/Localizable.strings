@@ -1140,3 +1140,36 @@
 "亮起来的那几段，现在就能收走" = "os segmentos acesos podem ser liberados agora";
 "预演清完的样子 · 只进废纸篓，随时可撤销" = "pré-visualiza como fica limpo · só para a Lixeira, dá para desfazer";
 "空格" = "Espaço";
+
+/* 2.1 卸载 App */
+"%1$@ 留在 %2$@ 里的数据" = "Dados que %1$@ deixou em %2$@";
+"App 从「应用程序」里消失；从废纸篓拖回来就装回去了" = "O app sai de Aplicativos; arraste de volta da Lixeira para reinstalar";
+"「%1$@」的本体和勾选的 %2$@（共 %3$@）会一起进废纸篓，随时可撤销。" = "O app «%1$@» e os %2$@ marcados (%3$@ no total) vão para a Lixeira; dá para desfazer quando quiser.";
+"不勾：设置和登录状态留着；勾上：下次启动回到初始状态，可能要重新登录或重新输入许可。" = "Desmarcado: ajustes e sessão ficam. Marcado: o app volta ao estado inicial e pode pedir login ou licença de novo.";
+"从 App Store 安装" = "Instalado pela App Store";
+"卸载 App" = "Desinstalar apps";
+"卸载并移进废纸篓" = "Desinstalar para a Lixeira";
+"另有 %1$@（%2$@）同时属于另一个已装应用，不列在这里，也不删。" = "%1$@ (%2$@) também pertencem a outro app instalado: não são listados nem apagados.";
+"只动家目录" = "Só a pasta pessoal";
+"它名下没找到别的数据，这一趟只搬走本体。" = "Nenhum outro dado deste app foi encontrado: só o app será movido.";
+"它名下的本体和数据会列在这里，勾哪几处就搬哪几处" = "O app e os dados aparecem aqui; só o que estiver marcado será movido";
+"它要是正在运行，先退出再卸载，否则可能删不干净。" = "Se estiver aberto, feche primeiro; senão a limpeza pode ficar incompleta.";
+"应用下次需要时会自己重建" = "O app recria isso quando precisar";
+"应用和它留下的数据一起搬走——只动你的家目录" = "Mova o app junto com o que ele deixou — só na pasta pessoal";
+"应用本体 · 一定会搬走" = "O app em si · sempre movido";
+"搜索应用" = "Buscar apps";
+"本体加勾选的数据" = "App e dados marcados";
+"正在盘点已装应用…" = "Levantando os apps instalados…";
+"正在量「%@」的本体和数据…" = "Medindo o app e os dados de «%@»…";
+"没有包名" = "Sem identificador de pacote";
+"没有匹配的应用" = "Nenhum app corresponde";
+"没有可卸载的应用" = "Nada aqui pode ser desinstalado";
+"清空搜索" = "Limpar busca";
+"盘点了 %1$@，其中 %2$@ 可以卸载" = "Encontrados %1$@; %2$@ podem ser desinstalados";
+"确认卸载「%@」？" = "Desinstalar «%@»?";
+"系统目录里的 App 和以链接形式出现的 App 不列出来——它们要么搬不动，要么搬走的只是一个链接" = "Apps em pastas do sistema e apps que só aparecem como link ficam de fora: não podem ser movidos, ou só o link seria movido";
+"要搬走 %@" = "Vai mover %@";
+"还没挑应用" = "Nenhum app escolhido";
+"这个 App 的程序本体（.app 那个包）" = "O programa do app (o pacote .app)";
+"这是 App Store 装的应用：删了之后，需要时可以在 App Store 免费装回来。" = "Instalado pela App Store: você pode reinstalar de graça quando precisar.";
+"选左边一个应用" = "Escolha um app à esquerda";

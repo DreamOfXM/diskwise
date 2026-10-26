@@ -90,6 +90,8 @@ final class ScanStore: ObservableObject {
     let caches = CachesModel(groupKeys: ["general", "cn_app"])
     let devcache = CachesModel(groupKeys: ["dev"])
     let orphans = OrphansModel()
+    /// 卸载 App。同上：盘点结果要留住——切走再回来不该重扫一遍 99 个 App。
+    let uninstall = UninstallModel()
     /// 文件夹下钻。由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁——
     /// 从某个文件夹跳去总览看一眼再回来，不该把刚量好的那一层白扔。
     let folderDrill = FolderDrillModel()
@@ -104,6 +106,7 @@ final class ScanStore: ObservableObject {
         forward(nodemodules); forward(docker); forward(caches); forward(orphans)
         forward(devcache)
         forward(folderDrill)
+        forward(uninstall)
     }
 
     private var bag = Set<AnyCancellable>()
@@ -335,7 +338,7 @@ enum AppPanel: Hashable, CaseIterable {
     // 顺序不再决定图标颜色：2026-10-19 起侧栏按分组取色（见 `sidebarGroup`），
     // 加页或挪页不会再让别的行换色。`folderDrill` 不进侧栏——下钻页是「从某一行进去」的，
     // 不是一栏常驻的目的地；`menuLaunch` 与 `agent` 是后来追加的两页。
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, trash, appearance, feedback, folderDrill, menuLaunch, agent
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
         switch self {
@@ -348,6 +351,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .devcache: return "hammer"
         case .caches: return "sparkles"
         case .orphans: return "app.badge"
+        case .uninstall: return "trash.slash"
         case .trash: return "trash"
         case .appearance: return "paintpalette"
         case .feedback: return "text.bubble"
@@ -369,6 +373,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .devcache: return "开发缓存"
         case .caches: return "应用缓存"
         case .orphans: return "卸载残留"
+        case .uninstall: return "卸载 App"
         case .trash: return "废纸篓"
         case .appearance: return "外观皮肤"
         case .feedback: return "问题反馈"
@@ -386,7 +391,7 @@ enum AppPanel: Hashable, CaseIterable {
         switch self {
         case .overview, .big, .old, .dup, .folderDrill: return 0
         case .nodemodules, .docker, .devcache: return 1
-        case .caches, .orphans, .trash: return 2
+        case .caches, .orphans, .uninstall, .trash: return 2
         case .agent: return 3
         case .appearance, .feedback, .menuLaunch: return 4
         }
@@ -564,7 +569,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 sideSection(L("看清空间"), [.overview, .big, .old, .dup])
                 sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
-                sideSection(L("清理"), [.caches, .orphans, .trash])
+                sideSection(L("清理"), [.caches, .orphans, .uninstall, .trash])
                 // 「AI」这一组只有直装渠道才有：这一页讲的是把随包附带的 `diskwise`
                 // 命令行挂进 AI 工具，而商店版压根不带那个文件（见 AgentCLILocation），
                 // 挂上去只会画出一屏「本包不含 CLI」的死路。
@@ -714,6 +719,7 @@ struct ContentView: View {
         case .devcache: CachesView(model: scans.devcache, page: .dev)
         case .caches: CachesView(model: scans.caches)
         case .orphans: OrphansView(model: scans.orphans)
+        case .uninstall: UninstallView(model: scans.uninstall)
         case .trash: TrashView()
         case .appearance: AppearanceView()
         case .feedback: FeedbackView()
