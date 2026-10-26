@@ -47,37 +47,34 @@ Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable 
 
 ---
 
-## What's new in v2.0
+## What's new in v2.1
 
-v2.0 is the biggest visual and interaction pass since the app shipped — same one-way delete path
-and the same safety model, but almost everything you look at has been rebuilt.
+v2.1 adds an uninstall page. It doesn't just move the `.app` to the Trash — it finds what that app
+left in your home folder and moves that too. Still one delete path: everything goes to the Trash,
+everything stays undoable until you empty it.
 
-- **The ring is real material now.** The band, its inner edge lights and the outer rim are layered
-  crystal and glass with per-skin parameters, not flat colour fills. The six skins still change
-  typeface, radius and motion — and now the ring's material too.
-- **A radar sweep while it measures.** The scan light crosses the band once every 1.7 seconds: fast
-  enough to read as *measuring*, not a slow decorative breathing.
-- **A first-run welcome, and a four-step guide.** First launch explains "one ring = your whole
-  disk" before a single number appears (the scan already runs behind it). A short four-page guide
-  then shows *how to act* — the ring's centre and the two-tap gesture both changed, and guessing
-  wrong means clicking the wrong thing.
-- **Hold Space to preview "after clearing everything".** Press and hold to see the disk with every
-  reclaimable spot gone; release and you're back. Nothing moves.
-- **By space / by cost.** Flip the ledger between "what takes up room" and "what cleaning it costs"
-  — four cost classes on the same denominator, so the rows add up to the disk.
-- **The first tap now says what will move.** Arming a slice prints the exact count, the bytes and
-  the first few folders the second tap will send to the Trash — no more guessing what "cache"
-  covers. The two-tap gesture and the 3-second auto-cancel are unchanged.
-- **Reclaim you can watch.** The bytes leave the tapped slice as droplets, cross the ring and land
-  in the Trash tray; the ledger settles to the real count afterwards.
-- **Sound, only when you act.** Every cue is synthesised in-app (no audio files, no network) and
-  fires only on an interaction — no looping background bed. One visible toggle, remembered.
-- **A titlebar that holds together.** The volume chip sits on the left, the controls on the right,
-  and the scan-time *Stop* button no longer truncates when the window narrows.
+- **One app at a time, both halves in view.** Pick an app on the left; the right side lists the
+  bundle plus every folder in `~/Library` that provably belongs to it, with size, path and what
+  wiping it costs.
+- **Proven ownership only.** A folder is claimed when it carries the app's bundle ID or a name
+  derived from it. Fuzzy word matching stays where it belongs — the leftover page — so this page
+  never guesses. A folder that two installed apps both claim is dropped for both.
+- **Checked and unchecked, by consequence.** Caches, containers, saved state, HTTP storages, WebKit
+  data, logs and app scripts start checked: they rebuild on their own. Application Support, Group
+  Containers, Preferences and LaunchAgents start unchecked, each marked as holding data.
+- **Settings are a choice, not a side effect.** Leave Preferences unchecked and the app keeps its
+  settings and sign-ins; check it and the app opens as if freshly installed — possibly asking you
+  to sign in or re-enter a licence again.
+- **App Store apps say where they came from.** They carry a line noting a free reinstall from the
+  App Store if you change your mind.
+- **It won't uninstall itself.** The copy whose bundle ID matches the running DiskWise stays in the
+  list, greyed out and inert; another copy with a different ID can still be removed.
+- **Home folder only.** No `/Library`, no admin password, no background helper. The bundle and the
+  data you picked move to the Trash as one undoable record.
 
 ## Contents
 
-- [What's new in v2.0](#whats-new-in-v20)
+- [What's new in v2.1](#whats-new-in-v21)
 - [Quick start](#quick-start)
 - [For AI agents](#for-ai-agents)
 - [Why this exists](#why-this-exists)
