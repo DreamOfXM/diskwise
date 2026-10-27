@@ -57,8 +57,8 @@ guess.
   compared with the previous one. A burst gets a red badge — the incident above reads back as
   +2,674 files in under a minute — slow accumulation gets amber, and a folder you cleared
   shows up as a decrease rather than an alarm.
-- **What was actually driving it (off by default).** Turn on the content probe under *Diagnostics and
-  dumps* in Settings and DiskWise reads the headers of a few sample dumps: the executable path, the
+- **What was actually driving it (off by default).** Turn on *Content probe* under *Diagnostics* in
+  Settings (⌘,) and DiskWise reads the headers of a few sample dumps: the executable path, the
   bundle identifier, and any agent session fingerprints. In the incident above, that is the only place
   the real name appears. Fingerprints always display redacted and nothing leaves the machine.
 - **Trim by retention.** The first time the category appears you're offered "keep the newest 2,000" —
