@@ -2938,7 +2938,7 @@ struct OverviewView: View {
                    subtitle: model.scanning
                        ? L("先量完，再决定——只读，不改任何文件。")
                        : (prefs.overviewRead == .cost
-                           ? L("按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。")
+                           ? L("按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。")
                            : L("一圈 = 这块盘的真实字节")),
                    variant: .display,
                    // 页头右侧只剩读法开关。`ViewThatFits` 留着是给长译文兜底：
@@ -4488,6 +4488,13 @@ struct OverviewView: View {
         let redoBytes = ledger.bytes(.redo)
         let irreversible = ledger.bytes(.irreversible)
         let off = ledger.bytes(.off)
+        // 空闲从「不碰」里拆出来单独成段（2026-10-27 他圈的 460.2 那一格）：
+        // 空闲不是文件，谈不上删，跟「本工具不动这些文件」是两回事；混在一起时
+        // 这一档动辄占九成的盘，读起来就像识别坏了。拆开后「不碰」只算真正不动的
+        // 已用字节（系统区、没量到、知识库不认得的），空闲自己一行、弧上更淡一档。
+        // 账本层不动：`off` 的恒等式照旧，这里只是把补集里空闲那一截换一行摆。
+        let idle = min(u.free, off)
+        let untouched = off - idle
         var out: [GaugeSegment] = [
             GaugeSegment(label: L("零代价"), value: freeBytes,
                          color: costColor(.free), tone: .cost,
@@ -4509,10 +4516,15 @@ struct OverviewView: View {
                          sub: L("删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认"),
                          hint: L("不可逆：删了就没了。一键清从不碰它。"),
                          costClass: true),
-            GaugeSegment(label: L("不碰"), value: off,
+            GaugeSegment(label: L("不碰"), value: untouched,
                          color: costColor(.off), tone: .cost,
-                         sub: L("空闲、系统区与知识库不认得的字节 · 本工具不动"),
-                         hint: L("不碰：空闲、系统区，以及知识库不认得的字节。"),
+                         sub: L("系统区、没量到与知识库不认得的已用字节 · 本工具不动"),
+                         hint: L("不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。"),
+                         costClass: true),
+            GaugeSegment(label: L("空闲"), value: idle,
+                         color: costColor(.off).opacity(0.4), tone: .cost,
+                         sub: L("已空着的地方 · 不是文件，谈不上删"),
+                         hint: L("空闲：已空着的地方，不是文件。"),
                          costClass: true),
         ]
         let sizeTexts = addableHumanColumn(out.map { $0.value }, total: u.total)

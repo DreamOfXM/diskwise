@@ -1029,7 +1029,6 @@
 "不可逆" = "Irreversível";
 "不可逆：删了就没了。一键清从不碰它。" = "Irreversível: some de vez. A limpeza de um clique nunca toca nele.";
 "不碰" = "Não mexer";
-"不碰：空闲、系统区，以及知识库不认得的字节。" = "Não mexer: espaço livre, áreas do sistema e bytes que o catálogo não conhece.";
 "代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。" = "Na leitura por custo o anel não arma: o que limpar é confirmado ponto a ponto na lista de limpeza; «Irreversível» nunca entra no clique único.";
 "打开清理清单挑要清的 →" = "Abrir a lista de limpeza para escolher →";
 "删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认" = "Some de vez · a limpeza de um clique nunca toca nele; apague um a um nos caches";
@@ -1037,13 +1036,11 @@
 "删了要重新下载或重建 · 这次不收它" = "Precisa baixar ou reconstruir · não entra neste lote";
 "删了要重新下载或重建 · 都能一键收走" = "Precisa baixar ou reconstruir · tudo entra com um clique";
 "按代价" = "Por custo";
-"按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Por custo: custo zero, baixar de novo, irreversível, não mexer — os quatro somam o disco inteiro.";
 "一圈 = 这块盘的真实字节" = "Um anel = os bytes reais deste disco";
 "按代价：同一块盘，清掉它分别要付什么" = "Por custo: o mesmo disco, o que custa apagar cada parte";
 "按空间" = "Por espaço";
 "按空间：这一圈是「谁占了地方」" = "Por espaço: este anel mostra o que ocupa o espaço";
 "用量与扫描快照对不上：四类比整块盘多出 %@。" = "O uso e a captura da varredura não batem: as quatro classes passam do disco em %@.";
-"空闲、系统区与知识库不认得的字节 · 本工具不动" = "Espaço livre, áreas do sistema e bytes desconhecidos · não mexemos";
 "缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来" = "Caches e artefatos de build · %1$@ disso entra neste lote; eles voltam a crescer";
 "缓存与构建产物 · 都能一键收走，删了会自己长回来" = "Caches e artefatos de build · tudo entra com um clique; eles voltam a crescer";
 "读法" = "Leitura";
@@ -1253,3 +1250,10 @@
 "诊断" = "Diagnóstico";
 "保留个数" = "Quantidade mantida";
 "最近 %@" = "Os %@ mais novos";
+
+/* 代价读法：空闲从不碰里拆出来单列 */
+"按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。" = "Por custo: custo zero, baixar de novo, irreversível, não mexer — com o espaço livre, os cinco somam o disco inteiro.";
+"系统区、没量到与知识库不认得的已用字节 · 本工具不动" = "Áreas do sistema, áreas não medidas e bytes que a base de conhecimento não reconhece · esta ferramenta não os mexe";
+"不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。" = "Não mexer: áreas do sistema, não medidas e bytes desconhecidos. O espaço livre fica em separado.";
+"已空着的地方 · 不是文件，谈不上删" = "Espaço simplesmente vazio · não é arquivo, nada a excluir";
+"空闲：已空着的地方，不是文件。" = "Livre: espaço vazio, não é arquivo.";

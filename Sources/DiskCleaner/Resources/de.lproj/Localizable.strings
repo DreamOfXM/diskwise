@@ -1024,7 +1024,6 @@
 "不可逆" = "Unwiderruflich";
 "不可逆：删了就没了。一键清从不碰它。" = "Unwiderruflich: weg ist weg. Die Ein-Klick-Reinigung fasst es nie an.";
 "不碰" = "Nicht anfassen";
-"不碰：空闲、系统区，以及知识库不认得的字节。" = "Nicht anfassen: freier Speicher, Systembereiche und Bytes, die der Katalog nicht kennt.";
 "代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。" = "In der Kostenansicht rüstet der Ring nicht: Was weg soll, wird Stück für Stück in der Bereinigungsliste bestätigt; „Unwiderruflich“ ist nie Teil des Ein-Klicks.";
 "打开清理清单挑要清的 →" = "Bereinigungsliste öffnen und auswählen →";
 "删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认" = "Weg ist weg · die Ein-Klick-Reinigung fasst es nie an; einzeln in den Caches leeren";
@@ -1032,13 +1031,11 @@
 "删了要重新下载或重建 · 这次不收它" = "Muss neu geladen oder gebaut werden · nicht in diesem Durchgang";
 "删了要重新下载或重建 · 都能一键收走" = "Muss neu geladen oder gebaut werden · alles per Ein-Klick möglich";
 "按代价" = "Nach Kosten";
-"按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Nach Kosten: null Kosten, neu laden, unwiderruflich, nicht anfassen – die vier ergeben die ganze Platte.";
 "一圈 = 这块盘的真实字节" = "Ein Ring = die echten Bytes dieser Platte";
 "按代价：同一块盘，清掉它分别要付什么" = "Nach Kosten: dieselbe Platte, was das Löschen jeweils kostet";
 "按空间" = "Nach Speicher";
 "按空间：这一圈是「谁占了地方」" = "Nach Speicher: der Ring zeigt, wer den Platz belegt";
 "用量与扫描快照对不上：四类比整块盘多出 %@。" = "Nutzung und Scan-Stand weichen ab: die vier Klassen übersteigen die Platte um %@.";
-"空闲、系统区与知识库不认得的字节 · 本工具不动" = "Freier Speicher, Systembereiche und unbekannte Bytes · wird nicht angefasst";
 "缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来" = "Caches und Build-Artefakte · davon %1$@ in diesem Durchgang; wachsen von selbst nach";
 "缓存与构建产物 · 都能一键收走，删了会自己长回来" = "Caches und Build-Artefakte · alles per Ein-Klick; wachsen von selbst nach";
 "读法" = "Ansicht";
@@ -1248,3 +1245,10 @@
 "诊断" = "Diagnose";
 "保留个数" = "Anzahl behalten";
 "最近 %@" = "Die neuesten %@";
+
+/* 代价读法：空闲从不碰里拆出来单列 */
+"按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。" = "Nach Kosten: null Kosten, neu laden, unwiderruflich, nicht anfassen – mit freiem Platz ergeben die fünf die ganze Platte.";
+"系统区、没量到与知识库不认得的已用字节 · 本工具不动" = "Systembereiche, unvermessene Bereiche und dem Wissensbestand unbekannte Bytes · dieses Werkzeug fasst sie nicht an";
+"不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。" = "Nicht anfassen: Systembereiche, Unvermessenes und dem Wissensbestand unbekannte Bytes. Freier Platz steht separat.";
+"已空着的地方 · 不是文件，谈不上删" = "Einfach leerer Platz · keine Datei, nichts zu löschen";
+"空闲：已空着的地方，不是文件。" = "Frei: leerer Platz, keine Datei.";

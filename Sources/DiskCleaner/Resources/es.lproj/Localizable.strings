@@ -1021,7 +1021,6 @@
 "不可逆" = "Irreversible";
 "不可逆：删了就没了。一键清从不碰它。" = "Irreversible: se pierde para siempre. La limpieza de un clic nunca lo toca.";
 "不碰" = "No tocar";
-"不碰：空闲、系统区，以及知识库不认得的字节。" = "No tocar: espacio libre, zonas del sistema y bytes que el catálogo no conoce.";
 "代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。" = "En la lectura por coste el anillo no se arma: lo que se va a limpiar se confirma punto por punto en la lista de limpieza; «Irreversible» nunca entra en el clic único.";
 "打开清理清单挑要清的 →" = "Abre la lista de limpieza y elige qué limpiar →";
 "删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认" = "Se pierde para siempre · la limpieza de un clic nunca lo toca; bórralo uno a uno en Cachés";
@@ -1029,13 +1028,11 @@
 "删了要重新下载或重建 · 这次不收它" = "Hay que volver a descargarlo o reconstruirlo · no entra en este lote";
 "删了要重新下载或重建 · 都能一键收走" = "Hay que volver a descargarlo o reconstruirlo · todo entra con un clic";
 "按代价" = "Por coste";
-"按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Por coste: coste cero, volver a descargar, irreversible, no tocar: las cuatro suman el disco entero.";
 "一圈 = 这块盘的真实字节" = "Un anillo = los bytes reales de este disco";
 "按代价：同一块盘，清掉它分别要付什么" = "Por coste: el mismo disco, qué cuesta borrar cada parte";
 "按空间" = "Por espacio";
 "按空间：这一圈是「谁占了地方」" = "Por espacio: este anillo muestra quién ocupa el sitio";
 "用量与扫描快照对不上：四类比整块盘多出 %@。" = "El uso y la instantánea del escaneo no coinciden: las cuatro clases superan el disco en %@.";
-"空闲、系统区与知识库不认得的字节 · 本工具不动" = "Espacio libre, zonas del sistema y bytes desconocidos · no se tocan";
 "缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来" = "Cachés y artefactos de compilación · de eso, %1$@ entra en este lote; vuelven a crecer";
 "缓存与构建产物 · 都能一键收走，删了会自己长回来" = "Cachés y artefactos de compilación · todo entra con un clic; vuelven a crecer";
 "读法" = "Lectura";
@@ -1245,3 +1242,10 @@
 "诊断" = "Diagnóstico";
 "保留个数" = "Cantidad a conservar";
 "最近 %@" = "Los %@ más nuevos";
+
+/* 代价读法：空闲从不碰里拆出来单列 */
+"按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。" = "Por coste: coste cero, volver a descargar, irreversible, no tocar: con el espacio libre, los cinco suman el disco entero.";
+"系统区、没量到与知识库不认得的已用字节 · 本工具不动" = "Zonas del sistema, zonas sin medir y bytes que la base de conocimiento no reconoce · esta herramienta no los toca";
+"不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。" = "No tocar: zonas del sistema, zonas sin medir y bytes desconocidos. El espacio libre va aparte.";
+"已空着的地方 · 不是文件，谈不上删" = "Espacio simplemente vacío · no es un archivo, nada que borrar";
+"空闲：已空着的地方，不是文件。" = "Libre: espacio vacío, no es un archivo.";

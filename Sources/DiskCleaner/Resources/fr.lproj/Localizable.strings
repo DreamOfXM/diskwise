@@ -1029,7 +1029,6 @@
 "不可逆" = "Irréversible";
 "不可逆：删了就没了。一键清从不碰它。" = "Irréversible : perdu pour de bon. Le nettoyage en un clic n'y touche jamais.";
 "不碰" = "Ne pas toucher";
-"不碰：空闲、系统区，以及知识库不认得的字节。" = "Ne pas toucher : espace libre, zones système et octets que le catalogue ne connaît pas.";
 "代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。" = "En lecture par coût, l'anneau ne s'arme pas : ce qu'il faut nettoyer se confirme point par point dans la liste de nettoyage ; « Irréversible » ne fait jamais partie du clic unique.";
 "打开清理清单挑要清的 →" = "Ouvrir la liste de nettoyage pour choisir →";
 "删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认" = "Perdu pour de bon · le nettoyage en un clic n'y touche jamais ; à vider un par un dans les caches";
@@ -1037,13 +1036,11 @@
 "删了要重新下载或重建 · 这次不收它" = "À retélécharger ou reconstruire · hors de ce lot";
 "删了要重新下载或重建 · 都能一键收走" = "À retélécharger ou reconstruire · tout est faisable en un clic";
 "按代价" = "Par coût";
-"按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "Par coût : coût nul, à retélécharger, irréversible, ne pas toucher — les quatre font le disque entier.";
 "一圈 = 这块盘的真实字节" = "Un anneau = les octets réels de ce disque";
 "按代价：同一块盘，清掉它分别要付什么" = "Par coût : le même disque, ce que coûte l'effacement de chaque part";
 "按空间" = "Par espace";
 "按空间：这一圈是「谁占了地方」" = "Par espace : cet anneau montre qui occupe la place";
 "用量与扫描快照对不上：四类比整块盘多出 %@。" = "L'utilisation et l'instantané du scan ne concordent pas : les quatre classes dépassent le disque de %@.";
-"空闲、系统区与知识库不认得的字节 · 本工具不动" = "Espace libre, zones système et octets inconnus · on n'y touche pas";
 "缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来" = "Caches et artefacts de compilation · %1$@ de cela entre dans ce lot ; ils repoussent";
 "缓存与构建产物 · 都能一键收走，删了会自己长回来" = "Caches et artefacts de compilation · tout en un clic ; ils repoussent";
 "读法" = "Lecture";
@@ -1253,3 +1250,10 @@
 "诊断" = "Diagnostic";
 "保留个数" = "Nombre conservé";
 "最近 %@" = "Les %@ plus récents";
+
+/* 代价读法：空闲从不碰里拆出来单列 */
+"按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。" = "Par coût : coût nul, retélécharger, irréversible, ne pas toucher — avec l'espace libre, les cinq font tout le disque.";
+"系统区、没量到与知识库不认得的已用字节 · 本工具不动" = "Zones système, zones non mesurées et octets inconnus de la base de connaissances · cet outil n'y touche pas";
+"不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。" = "Ne pas toucher : zones système, zones non mesurées et octets inconnus. L'espace libre est listé à part.";
+"已空着的地方 · 不是文件，谈不上删" = "De l'espace simplement vide · pas un fichier, rien à supprimer";
+"空闲：已空着的地方，不是文件。" = "Libre : de l'espace vide, pas un fichier.";

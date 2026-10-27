@@ -1020,7 +1020,6 @@
 "不可逆" = "Irreversible";
 "不可逆：删了就没了。一键清从不碰它。" = "Irreversible: gone for good. One-click clean never touches it.";
 "不碰" = "Hands off";
-"不碰：空闲、系统区，以及知识库不认得的字节。" = "Hands off: free space, system areas, and bytes the catalog doesn't know.";
 "代价读法下环上不接上膛：要清什么在清理清单里逐处确认；「不可逆」从不进一键。" = "In cost view the ring doesn't arm: confirm what to clean item by item in the cleanup list; “Irreversible” is never part of one-click.";
 "打开清理清单挑要清的 →" = "Open the cleanup list to pick what to clean →";
 "删了就没了 · 一键清从不碰它，要清得在缓存页逐条确认" = "Gone for good · one-click clean never touches it; clear it item by item in Caches";
@@ -1028,13 +1027,11 @@
 "删了要重新下载或重建 · 这次不收它" = "Must re-download or rebuild · not in this batch";
 "删了要重新下载或重建 · 都能一键收走" = "Must re-download or rebuild · all can go in one click";
 "按代价" = "By cost";
-"按代价读：零代价、需重下、不可逆、不碰——四类相加就是整块盘。" = "By cost: zero cost, re-download, irreversible, hands off — the four add up to the whole disk.";
 "一圈 = 这块盘的真实字节" = "One ring = the real bytes on this disk";
 "按代价：同一块盘，清掉它分别要付什么" = "By cost: the same disk, what clearing each part costs you";
 "按空间" = "By space";
 "按空间：这一圈是「谁占了地方」" = "By space: this ring shows what takes up the room";
 "用量与扫描快照对不上：四类比整块盘多出 %@。" = "Usage and the scan snapshot disagree: the four classes exceed the disk by %@.";
-"空闲、系统区与知识库不认得的字节 · 本工具不动" = "Free space, system areas, and unknown bytes · left alone";
 "缓存与构建产物 · 其中 %1$@ 这次收得走，删了会自己长回来" = "Caches and build output · %1$@ of it can go in this batch; it grows back";
 "缓存与构建产物 · 都能一键收走，删了会自己长回来" = "Caches and build output · all can go in one click; they grow back";
 "读法" = "Reading";
@@ -1244,3 +1241,10 @@
 "诊断" = "Diagnostics";
 "保留个数" = "Keep count";
 "最近 %@" = "Latest %@";
+
+/* 代价读法：空闲从不碰里拆出来单列 */
+"按代价读：零代价、需重下、不可逆、不碰——加上空闲，五段相加就是整块盘。" = "By cost: zero cost, re-download, irreversible, hands off — with free space, the five add up to the whole disk.";
+"系统区、没量到与知识库不认得的已用字节 · 本工具不动" = "System areas, unmeasured volumes and bytes the knowledge base doesn't know · this tool won't touch them";
+"不碰：系统区、没量到，以及知识库不认得的字节。空闲不算在内。" = "Hands off: system areas, unmeasured volumes, and bytes the knowledge base doesn't know. Free space is listed separately.";
+"已空着的地方 · 不是文件，谈不上删" = "Space that is simply empty · not a file, nothing to delete";
+"空闲：已空着的地方，不是文件。" = "Free: empty space, not a file.";
