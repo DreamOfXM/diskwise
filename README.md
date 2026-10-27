@@ -111,6 +111,13 @@ Claude Code takes one line in Terminal:
 claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
+**Or click to install**, no Terminal needed — the app registers itself as the server:
+
+[Install in Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=diskwise&config=eyJjb21tYW5kIjoiL0FwcGxpY2F0aW9ucy9EaXNrV2lzZS5hcHAvQ29udGVudHMvTWFjT1MvZGlza3dpc2UiLCJhcmdzIjpbIm1jcCJdfQ==) · [Install in VS Code](vscode:mcp/install?%7B%22name%22%3A%20%22diskwise%22%2C%20%22command%22%3A%20%22%2FApplications%2FDiskWise.app%2FContents%2FMacOS%2Fdiskwise%22%2C%20%22args%22%3A%20%5B%22mcp%22%5D%7D)
+
+These point at `/Applications/DiskWise.app`, so they only work once the direct-download build
+is in that folder. The App Store build has no CLI, so it has nothing to register.
+
 Then just ask your agent *"see what's worth cleaning on my Mac"* — it scans, drafts a plan,
 shows you the summary, and only moves anything after you agree. The eight above are the ones we
 verified line by line; any client that can host a local stdio MCP server takes the same two values —
