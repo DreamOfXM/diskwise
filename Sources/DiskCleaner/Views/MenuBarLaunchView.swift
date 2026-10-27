@@ -24,6 +24,7 @@ struct MenuBarLaunchView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         switches
+                        diagnostics
                         footnote
                     }
                     .padding(.horizontal, 20)
@@ -65,6 +66,40 @@ struct MenuBarLaunchView: View {
         ThemeButton(kind: .compact, symbol: "arrow.up.right.square",
                     title: L("打开系统设置")) { Prefs.openLoginItemsSettings() }
             .fixedSize()
+    }
+
+    // MARK: 诊断（PR-4）
+    //
+    // 探针默认关是隐私承诺的边界（PRIVACY.md「读什么」）；保留策略默认关、
+    // 首次遇到再生类别只在崩溃转储页建议一次，不自动启用。
+
+    @AppStorage("diagnosticProbeEnabled") private var probeEnabled = false
+    @AppStorage("retention.crash-dumps.enabled") private var retentionOn = false
+    @AppStorage("retention.crash-dumps.count") private var retentionCount = 2_000
+
+    private var diagnostics: some View {
+        VStack(spacing: 0) {
+            SectionLabel(text: L("诊断"))
+            SwitchLine(title: L("内容探针"),
+                       note: L("只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭"),
+                       isOn: $probeEnabled)
+            Divider().overlay(theme.palette.separator)
+            SwitchLine(title: L("保留策略：崩溃转储"),
+                       note: LF("保留最新 %@，超出部分手动修剪；不自动执行", cnt(retentionCount, "个")),
+                       isOn: $retentionOn)
+            if retentionOn {
+                HStack {
+                    ThemeStepper(label: L("保留个数"), value: $retentionCount,
+                                 range: 100...10_000, step: 100)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(.vertical, 4)
+        .background(theme.cardShape().fill(theme.palette.surface))
+        .overlay(theme.cardShape().stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
     }
 
     private var footnote: some View {

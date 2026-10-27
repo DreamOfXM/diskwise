@@ -2176,5 +2176,50 @@ do {
     try? fm.removeItem(at: dir)
 }
 
+// MARK: - 22. 保留策略与修剪（PR-4）
+//
+// 纯计算即终稿：保留最新 N（或最新 N 字节），其余进修剪名单；
+// 执行侧的 dev/ino 复核在界面层，这里钉住名单本身的算术与修剪账本的整批撤销。
+do {
+    let fm = FileManager.default
+    let root = URL(fileURLWithPath: "/tmp/dwtest-trim-\(UUID().uuidString)", isDirectory: true)
+    let completed = root.appendingPathComponent("Crashpad/completed", isDirectory: true)
+    try? fm.createDirectory(at: completed, withIntermediateDirectories: true)
+    // 10 个 dump，mtime 逐小时递增：d09 最新，d00 最旧
+    for i in 0..<10 {
+        let u = completed.appendingPathComponent("d\(String(format: "%02d", i)).dmp")
+        fm.createFile(atPath: u.path, contents: Data(repeating: 1, count: 1000))
+        try? fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: Double(i - 10) * 3600)],
+                              ofItemAtPath: u.path)
+    }
+
+    let byCount = trimPlan(under: [completed], retention: Retention(kind: .count(3)))
+    check(byCount.keep == 3 && byCount.remove.count == 7,
+          "修剪：count(3) 保留最新 3 个、修剪 7 个")
+    check(byCount.remove.allSatisfy { !$0.url.lastPathComponent.hasPrefix("d09")
+                                      && !$0.url.lastPathComponent.hasPrefix("d08")
+                                      && !$0.url.lastPathComponent.hasPrefix("d07") },
+          "修剪：名单里没有最新的三个")
+    check(byCount.oldestKeptMtime != nil && byCount.removeBytes == 7_000,
+          "修剪：最旧保留边界与字节合计都是纯算出来的")
+
+    let byBytes = trimPlan(under: [completed], retention: Retention(kind: .bytes(2_500)))
+    check(byBytes.keep == 3, "修剪：bytes(2500) 按体积收口，同样留最新在前")
+    check(trimPlan(under: [completed], retention: Retention(kind: .count(100))).remove.isEmpty,
+          "修剪：配额超过实有时一个都不动")
+
+    // 修剪账本：入账 → 整批撤销 → 原路放回
+    let dbPath = URL(fileURLWithPath: "/tmp/dwtest-trimdb-\(UUID().uuidString).sqlite")
+    let store = SnapshotStore(path: dbPath, keepScans: 30)
+    let batch = UUID().uuidString
+    let items = byCount.remove.map { (original: $0.url, trash: $0.url.appendingPathExtension("trash-gone"), bytes: $0.size) }
+    store.recordTrim(batchID: batch, at: Date(), entryKey: root.path, items: items)
+    let back = store.undoTrim(batchID: batch)
+    check(back.restored == 0 && back.missing == 7,
+          "修剪：废纸篓路径不存在时按缺失计，不谎报放回")
+    try? fm.removeItem(at: root)
+    try? fm.removeItem(at: dbPath)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

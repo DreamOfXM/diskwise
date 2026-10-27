@@ -1221,3 +1221,30 @@
 "发起源" = "Ursprung";
 "目录归属与内容归属不同" = " · Ordner- und Inhaltszugehörigkeit weichen ab";
 "混合来源（抽查 %@ 样本）" = "Gemischte Quellen (%@ Stichproben)";
+
+/* 保留策略与修剪（PR-4） */
+"预览修剪…" = "Trimmen vormerken…";
+"按策略修剪" = "Nach Regel trimmen";
+"保留策略" = "Behalte-Regel";
+"修剪" = "Trimmen";
+"正在移入废纸篓…" = "Wird in den Papierkorb verschoben…";
+"已修剪 · 释放约 %@" = "Getrimmt · etwa %@ frei";
+"全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。" = "Alles in den Papierkorb, als Ganzes rückgängig; settings.dat und Ordnergerüst bleiben. Die Vorschau ist reine Rechnung und endgültig.";
+"settings.dat 已保留；记录已进修剪账本，可整批撤销。" = "settings.dat bleibt; der Vorgang steht im Trimmen-Heft und ist als Ganzes rückgängig.";
+"跳过 %d 个（执行时与预览不一致，防偷换）" = "%d übersprungen (nach der Vorschau verändert — kein stilles Austauschen)";
+"空间要等清空废纸篓后才释放。" = "Platz wird erst nach dem Leeren des Papierkorbs frei.";
+"在访达中打开废纸篓" = "Papierkorb im Finder öffnen";
+"在访达中清空" = "Im Finder leeren";
+"撤销整批" = "Ganze Charge zurücknehmen";
+"将修剪" = "Es werden entfernt";
+"最旧保留到" = "Älteste behalten bis";
+"保留策略：崩溃转储" = "Behalte-Regel: Absturzberichte";
+"保留最新 %@，超出部分手动修剪；不自动执行" = "Die neuesten %@ behalten; Rest manuell trimmen — nie automatisch";
+"新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。" = "Die neue Kategorie „Absturzberichte“ wächst nach. Vorschlag: die neuesten %@ behalten.";
+"采用" = "Übernehmen";
+"不再提示" = "Nicht erneut vorschlagen";
+"内容探针" = "Inhaltstast";
+"只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭" = "Liest nur die ersten 64 KB von Absturzberichten · Ergebnisse bleiben lokal · standardmäßig aus";
+"诊断" = "Diagnose";
+"保留个数" = "Anzahl behalten";
+"最近 %@" = "Die neuesten %@";

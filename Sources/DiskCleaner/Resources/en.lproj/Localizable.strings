@@ -1217,3 +1217,30 @@
 "发起源" = "Origin";
 "目录归属与内容归属不同" = " · directory and content owners differ";
 "混合来源（抽查 %@ 样本）" = "Mixed sources (%@ samples probed)";
+
+/* 保留策略与修剪（PR-4） */
+"预览修剪…" = "Preview trim…";
+"按策略修剪" = "Trim by policy";
+"保留策略" = "Retention policy";
+"修剪" = "Trim";
+"正在移入废纸篓…" = "Moving to Trash…";
+"已修剪 · 释放约 %@" = "Trimmed · about %@ freed";
+"全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。" = "Everything goes to the Trash and can be undone as a batch; settings.dat and the folder skeleton stay. Preview numbers come from a pure calculation and are final.";
+"settings.dat 已保留；记录已进修剪账本，可整批撤销。" = "settings.dat kept; the batch is in the trim ledger and can be undone as a whole.";
+"跳过 %d 个（执行时与预览不一致，防偷换）" = "Skipped %d (changed since preview — no silent swaps)";
+"空间要等清空废纸篓后才释放。" = "Space is freed only after the Trash is emptied.";
+"在访达中打开废纸篓" = "Open Trash in Finder";
+"在访达中清空" = "Empty in Finder";
+"撤销整批" = "Undo batch";
+"将修剪" = "Will trim";
+"最旧保留到" = "Oldest kept";
+"保留策略：崩溃转储" = "Retention: crash dumps";
+"保留最新 %@，超出部分手动修剪；不自动执行" = "Keep the newest %@; trim the rest manually — never automatic";
+"新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。" = "The new “crash dumps” category regrows. Suggested policy: keep the latest %@.";
+"采用" = "Adopt";
+"不再提示" = "Don't suggest again";
+"内容探针" = "Content probe";
+"只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭" = "Reads only the first 64 KB of crash dumps · results stay local · off by default";
+"诊断" = "Diagnostics";
+"保留个数" = "Keep count";
+"最近 %@" = "Latest %@";

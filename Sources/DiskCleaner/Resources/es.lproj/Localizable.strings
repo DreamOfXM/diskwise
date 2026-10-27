@@ -1218,3 +1218,30 @@
 "发起源" = "Origen";
 "目录归属与内容归属不同" = " · el dueño de la carpeta y el del contenido difieren";
 "混合来源（抽查 %@ 样本）" = "Fuentes mixtas (%@ muestras examinadas)";
+
+/* 保留策略与修剪（PR-4） */
+"预览修剪…" = "Previsualizar recorte…";
+"按策略修剪" = "Recortar según política";
+"保留策略" = "Política de retención";
+"修剪" = "Recortar";
+"正在移入废纸篓…" = "Moviendo a la Papelera…";
+"已修剪 · 释放约 %@" = "Recortado · unos %@ liberados";
+"全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。" = "Todo va a la Papelera y se puede deshacer en lote; settings.dat y el esqueleto de carpetas se quedan. La vista previa es cálculo puro y definitiva.";
+"settings.dat 已保留；记录已进修剪账本，可整批撤销。" = "settings.dat se conserva; el lote queda en el registro y se puede deshacer entero.";
+"跳过 %d 个（执行时与预览不一致，防偷换）" = "Se omitieron %d (cambiaron tras la vista previa; nada de sustituciones silenciosas)";
+"空间要等清空废纸篓后才释放。" = "El espacio se libera al vaciar la Papelera.";
+"在访达中打开废纸篓" = "Abrir la Papelera en el Finder";
+"在访达中清空" = "Vaciar en el Finder";
+"撤销整批" = "Deshacer el lote";
+"将修剪" = "Se recortarán";
+"最旧保留到" = "El más antiguo conservado";
+"保留策略：崩溃转储" = "Retención: volcados de fallos";
+"保留最新 %@，超出部分手动修剪；不自动执行" = "Conservar los %@ más nuevos; el resto se recorta a mano, nunca automáticamente";
+"新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。" = "La nueva categoría «volcados de fallos» se regenera. Sugerencia: conservar los %@ más recientes.";
+"采用" = "Adoptar";
+"不再提示" = "No sugerir de nuevo";
+"内容探针" = "Sonda de contenido";
+"只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭" = "Lee solo los primeros 64 KB de los volcados · resultados locales · desactivada por omisión";
+"诊断" = "Diagnóstico";
+"保留个数" = "Cantidad a conservar";
+"最近 %@" = "Los %@ más nuevos";

@@ -140,6 +140,59 @@ final class DiagnosticsHub: ObservableObject {
         reports.removeAll { ids.contains($0.id) }
         reportSelection.subtract(ids)
     }
+
+    // MARK: 修剪三步流（PR-4）
+
+    enum TrimState: Equatable {
+        case preview(hitPath: String, plan: TrimPlan)
+        case running(done: Int, total: Int)
+        case done(bytes: Int64, skipped: Int, batchID: String)
+    }
+
+    @Published var trim: TrimState? = nil
+
+    /// 第一步：纯算出终稿。预览数字即执行数字，确认后不重算。
+    func prepareTrim(for hit: CategoryHit) {
+        guard let retention = crashRetention() else { return }
+        let dirs = CategoryRule.crashDumps.safeDeleteSpec?.cleanTargets(under: URL(fileURLWithPath: hit.path)) ?? []
+        trim = .preview(hitPath: hit.path, plan: trimPlan(under: dirs, retention: retention))
+    }
+
+    /// 第二步：执行。逐项复核 dev/ino，与预览不一致的跳过（防偷换）；
+    /// 全部走 trashItem 唯一删除路径，整批入账可撤销。
+    func runTrim() {
+        guard case .preview(let hitPath, let plan) = trim else { return }
+        trim = .running(done: 0, total: plan.remove.count)
+        let store = snapshots
+        Task { @MainActor in
+            let fm = FileManager.default
+            var moved: [(original: URL, trash: URL, bytes: Int64)] = []
+            var skipped = 0
+            for (i, f) in plan.remove.enumerated() {
+                var st = stat()
+                if lstat(f.url.path, &st) != 0 || Int(st.st_dev) != f.dev || Int(st.st_ino) != f.ino {
+                    skipped += 1
+                } else if let dst = try? trashItem(f.url) {
+                    moved.append((f.url, dst, f.size))
+                } else {
+                    skipped += 1
+                }
+                if i % 200 == 0 { self.trim = .running(done: i + 1, total: plan.remove.count) }
+            }
+            let batchID = UUID().uuidString
+            store.recordTrim(batchID: batchID, at: Date(), entryKey: hitPath, items: moved)
+            self.trim = .done(bytes: moved.reduce(0) { $0 + $1.bytes }, skipped: skipped, batchID: batchID)
+            self.discover(force: true)
+        }
+    }
+
+    /// 第三步的「撤销整批」：废纸篓里的原路搬回。反馈就是行回来了——
+    /// discover(force:) 重算后列表自己会说话。
+    func undoTrim(batchID: String) {
+        _ = snapshots.undoTrim(batchID: batchID)
+        trim = nil
+        discover(force: true)
+    }
 }
 
 // MARK: - 崩溃转储
@@ -175,6 +228,12 @@ struct CrashDumpsView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            if !hub.hits.isEmpty {
+                RetentionBanner()
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 10)
+            }
+
             if hub.scanning && hub.hits.isEmpty {
                 EmptyState(symbol: "ladybug",
                            title: L("正在系统目录里找崩溃转储"),
@@ -199,6 +258,7 @@ struct CrashDumpsView: View {
                         ExplainLine(key: L("删了会怎样"), value: L("删了不影响使用；再崩溃还会再生成"))
                         ExplainLine(key: L("怎么恢复"), value: L("现场记录删了就没了，也不需要恢复"))
                         attributionLines(hit)
+                        trimButton(hit)
                         PathLine(path: hit.path)
                     }
                 }
@@ -218,12 +278,17 @@ struct CrashDumpsView: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
+        .sheet(isPresented: trimSheetOpen) { TrimSheet(hub: hub) }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
                                cnt(hub.selectedHits.count, "个应用"),
                                human(hub.selectedBytes, inRulerOf: hub.totalBytes))) {
             doClean()
         }
+    }
+
+    private var trimSheetOpen: Binding<Bool> {
+        Binding(get: { hub.trim != nil }, set: { if !$0 { hub.trim = nil } })
     }
 
     private var maxBytes: Int64 { max(1, hub.hits.map(\.bytes).max() ?? 1) }
@@ -292,6 +357,19 @@ struct CrashDumpsView: View {
         let minutes = max(1, Int(seconds / 60))
         if minutes >= 1440 { return cnt(minutes / 1440, "天") }
         return cnt(minutes, "分钟")
+    }
+
+    /// 处置入口：保留策略启用时才有「预览修剪」。没启用就只有底部常规清理。
+    @ViewBuilder private func trimButton(_ hit: CategoryHit) -> some View {
+        if crashRetention() != nil {
+            HStack {
+                ThemeButton(kind: .secondary, symbol: "scissors", title: L("预览修剪…")) {
+                    hub.prepareTrim(for: hit)
+                }
+                Spacer()
+            }
+            .padding(.top, 4)
+        }
     }
 
     /// 移的是可清理面（四个子目录整目录），settings.dat 与目录骨架不动。
@@ -550,5 +628,116 @@ func reasonExplain(_ reason: ObservationReason) -> String {
         return L("名字像崩溃转储，但结构不完整；认不准就不动它。")
     case .appDataUnattributed:
         return L("还没认出这份数据属于哪个应用，先只看着。")
+    }
+}
+
+// MARK: - 建议条与修剪三步流（PR-4）
+
+/// 首次遇到再生类别的建议条：只出现一次，采用=写设置并落到该类全部条目，
+/// 不再提示=只记账。不自动启用——自动修剪就是隐形守护进程（设计稿 §6.2）。
+private struct RetentionBanner: View {
+    @Environment(\.theme) private var theme
+    @AppStorage("crashDumps.retentionSuggested") private var suggested = false
+
+    var body: some View {
+        if !suggested {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(theme.palette.tint)
+                Text(LF("新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。",
+                        cnt(2_000, "个")))
+                    .font(theme.bodyFont(.callout))
+                Spacer()
+                ThemeButton(kind: .primary, title: L("采用")) {
+                    setCrashRetention(Retention(kind: .count(2_000)))
+                    suggested = true
+                }
+                ThemeButton(kind: .ghost, title: L("不再提示")) { suggested = true }
+            }
+            .padding(12)
+            .background(theme.palette.tintSoft, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
+/// 修剪三步流：预览（终稿）→ 执行（进度）→ 完成（释放量 + 整批撤销 + 渠道分支的清空提示）。
+/// 沙盒版发往访达的清空事件被系统掐掉，所以商店版只给「在访达中打开废纸篓」
+/// （评审 §2.4-1：事故场景在商店版必须交代清空这最后一步去哪了）。
+private struct TrimSheet: View {
+    @Environment(\.theme) private var theme
+    @ObservedObject var hub: DiagnosticsHub
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            switch hub.trim {
+            case .preview(_, let plan):
+                Text(L("按策略修剪")).font(theme.display(.headline))
+                kvLine(L("保留策略"), LF("最近 %@", cnt(plan.keep, "个")))
+                kvLine(L("将修剪"), LF("%1$@ · %2$@", cnt(plan.remove.count, "个文件"), human(plan.removeBytes)))
+                if let oldest = plan.oldestKeptMtime {
+                    kvLine(L("最旧保留到"), oldest.formatted(date: .abbreviated, time: .shortened))
+                }
+                Text(L("全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。"))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                HStack {
+                    Spacer()
+                    ThemeButton(kind: .ghost, title: L("取消")) { hub.trim = nil }
+                    ThemeButton(kind: .primary, title: L("修剪")) { hub.runTrim() }
+                }
+            case .running(let done, let total):
+                Text(L("正在移入废纸篓…")).font(theme.display(.headline))
+                ProgressView(value: Double(done), total: Double(max(total, 1)))
+                Text(LF("%1$@ / %2$@", String(done), String(total)))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            case .done(let bytes, let skipped, let batchID):
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(theme.palette.safeFG)
+                    Text(LF("已修剪 · 释放约 %@", human(bytes))).font(theme.display(.headline))
+                }
+                Text(L("settings.dat 已保留；记录已进修剪账本，可整批撤销。"))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                if skipped > 0 {
+                    Text(LF("跳过 %d 个（执行时与预览不一致，防偷换）", skipped))
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.warnFG)
+                }
+                Text(L("空间要等清空废纸篓后才释放。"))
+                    .font(theme.bodyFont(.caption))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                HStack {
+                    if Channel.isAppStore {
+                        ThemeButton(kind: .secondary, symbol: "folder", title: L("在访达中打开废纸篓")) {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: homePath() + "/.Trash"))
+                        }
+                    } else {
+                        ThemeButton(kind: .secondary, symbol: "trash", title: L("在访达中清空")) {
+                            Task.detached { _ = try? await emptyTrashViaFinder() }
+                        }
+                    }
+                    Spacer()
+                    ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward", title: L("撤销整批")) {
+                        hub.undoTrim(batchID: batchID)
+                    }
+                }
+            case nil:
+                EmptyView()
+            }
+        }
+        .padding(20)
+        .frame(width: 460, alignment: .leading)
+    }
+
+    private func kvLine(_ k: String, _ v: String) -> some View {
+        HStack {
+            Text(k).foregroundStyle(theme.palette.inkSecondary)
+            Spacer()
+            Text(v)
+        }
+        .font(theme.bodyFont(.callout))
     }
 }

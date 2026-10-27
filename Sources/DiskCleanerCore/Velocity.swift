@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 
 /// C 侧的 SQLITE_TRANSIENT 宏在 Swift 模块里没有定义，铸一个等价的（-1）。
-private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 // MARK: - 扫描快照与流速（PR-2）
 //
@@ -104,7 +104,7 @@ public struct VelocityReport: Equatable {
 /// 库打不开或语句失败一律静默降级：快照与流速是增益不是地基，
 /// 库坏掉不该让发现遍历跟着失败——界面只是没有流速可看。
 public final class SnapshotStore {
-    private var db: OpaquePointer?
+    var db: OpaquePointer?
     public let keepScans: Int
 
     public static func defaultPath() -> URL {
@@ -129,6 +129,11 @@ public final class SnapshotStore {
         CREATE TABLE IF NOT EXISTS probe_cache(
           entryKey TEXT NOT NULL, mtime REAL NOT NULL, owner TEXT, mixed INTEGER NOT NULL,
           hints TEXT NOT NULL, PRIMARY KEY(entryKey, mtime));
+        CREATE TABLE IF NOT EXISTS trim_batches(
+          batchID TEXT PRIMARY KEY, at REAL NOT NULL, entryKey TEXT NOT NULL,
+          count INTEGER NOT NULL, bytes INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS trim_items(
+          batchID TEXT NOT NULL, original TEXT NOT NULL, trash TEXT NOT NULL);
         """
         exec(ddl)
     }
@@ -137,7 +142,7 @@ public final class SnapshotStore {
         if db != nil { sqlite3_close_v2(db) }
     }
 
-    private func exec(_ sql: String) -> Bool {
+    func exec(_ sql: String) -> Bool {
         guard db != nil else { return false }
         var err: UnsafeMutablePointer<CChar>?
         let ok = sqlite3_exec(db, sql, nil, nil, &err) == SQLITE_OK

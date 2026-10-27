@@ -1226,3 +1226,30 @@
 "发起源" = "Origine";
 "目录归属与内容归属不同" = " · le propriétaire du dossier et celui du contenu diffèrent";
 "混合来源（抽查 %@ 样本）" = "Sources mixtes (%@ échantillons sondés)";
+
+/* 保留策略与修剪（PR-4） */
+"预览修剪…" = "Prévisualiser la taille…";
+"按策略修剪" = "Tailler selon la règle";
+"保留策略" = "Règle de conservation";
+"修剪" = "Tailler";
+"正在移入废纸篓…" = "Déplacement vers la corbeille…";
+"已修剪 · 释放约 %@" = "Taillé · environ %@ libérés";
+"全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。" = "Tout part à la corbeille, annulable en lot ; settings.dat et l'ossature restent. L'aperçu est un calcul pur et définitif.";
+"settings.dat 已保留；记录已进修剪账本，可整批撤销。" = "settings.dat conservé ; le lot est dans le registre et annulable en entier.";
+"跳过 %d 个（执行时与预览不一致，防偷换）" = "%d ignorés (modifiés depuis l'aperçu — pas de substitution silencieuse)";
+"空间要等清空废纸篓后才释放。" = "L'espace se libère seulement après avoir vidé la corbeille.";
+"在访达中打开废纸篓" = "Ouvrir la corbeille dans le Finder";
+"在访达中清空" = "Vider dans le Finder";
+"撤销整批" = "Annuler le lot";
+"将修剪" = "Seront taillés";
+"最旧保留到" = "Le plus ancien conservé";
+"保留策略：崩溃转储" = "Conservation : vidages de plantage";
+"保留最新 %@，超出部分手动修剪；不自动执行" = "Garder les %@ plus récents ; le reste se taille à la main, jamais automatiquement";
+"新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。" = "La catégorie « vidages de plantage » repousse. Suggestion : garder les %@ plus récents.";
+"采用" = "Adopter";
+"不再提示" = "Ne plus suggérer";
+"内容探针" = "Sonde de contenu";
+"只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭" = "Ne lit que les 64 premiers Ko des vidages · résultats locaux · désactivée par défaut";
+"诊断" = "Diagnostic";
+"保留个数" = "Nombre conservé";
+"最近 %@" = "Les %@ plus récents";

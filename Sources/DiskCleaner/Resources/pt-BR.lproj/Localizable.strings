@@ -1226,3 +1226,30 @@
 "发起源" = "Origem";
 "目录归属与内容归属不同" = " · o dono da pasta e o do conteúdo divergem";
 "混合来源（抽查 %@ 样本）" = "Fontes mistas (%@ amostras examinadas)";
+
+/* 保留策略与修剪（PR-4） */
+"预览修剪…" = "Pré-visualizar corte…";
+"按策略修剪" = "Cortar pela política";
+"保留策略" = "Política de retenção";
+"修剪" = "Cortar";
+"正在移入废纸篓…" = "Movendo para o Lixo…";
+"已修剪 · 释放约 %@" = "Cortado · cerca de %@ liberados";
+"全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。" = "Tudo vai para o Lixo e dá para desfazer em lote; settings.dat e a estrutura de pastas ficam. A prévia é cálculo puro e definitiva.";
+"settings.dat 已保留；记录已进修剪账本，可整批撤销。" = "settings.dat mantido; o lote está no registro e dá para desfazer inteiro.";
+"跳过 %d 个（执行时与预览不一致，防偷换）" = "%d ignorados (mudaram após a prévia — nada de troca silenciosa)";
+"空间要等清空废纸篓后才释放。" = "O espaço só é liberado quando o Lixo for esvaziado.";
+"在访达中打开废纸篓" = "Abrir o Lixo no Finder";
+"在访达中清空" = "Esvaziar no Finder";
+"撤销整批" = "Desfazer o lote";
+"将修剪" = "Serão cortados";
+"最旧保留到" = "Mais antigo mantido";
+"保留策略：崩溃转储" = "Retenção: despejos de falha";
+"保留最新 %@，超出部分手动修剪；不自动执行" = "Manter os %@ mais novos; o resto corta na mão — nunca automático";
+"新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。" = "A nova categoria «despejos de falha» volta a crescer. Sugestão: manter os %@ mais recentes.";
+"采用" = "Adotar";
+"不再提示" = "Não sugerir de novo";
+"内容探针" = "Sonda de conteúdo";
+"只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭" = "Lê só os primeiros 64 KB dos despejos · resultados ficam locais · desligada por padrão";
+"诊断" = "Diagnóstico";
+"保留个数" = "Quantidade mantida";
+"最近 %@" = "Os %@ mais novos";
