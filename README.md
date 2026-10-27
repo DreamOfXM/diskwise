@@ -55,10 +55,10 @@ instead of leaving you to guess.
   compared with the previous one. A burst gets a red badge — the incident above reads back as
   +161,833 files / +8.1 GB in 34 minutes — slow accumulation gets amber, and a folder you cleared
   shows up as a decrease rather than an alarm.
-- **Who actually wrote them (off by default).** Turn on the content probe in Settings → Diagnostics
-  and DiskWise samples a few dumps, reads only their headers, and says so in the row when the
-  folder's owner and the dumps' writer disagree. Fingerprints always display redacted and nothing
-  leaves the machine.
+- **Who actually wrote them (off by default).** Turn on the content probe under *Diagnostics and
+  dumps* in Settings and DiskWise samples a few dumps, reads only their headers, and says so in the
+  row when the folder's owner and the dumps' writer disagree. Fingerprints always display redacted
+  and nothing leaves the machine.
 - **Trim by retention.** The first time the category appears you're offered "keep the newest 2,000" —
   adopt it or dismiss it, one click either way, and nothing ever runs by itself. The preview is the
   result, whole batches undo, and the folder skeleton stays in place.
