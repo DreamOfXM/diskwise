@@ -17,9 +17,15 @@ final class DiagnosticsHub: ObservableObject {
     @Published private(set) var observation: [ObservationItem] = []
     @Published private(set) var scanning = false
     @Published private(set) var started = false
+    /// 流速徽标按 entryKey 挂在行上；异常粘滞到增长回落（评审 §2.1c）。
+    @Published private(set) var velocity: [String: VelocityReport] = [:]
+    /// 本轮没有任何可比的基线：首扫或历史全在 10 分钟内，页头提一句「下次起可对比」。
+    @Published private(set) var baselinePending = false
     @Published var hitSelection = Set<String>()
     @Published var reportSelection = Set<String>()
     private var task: Task<Void, Never>? = nil
+    /// 快照库。库坏了静默降级——快照是增益不是地基， velocities 为空即没有流速可看。
+    private lazy var snapshots: SnapshotStore = SnapshotStore(path: SnapshotStore.defaultPath())
 
     /// 侧栏「诊断与转储」分组出现的判据：两页都空就不占位（设计稿屏①：无命中整组不出现）。
     var hasFindings: Bool { !hits.isEmpty || !reports.isEmpty }
@@ -64,6 +70,7 @@ final class DiagnosticsHub: ObservableObject {
             observation = report.observation
             hitSelection.formIntersection(Set(hits.map(\.id)))
             reportSelection.formIntersection(Set(reports.map(\.id)))
+            self.applyVelocity(for: report.hits)
             scanning = false
         }
     }
@@ -72,6 +79,34 @@ final class DiagnosticsHub: ObservableObject {
         task?.cancel()
         guard scanning else { return }
         scanning = false
+    }
+
+    /// 本轮扫描的流速结算：算两档徽标、写快照。
+    /// 基线是距今 ≥10 分钟的上一次扫描——连扫两次不换基线；Δ≤0 才撤徽标（粘滞）。
+    private func applyVelocity(for hits: [CategoryHit]) {
+        let scanID = UUID().uuidString
+        let now = Date()
+        let snaps = hits.map {
+            ScanSnapshot(entryKey: $0.path, scanID: scanID, wallTime: now,
+                         bytes: $0.bytes, fileCount: $0.files, newestMtime: $0.newest)
+        }
+        var next: [String: VelocityReport] = [:]
+        var usedBaseline = false
+        for s in snaps {
+            if let base = snapshots.baseline(entryKey: s.entryKey, now: now, currentScanID: scanID) {
+                usedBaseline = true
+                let r = VelocityReport.compute(current: s, baseline: base)
+                if r.tier != nil {
+                    next[s.entryKey] = r
+                } else if let prev = velocity[s.entryKey], r.deltaFiles > 0 || r.deltaBytes > 0 {
+                    // 仍在涨但够不着阈值：保留上一轮的异常；回落（Δ≤0）自然落空
+                    next[s.entryKey] = prev
+                }
+            }
+        }
+        snapshots.record(scanID: scanID, wallTime: now, snapshots: snaps)
+        velocity = next
+        baselinePending = !snaps.isEmpty && !usedBaseline
     }
 
     /// 清理后收行。行是先转淡再收的账本语义：搬走的立刻从这页消失。
@@ -104,6 +139,8 @@ struct CrashDumpsView: View {
                 ControlStrip {
                     if hub.scanning {
                         LoadingRow(text: L("正在系统目录里找崩溃转储…"))
+                    } else if hub.baselinePending {
+                        Text(L("基线已建立，下次扫描起可对比"))
                     } else {
                         Text(LF("%1$@，共 %2$@", cnt(hub.hits.count, "个应用"), human(hub.totalBytes)))
                     }
@@ -134,7 +171,8 @@ struct CrashDumpsView: View {
                             name: hit.host.map { "\($0) \(L("崩溃转储"))" } ?? L("崩溃转储"),
                             sub: hitSub(hit),
                             sizeText: shown[hit.id] ?? human(hit.bytes),
-                            fraction: Double(hit.bytes) / Double(maxBytes)) {
+                            fraction: Double(hit.bytes) / Double(maxBytes),
+                            badge: velocityBadge(hit)) {
                         ExplainLine(key: L("这是什么"), value: L("崩溃时留下的现场记录"))
                         ExplainLine(key: L("删了会怎样"), value: L("删了不影响使用；再崩溃还会再生成"))
                         ExplainLine(key: L("怎么恢复"), value: L("现场记录删了就没了，也不需要恢复"))
@@ -182,7 +220,26 @@ struct CrashDumpsView: View {
     private func hitSub(_ hit: CategoryHit) -> String {
         var parts = [displayPath(URL(fileURLWithPath: hit.path))]
         parts.append(cnt(hit.files, "个文件"))
+        if let v = hub.velocity[hit.id], v.tier != nil {
+            parts.append(LF("较上次 %1$@ · %2$@", "+" + cnt(v.deltaFiles, "个文件"),
+                            velocityInterval(v.intervalSeconds)))
+        }
         return parts.joined(separator: " · ")
+    }
+
+    /// 两档徽标：速率命中红「流速异常」、仅绝对量命中黄「显著增长」（评审 §2.1）。
+    private func velocityBadge(_ hit: CategoryHit) -> ItemBadge? {
+        guard let v = hub.velocity[hit.id], let tier = v.tier else { return nil }
+        switch tier {
+        case .red: return ItemBadge(text: L("流速异常"), tone: .danger)
+        case .yellow: return ItemBadge(text: L("显著增长"), tone: .warn)
+        }
+    }
+
+    private func velocityInterval(_ seconds: Double) -> String {
+        let minutes = max(1, Int(seconds / 60))
+        if minutes >= 1440 { return cnt(minutes / 1440, "天") }
+        return cnt(minutes, "分钟")
     }
 
     /// 移的是可清理面（四个子目录整目录），settings.dat 与目录骨架不动。

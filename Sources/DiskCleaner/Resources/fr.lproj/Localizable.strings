@@ -1210,3 +1210,9 @@
 "诊断与转储" = "Diagnostic et vidages";
 "还没认出这份数据属于哪个应用，先只看着。" = "Aucune application n'a encore été identifiée pour ces données ; on se contente de regarder.";
 "这台机器上没有 Crashpad 结构" = "Aucune structure Crashpad sur cette machine";
+
+/* 流速（PR-2） */
+"流速异常" = "Croissance rapide";
+"显著增长" = "Croissance notable";
+"较上次 %1$@ · %2$@" = "%1$@ depuis le dernier · %2$@";
+"基线已建立，下次扫描起可对比" = "Référence enregistrée ; la comparaison commence au prochain scan";

@@ -1201,3 +1201,9 @@
 "诊断与转储" = "Diagnostics and dumps";
 "还没认出这份数据属于哪个应用，先只看着。" = "No app has been identified for this data yet; watching only for now.";
 "这台机器上没有 Crashpad 结构" = "No Crashpad structure on this machine";
+
+/* 流速（PR-2） */
+"流速异常" = "Growing fast";
+"显著增长" = "Notable growth";
+"较上次 %1$@ · %2$@" = "%1$@ since last · %2$@";
+"基线已建立，下次扫描起可对比" = "Baseline saved; comparisons start on the next scan";

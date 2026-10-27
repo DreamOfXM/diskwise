@@ -2030,5 +2030,78 @@ Task.detached {
 }
 sem7.wait()
 
+// MARK: - 19. 流速：两档判定 + 快照库基线与滚动保留（PR-2）
+//
+// 判定口径按评审 §2.1：告警 OR（绝对量或速率任一命中），速率命中红、仅绝对量黄；
+// AND 会漏「一周没开 app 回来 +105G」的事故形态，这里把三个形态都钉死。
+do {
+    let t = Date(timeIntervalSince1970: 1_800_000_000)
+    func snap(files: Int, bytes: Int64, at: Date) -> ScanSnapshot {
+        ScanSnapshot(entryKey: "/k", scanID: UUID().uuidString, wallTime: at,
+                     bytes: bytes, fileCount: files, newestMtime: nil)
+    }
+    // 事故形态：34 分钟 +161,833 个 ≈ 4,760 个/分钟 → 红
+    let burst = VelocityReport.compute(
+        current: snap(files: 161_837, bytes: 8_200_000_000, at: t),
+        baseline: snap(files: 4, bytes: 100_000_000, at: t.addingTimeInterval(-34 * 60)))
+    check(burst.tier == .red && burst.filesPerMinute > 4_000,
+          "流速：突发形态判红（速率命中）")
+    // 周末形态：3 天攒 6,000 个 / 600MB，均摊速率够不着 → 黄（仅绝对量命中）
+    let weekend = VelocityReport.compute(
+        current: snap(files: 6_000, bytes: 600_000_000, at: t),
+        baseline: snap(files: 0, bytes: 0, at: t.addingTimeInterval(-3 * 86_400)))
+    check(weekend.tier == .yellow,
+          "流速：长间隔累积判黄（不能因为速率低就漏报）")
+    // 小动静：不告警
+    let small = VelocityReport.compute(
+        current: snap(files: 100, bytes: 10_000_000, at: t),
+        baseline: snap(files: 0, bytes: 0, at: t.addingTimeInterval(-10 * 60)))
+    check(small.tier == nil, "流速：双阈值都不命中就不出徽标")
+    // 清理过：负增长不告警
+    let cleaned = VelocityReport.compute(
+        current: snap(files: 0, bytes: 0, at: t),
+        baseline: snap(files: 8000, bytes: 8_000_000_000, at: t.addingTimeInterval(-3_600)))
+    check(cleaned.tier == nil && cleaned.deltaBytes < 0, "流速：清空过（Δ 为负）不告警")
+
+    // 快照库：基线规则（10 分钟）与滚动保留。库里的 wallTime 用真实 now 造——
+    // 基线查询按「距今」比较，上面 compute 的未来时间戳只是纯数学的输入。
+    let dbPath = URL(fileURLWithPath: "/tmp/dwtest-vel-\(UUID().uuidString).sqlite")
+    let store = SnapshotStore(path: dbPath, keepScans: 30)
+    let key = "/tmp/crashpad-A"
+    let now = Date()
+    let scan1 = ScanSnapshot(entryKey: key, scanID: "s1", wallTime: now.addingTimeInterval(-3_600),
+                             bytes: 100, fileCount: 1, newestMtime: nil)
+    store.record(scanID: "s1", wallTime: scan1.wallTime, snapshots: [scan1])
+    let scan2 = ScanSnapshot(entryKey: key, scanID: "s2", wallTime: now,
+                             bytes: 8_000_000_000, fileCount: 161_837, newestMtime: nil)
+    store.record(scanID: "s2", wallTime: now, snapshots: [scan2])
+    let base = store.baseline(entryKey: key, now: now, currentScanID: "s2")
+    check(base?.scanID == "s1",
+          "流速：基线取距今超过 10 分钟的上一轮，不是刚才那一轮")
+    check(store.baseline(entryKey: key, now: now, currentScanID: "s2", minAge: 1_800)?.scanID == "s1"
+          && store.baseline(entryKey: key, now: now, currentScanID: "s2", minAge: 7_200) == nil,
+          "流速：minAge 收到 30 分钟仍取到基线；要求两小时旧时一小时前的这轮不够格")
+    if let pair = store.latestTwo(entryKey: key, now: now) {
+        let r = VelocityReport.compute(current: pair.current, baseline: pair.baseline)
+        check(r.tier == .red, "流速：latestTwo 拼出的差就是界面那个红徽标")
+    } else { check(false, "流速：latestTwo 拼出的差就是界面那个红徽标") }
+    // 30 秒内的连扫不换基线
+    let scan3 = ScanSnapshot(entryKey: key, scanID: "s3", wallTime: now.addingTimeInterval(30),
+                             bytes: 8_100_000_000, fileCount: 162_000, newestMtime: nil)
+    store.record(scanID: "s3", wallTime: scan3.wallTime, snapshots: [scan3])
+    check(store.baseline(entryKey: key, now: scan3.wallTime, currentScanID: "s3")?.scanID == "s1",
+          "流速：连扫两次（间隔 30 秒）不把基线换成自己人")
+    // 滚动保留：塞满 35 轮后，最早那轮被裁掉
+    for i in 4...38 {
+        let w = now.addingTimeInterval(Double(i) * 120)
+        store.record(scanID: "s\(i)", wallTime: w,
+                     snapshots: [ScanSnapshot(entryKey: key, scanID: "s\(i)", wallTime: w,
+                                             bytes: Int64(i), fileCount: i, newestMtime: nil)])
+    }
+    check(!store.hasHistory(entryKey: key, before: now.addingTimeInterval(200)),
+          "流速：滚动保留 30 轮，最早那轮已被裁掉")
+    try? FileManager.default.removeItem(at: dbPath)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
