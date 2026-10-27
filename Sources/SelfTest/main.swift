@@ -2040,7 +2040,7 @@ do {
         ScanSnapshot(entryKey: "/k", scanID: UUID().uuidString, wallTime: at,
                      bytes: bytes, fileCount: files, newestMtime: nil)
     }
-    // 事故形态：34 分钟 +161,833 个 ≈ 4,760 个/分钟 → 红
+    // 突发形态（压测上限，非实测）：34 分钟 +161,833 个 ≈ 4,760 个/分钟 → 红
     let burst = VelocityReport.compute(
         current: snap(files: 161_837, bytes: 8_200_000_000, at: t),
         baseline: snap(files: 4, bytes: 100_000_000, at: t.addingTimeInterval(-34 * 60)))

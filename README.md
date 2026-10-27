@@ -43,22 +43,24 @@ Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable 
 
 ## What's new in v2.3
 
-v2.3 came out of one incident: 161,833 crash dumps landed in Chrome's Crashpad folder in 34 minutes.
-Every tool on that machine blamed Chrome, because the *folder* was Chrome's — the dumps were written
-by something else entirely. This release is built so that the same event reads itself off the screen
-instead of leaving you to guess.
+v2.3 came out of one incident: 2,674 crash dumps landed in Chrome's Crashpad folder in 57 seconds.
+Every tool on that machine said "Chrome", and none of them were lying — the folder was Chrome's and
+so was the executable path inside each dump. What put Chrome into a crash loop was something else
+entirely, and the only place that said so was the environment captured inside the dumps themselves.
+This release is built so that the same event reads itself off the screen instead of leaving you to
+guess.
 
 - **Crash dumps get named, not just counted.** Crashpad folders are recognized by their structure
   wherever an engine writes them, and attributed to the app that hosts the path. A look-alike folder
   without that structure is never flagged; it goes to a read-only list instead.
 - **How fast something is growing, without a daemon.** Every scan leaves a snapshot, so each entry is
   compared with the previous one. A burst gets a red badge — the incident above reads back as
-  +161,833 files / +8.1 GB in 34 minutes — slow accumulation gets amber, and a folder you cleared
+  +2,674 files in under a minute — slow accumulation gets amber, and a folder you cleared
   shows up as a decrease rather than an alarm.
-- **Who actually wrote them (off by default).** Turn on the content probe under *Diagnostics and
-  dumps* in Settings and DiskWise samples a few dumps, reads only their headers, and says so in the
-  row when the folder's owner and the dumps' writer disagree. Fingerprints always display redacted
-  and nothing leaves the machine.
+- **What was actually driving it (off by default).** Turn on the content probe under *Diagnostics and
+  dumps* in Settings and DiskWise reads the headers of a few sample dumps: the executable path, the
+  bundle identifier, and any agent session fingerprints. In the incident above, that is the only place
+  the real name appears. Fingerprints always display redacted and nothing leaves the machine.
 - **Trim by retention.** The first time the category appears you're offered "keep the newest 2,000" —
   adopt it or dismiss it, one click either way, and nothing ever runs by itself. The preview is the
   result, whole batches undo, and the folder skeleton stays in place.
@@ -216,16 +218,17 @@ It is built for machines that have been used by a developer for a few years — 
 
 - **Crash dumps** — Crashpad folders recognized by structure (`settings.dat` plus `completed/pending/new`),
   so any app that has ever crashed lands here on its own, with the host app attributed from the path.
-  Every row carries growth since the previous scan: a red badge for bursts (a 34-minute,
-  +161,833-file incident reads back as exactly that), amber for slow accumulation over long gaps.
+  Every row carries growth since the previous scan: a red badge for bursts (2,674 dumps in 57 seconds
+  reads back as exactly that), amber for slow accumulation over long gaps.
 - **Trim by retention** — the first time the category appears, DiskWise suggests "keep the newest
   2,000"; you adopt it or dismiss it. The trim preview is pure math, execution moves the dump
   folders to the Trash (`settings.dat` and the folder skeleton stay), and the batch undoes as a
   whole. Nothing runs on its own — no daemons, no timers.
 - **Content probe, off by default** — opt in, and DiskWise reads the first 64 KB of at most five
-  sample dumps per entry to tell which process actually wrote them. When the folder's owner and
-  the dumps' writer disagree, the row says so. Fingerprints always display redacted, everything
-  stays local, and [the privacy policy](docs/PRIVACY.md) documents this one exception.
+  sample dumps per entry: the crashing executable, the bundle identifier, and any agent session
+  fingerprints in the captured environment. When the folder's owner and the dumps' writer disagree,
+  the row says so. Fingerprints always display redacted, everything stays local, and
+  [the privacy policy](docs/PRIVACY.md) documents this one exception.
 - **System reports & Observation** — `.ips` / `.hang` / `.panic` files under `~/Library/Logs/
   DiagnosticReports`, plus a read-only list of everything the scan can see but this tool will
   never touch (system areas, admin-only report folders, look-alike directories it cannot

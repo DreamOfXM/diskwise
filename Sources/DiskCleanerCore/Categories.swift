@@ -254,7 +254,8 @@ public struct CategoryDiscoveryReport: Equatable {
 /// 两个 DiagnosticReports 目录直查。深度上限罩住的是厂商层两级（Google/Chrome）加余量；
 /// 再深的 Crashpad 不存在——引擎都把它写在这几层里。
 ///
-/// 成本口径（事故复算的 161,833 文件 <3s 预算压在这条遍历上）：只 readdir/lstat 不读内容，
+/// 成本口径（压力上限按 161,833 文件 <3s 定，非实测；实测量级是 2,674 文件 / 57 秒）：
+/// 只 readdir/lstat 不读内容，
 /// 大小走 `dirSizeReport`（st_blocks 真占盘）。
 ///
 /// `systemReportsRoot` 与 `blacklistRoots` 默认指向真机位置；自检传入自己的假树，
