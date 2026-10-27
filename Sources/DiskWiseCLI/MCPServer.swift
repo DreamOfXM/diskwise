@@ -168,6 +168,23 @@ enum MCPServer {
             tool("cleanup_history",
                  "List recent operations with their items and whether they were undone. Read-only.",
                  props: ["limit": ["type": "integer"] as [String: Any]], required: []),
+            tool("diag_coverage",
+                 "Diagnostics coverage: run the bounded category discovery (crash-dump structures under "
+                 + "app data, .ips/.hang/.panic report folders) and report hits plus every observed "
+                 + "location the app cannot touch (outside_allowed, blacklisted_system_dir, "
+                 + "unknown_class). Read-only; deletion is not offered here.",
+                 props: [:], required: []),
+            tool("diag_velocity",
+                 "Growth velocity per crash-dump entry: compares the latest scan snapshot with the "
+                 + "previous one (>= 10 min apart). tier 'fast' means a burst (red badge in the app), "
+                 + "'growth' means accumulated volume over a long gap. Read-only.",
+                 props: [:], required: []),
+            tool("diag_probe",
+                 "Content attribution for one crash-dump directory: reads the first 64 KB of up to 5 "
+                 + "sample .dmp files to tell which process wrote them. Origin fingerprints are ALWAYS "
+                 + "redacted in output. Requires the local 'content probe' switch to be enabled in the "
+                 + "app's settings; refuses otherwise. Read-only.",
+                 props: ["path": pathProp], required: ["path"]),
         ]
     }
 
@@ -279,6 +296,90 @@ enum MCPServer {
                             + (op.undoneAt == nil ? "" : " · undone")
                     }.joined(separator: "\n")
             return (ToolOut(text: text, structured: structify(ops)), false)
+
+        case "diag_coverage":
+            let home = homeDir()
+            let report = await discoverDiagnosticCategories(home: home)
+            let roots = [
+                home.appendingPathComponent("Library/Application Support").path,
+                home.appendingPathComponent("Library/Logs/DiagnosticReports").path,
+                "/Library/Logs/DiagnosticReports",
+            ]
+            let hits: [[String: Any]] = report.hits.map {
+                ["path": $0.path, "host": $0.host ?? NSNull(), "bytes": $0.bytes,
+                 "files": $0.files, "deletable": $0.deletable] as [String: Any]
+            }
+            let observed: [[String: Any]] = report.observation.map {
+                ["path": $0.path, "reason": $0.reason.rawValue,
+                 "bytes": $0.bytes ?? NSNull(), "files": $0.files ?? NSNull()] as [String: Any]
+            }
+            let structured: [String: Any] = ["scanned_roots": roots, "hits": hits,
+                                             "observed_not_deletable": observed]
+            let text = hits.isEmpty
+                ? "No crash-dump structures found; \(observed.count) observed (read-only) location(s)."
+                : "\(hits.count) crash-dump hit(s):\n"
+                    + hits.map { "  \($0["path"] ?? "") · \(human($0["bytes"] as? Int64 ?? 0)) · \($0["files"] ?? 0) files" }
+                        .joined(separator: "\n")
+                    + "\nObserved (cannot delete): \(observed.count)."
+            return (ToolOut(text: text, structured: structured), false)
+
+        case "diag_velocity":
+            let home = homeDir()
+            let report = await discoverDiagnosticCategories(home: home)
+            let store = SnapshotStore(path: SnapshotStore.defaultPath())
+            var entries: [[String: Any]] = []
+            for hit in report.hits {
+                guard let pair = store.latestTwo(entryKey: hit.path) else { continue }
+                let v = VelocityReport.compute(current: pair.current, baseline: pair.baseline)
+                entries.append(["path": hit.path,
+                                "delta_files": v.deltaFiles,
+                                "delta_bytes": v.deltaBytes,
+                                "interval_sec": Int(v.intervalSeconds),
+                                "files_per_minute": Int(v.filesPerMinute),
+                                "tier": v.tier == .red ? "fast" : (v.tier == .yellow ? "growth" : "none")]
+                               as [String: Any])
+            }
+            let flagged = entries.filter { ($0["tier"] as? String) != "none" }
+            let text = flagged.isEmpty
+                ? "No growth flagged. \(entries.count) entries have a comparable baseline."
+                : "\(flagged.count) growing entries:\n"
+                    + flagged.map { "  \($0["path"] ?? "") · +\($0["delta_files"] ?? 0) files · \(human($0["delta_bytes"] as? Int64 ?? 0)) · \($0["tier"] ?? "")" }
+                        .joined(separator: "\n")
+            return (ToolOut(text: text, structured: ["entries": entries]), false)
+
+        case "diag_probe":
+            guard let raw = arguments["path"] as? String else {
+                return (ToolOut(text: "Invalid params: missing path.",
+                                structured: ["error": "invalid_params"]), true)
+            }
+            guard diagnosticProbeEnabled() else {
+                return (ToolOut(text: "Content probe is disabled locally. Enable it in the app "
+                    + "(Settings → Diagnostics), or ask the user to. Refusing to read file contents.",
+                                structured: ["error": "probe_disabled"]), true)
+            }
+            let expanded = URL(fileURLWithPath: expandHome(raw))
+            let spec = CategoryRule.crashDumps.safeDeleteSpec
+            let dirs = spec?.cleanTargets(under: expanded) ?? [expanded]
+            let samples = probeSampleFiles(under: dirs)
+            let probe = CrashpadProbe()
+            let outcome = resolveAttribution(directoryOwner: CrashpadMatcher.host(of: expanded),
+                                             results: samples.map { probe.probe($0) })
+            let structured: [String: Any] = [
+                "path": expanded.path,
+                "probed": outcome.probed,
+                "samples": outcome.samples,
+                "directory_owner": outcome.directoryOwner ?? NSNull(),
+                "content_owner": outcome.contentOwner ?? NSNull(),
+                "mixed": outcome.mixed,
+                "cross_attribution": outcome.crossAttribution,
+                "origin_hints_redacted": outcome.redactedHints,   // 永远脱敏，无本地例外
+            ]
+            let text = outcome.probed
+                ? "directory: \(outcome.directoryOwner ?? "?") · content: \(outcome.contentOwner ?? "?")"
+                  + (outcome.mixed ? " · MIXED" : (outcome.crossAttribution ? " · CROSS" : ""))
+                  + " · samples: \(outcome.samples)"
+                : "Not probed (no readable minidumps)."
+            return (ToolOut(text: text, structured: structured), false)
 
         default:
             return (ToolOut(text: "Unknown tool: \(name)", structured: ["error": "unknown_tool"]), true)

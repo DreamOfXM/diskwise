@@ -235,9 +235,16 @@ Homebrew 用户：cask 提供 `diskwise` 命令（发新版起加入 `binary` �
 | `execute_cleanup(plan_id)` | 按计划移入废纸篓（可撤销，`destructiveHint: false`） |
 | `undo_cleanup(operation_id?)` | 整单恢复 |
 | `cleanup_history(limit?)` | 只读：最近操作 |
+| `diag_coverage()` | 只读：诊断转储的定向发现——命中清单 + 动不了的观察位置（原因码与拒绝词同源） |
+| `diag_velocity()` | 只读：每个崩溃转储条目「本次 vs 上一轮」的增长差；`tier: fast`（突发）/ `growth`（长间隔累积） |
+| `diag_probe(path)` | 只读：一个崩溃转储目录的内容归属（读样本文件头 64 KB，指纹永远脱敏输出）。本地「内容探针」开关关闭时拒绝 |
 
 业务错误（被拒、过期、超限）以 `isError: true` 的结果返回并附下一步指引
 （例如 `plan_expired` → 重新 `plan_cleanup`）。
+
+诊断三工具的边界：**只读，不提供删除或修剪**。一次性清理仍走 `plan_cleanup` / `execute_cleanup`
+那条两步确认的链路；「按保留策略修剪」是 App 内的人工动作，不进 agent 通道——
+agent 看见增长可以报告，动手的是人。
 
 ## 一段真实对话（Claude Code + diskwise MCP）
 
