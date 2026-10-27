@@ -805,9 +805,22 @@ struct TitlebarAccessory<Content: View>: NSViewRepresentable {
     private final class AccessoryHost: NSHostingView<AnyView> {
         var bandHeight: CGFloat = 0
 
+        /// 带高**每次都活取**：附件装上去那一刻窗口可能还没挂工具条
+        /// （`contentLayoutRect` 瞬间是全高），装机时量一次会量出 0，
+        /// 这一格就以内容的矮个子被 AppKit 摆在带子顶沿——整组字贴着窗口顶边，
+        /// 2026-10-27 他那张实拍（停止/声音/? 顶格）就是这个。因此读尺寸时现问窗口，
+        /// `bandHeight` 只作窗口还没接上时的兜底。
+        private var liveBandHeight: CGFloat {
+            if let w = window, w.frame.height > w.contentLayoutRect.height {
+                return w.frame.height - w.contentLayoutRect.height
+            }
+            return bandHeight
+        }
+
         override var intrinsicContentSize: NSSize {
             let s = super.intrinsicContentSize
-            return NSSize(width: s.width, height: bandHeight > 0 ? bandHeight : s.height)
+            let h = liveBandHeight
+            return NSSize(width: s.width, height: h > 0 ? h : s.height)
         }
 
         override func invalidateIntrinsicContentSize() {
