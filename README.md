@@ -209,6 +209,26 @@ It is built for machines that have been used by a developer for a few years — 
 - **Trash** — session stats, undo stack, and an *Empty* button: outside the sandbox it asks Finder
   to do the emptying, in the App Store build it opens the Trash so you can press ⌘⇧⌫.
 
+**Diagnostics & dumps**
+
+- **Crash dumps** — Crashpad folders recognized by structure (`settings.dat` plus `completed/pending/new`),
+  so any app that has ever crashed lands here on its own, with the host app attributed from the path.
+  Every row carries growth since the previous scan: a red badge for bursts (a 34-minute,
+  +161,833-file incident reads back as exactly that), amber for slow accumulation over long gaps.
+- **Trim by retention** — the first time the category appears, DiskWise suggests "keep the newest
+  2,000"; you adopt it or dismiss it. The trim preview is pure math, execution moves the dump
+  folders to the Trash (`settings.dat` and the folder skeleton stay), and the batch undoes as a
+  whole. Nothing runs on its own — no daemons, no timers.
+- **Content probe, off by default** — opt in, and DiskWise reads the first 64 KB of at most five
+  sample dumps per entry to tell which process actually wrote them. When the folder's owner and
+  the dumps' writer disagree, the row says so. Fingerprints always display redacted, everything
+  stays local, and [the privacy policy](docs/PRIVACY.md) documents this one exception.
+- **System reports & Observation** — `.ips` / `.hang` / `.panic` files under `~/Library/Logs/
+  DiagnosticReports`, plus a read-only list of everything the scan can see but this tool will
+  never touch (system areas, admin-only report folders, look-alike directories it cannot
+  positively identify), each row carrying the reason it is not offered for deletion. Seeing is
+  ungated; deleting is.
+
 **Personalize**
 
 - **Skins** — 6 themes, and the interesting part is that they are not color swaps: each one changes
