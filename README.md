@@ -41,34 +41,37 @@ Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable 
 
 ---
 
-## What's new in v2.1
+## What's new in v2.3
 
-v2.1 adds an uninstall page. It doesn't just move the `.app` to the Trash — it finds what that app
-left in your home folder and moves that too. Still one delete path: everything goes to the Trash,
-everything stays undoable until you empty it.
+v2.3 came out of one incident: 161,833 crash dumps landed in Chrome's Crashpad folder in 34 minutes.
+Every tool on that machine blamed Chrome, because the *folder* was Chrome's — the dumps were written
+by something else entirely. This release is built so that the same event reads itself off the screen
+instead of leaving you to guess.
 
-- **One app at a time, both halves in view.** Pick an app on the left; the right side lists the
-  bundle plus every folder in `~/Library` that provably belongs to it, with size, path and what
-  wiping it costs.
-- **Proven ownership only.** A folder is claimed when it carries the app's bundle ID or a name
-  derived from it. Fuzzy word matching stays where it belongs — the leftover page — so this page
-  never guesses. A folder that two installed apps both claim is dropped for both.
-- **Checked and unchecked, by consequence.** Caches, containers, saved state, HTTP storages, WebKit
-  data, logs and app scripts start checked: they rebuild on their own. Application Support, Group
-  Containers, Preferences and LaunchAgents start unchecked, each marked as holding data.
-- **Settings are a choice, not a side effect.** Leave Preferences unchecked and the app keeps its
-  settings and sign-ins; check it and the app opens as if freshly installed — possibly asking you
-  to sign in or re-enter a licence again.
-- **App Store apps say where they came from.** They carry a line noting a free reinstall from the
-  App Store if you change your mind.
-- **It won't uninstall itself.** The copy whose bundle ID matches the running DiskWise stays in the
-  list, greyed out and inert; another copy with a different ID can still be removed.
-- **Home folder only.** No `/Library`, no admin password, no background helper. The bundle and the
-  data you picked move to the Trash as one undoable record.
+- **Crash dumps get named, not just counted.** Crashpad folders are recognized by their structure
+  wherever an engine writes them, and attributed to the app that hosts the path. A look-alike folder
+  without that structure is never flagged; it goes to a read-only list instead.
+- **How fast something is growing, without a daemon.** Every scan leaves a snapshot, so each entry is
+  compared with the previous one. A burst gets a red badge — the incident above reads back as
+  +161,833 files / +8.1 GB in 34 minutes — slow accumulation gets amber, and a folder you cleared
+  shows up as a decrease rather than an alarm.
+- **Who actually wrote them (off by default).** Turn on the content probe in Settings → Diagnostics
+  and DiskWise samples a few dumps, reads only their headers, and says so in the row when the
+  folder's owner and the dumps' writer disagree. Fingerprints always display redacted and nothing
+  leaves the machine.
+- **Trim by retention.** The first time the category appears you're offered "keep the newest 2,000" —
+  adopt it or dismiss it, one click either way, and nothing ever runs by itself. The preview is the
+  result, whole batches undo, and the folder skeleton stays in place.
+- **A home for what we only observe.** Everything the scan can see but this tool will never delete —
+  system areas, admin-only report folders, look-alikes — now has a read-only page, each row carrying
+  the reason it isn't offered.
+
+v2.2 taught the scan to recognize the model caches that live inside your own projects, and to identify
+an engine's self-managed cache by its layout on disk rather than by name.
 
 ## Contents
 
-- [What's new in v2.1](#whats-new-in-v21)
+- [What's new in v2.3](#whats-new-in-v23)
 - [Quick start](#quick-start)
 - [For AI agents](#for-ai-agents)
 - [Why this exists](#why-this-exists)
