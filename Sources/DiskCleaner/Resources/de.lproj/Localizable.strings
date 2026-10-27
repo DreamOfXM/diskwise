@@ -1171,3 +1171,37 @@
 
 /* 2.1 卸载 App · 自己那一行 */
 "就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "Das ist DiskWise selbst · zum Entfernen im Finder in den Papierkorb ziehen";
+
+/* 诊断与转储（崩溃转储 · 系统诊断报告 · 观察） */
+"为什么不能删" = "Warum kann das nicht gelöscht werden?";
+"删了不影响使用；再崩溃还会再生成" = "Löschen ändert nichts; neue Abstürze schreiben neue Berichte";
+"删了不影响系统；排查问题时就没有依据了" = "Das System bleibt unberührt; es fehlt nur die Spur zur Fehlersuche";
+"只看 .ips、.hang、.panic 三种后缀" = "Gelesen werden nur Dateien mit .ips, .hang und .panic";
+"只翻应用数据那几层，量到多大会顺手数清" = "Nur wenige Ebenen der App-Daten werden durchlaufen; Größe und Anzahl gleich mitgezählt";
+"只能看、不能删的位置都在这里" = "Alles, was man sehen, aber nicht löschen kann, steht hier";
+"名字像崩溃转储，但结构不完整；认不准就不动它。" = "Heißt wie ein Absturzbericht, aber die Struktur ist unvollständig; unsicher heißt unangetastet.";
+"在允许清理的范围之外" = "Außerhalb des erlaubten Bereichs";
+"家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。" = "Außerhalb deines Home-Ordners und der Programme bewegt dieses Werkzeug nichts; nötigenfalls selbst im Finder handeln.";
+"崩溃时留下的现场记录" = "Von Abstürzen hinterlassene Spuren";
+"崩溃时留下的现场记录，攒多了就是事故" = "Von Abstürzen hinterlassene Spuren — genug angesammelt, werden sie zum Vorfall";
+"崩溃转储" = "Absturzberichte";
+"最近没有攒下报告" = "In letzter Zeit hat sich nichts angesammelt";
+"正在系统目录里找崩溃转储" = "Suche nach Absturzberichten in den App-Daten";
+"正在系统目录里找崩溃转储…" = "Suche nach Absturzberichten in den App-Daten…";
+"正在读诊断报告目录" = "Lese den Ordner mit Diagnoseberichten";
+"正在读诊断报告目录…" = "Lese den Ordner mit Diagnoseberichten…";
+"没有发现崩溃转储" = "Keine Absturzberichte gefunden";
+"没有诊断报告" = "Keine Diagnoseberichte";
+"没能归属到应用的数据" = "Daten ohne zugehörige App";
+"现场记录删了就没了，也不需要恢复" = "Nach dem Löschen weg — und nie eine Wiederherstellung wert";
+"知道了" = "Verstanden";
+"系统排查故障用的日志文件" = "Protokolldateien, die das System zur Fehlersuche schreibt";
+"系统排查故障用的日志，攒着是为了定位问题" = "Protokolle zur Fehlersuche des Systems, gesammelt um Probleme einzugrenzen";
+"系统目录在保护名单里，只有系统自己能动。" = "Systemordner stehen auf der Schutzliste; nur das System selbst darf sie anfassen.";
+"系统诊断报告" = "Systemdiagnoseberichte";
+"系统黑名单目录" = "Systemordner auf der Sperrliste";
+"结构不完整，认不准" = "Unvollständige Struktur, nicht sicher genug";
+"观察" = "Beobachtung";
+"诊断与转储" = "Diagnose und Absturzberichte";
+"还没认出这份数据属于哪个应用，先只看着。" = "Für diese Daten wurde noch keine App erkannt; vorerst nur beobachten.";
+"这台机器上没有 Crashpad 结构" = "Keine Crashpad-Struktur auf diesem Rechner";

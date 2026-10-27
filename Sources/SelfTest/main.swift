@@ -1932,5 +1932,103 @@ Task.detached {
 }
 sem6.wait()
 
+// MARK: - 18. 诊断转储：结构识别器 + 类别发现遍历
+//
+// 设计出处：plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §3/§9。
+// 反向用例（同名空目录不判定）与归属判定（父链 .app / 紧邻上级）都在这节钉住；
+// 发现遍历用假家目录与假的系统报告根，不碰真实 /Library。
+let sem7 = DispatchSemaphore(value: 0)
+Task.detached {
+    defer { sem7.signal() }
+    let fm = FileManager.default
+    // 用 /tmp 当根（学签名节）：isDeletable 只认家目录、/Applications 与共享临时区底下，
+    // temporaryDirectory() 的 /var/folders 会被挡在 outside_allowed 门外，可清性断言就全错了。
+    let root = URL(fileURLWithPath: "/tmp/dwtest-diag-\(UUID().uuidString)", isDirectory: true)
+    let mk = { (path: String) -> URL in
+        let u = root.appendingPathComponent(path, isDirectory: true)
+        try? fm.createDirectory(at: u, withIntermediateDirectories: true)
+        return u
+    }
+    let write = { (path: String, _ bytes: Int) in
+        // createFile 不会自建中间目录：completed/a.dmp 这种要先把 completed/ 铺出来，
+        // 否则静默失败，夹具变成「有名字没有货」，识别器按反向用例判掉。
+        let u = root.appendingPathComponent(path)
+        try? fm.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fm.createFile(atPath: u.path, contents: Data(repeating: 7, count: bytes))
+    }
+
+    // 标准结构：settings.dat + completed
+    let foo = mk("Library/Application Support/Foo/Crashpad")
+    write("Library/Application Support/Foo/Crashpad/settings.dat", 64)
+    write("Library/Application Support/Foo/Crashpad/completed/a.dmp", 4096)
+    // 只有标准子目录、没有 settings.dat
+    let chrome = mk("Library/Application Support/Google/Chrome/Crashpad")
+    write("Library/Application Support/Google/Chrome/Crashpad/completed/c.dmp", 4096)
+    write("Library/Application Support/Google/Chrome/Crashpad/pending/d.dmp", 4096)
+    // 反向用例：同名空目录、同名但无结构特征的目录
+    _ = mk("Library/Application Support/Bad/Crashpad")
+    let bare = mk("Library/Application Support/Bad2/Crashpad")
+    write("Library/Application Support/Bad2/Crashpad/readme.txt", 12)
+    // 诊断报告：两种认得的 + 一种不认的
+    _ = mk("Library/Logs/DiagnosticReports")
+    write("Library/Logs/DiagnosticReports/Chrome-2026-10-27-080000.ips", 2048)
+    write("Library/Logs/DiagnosticReports/Xcode-2026-10-26-120000.hang", 2048)
+    write("Library/Logs/DiagnosticReports/notareport.txt", 2048)
+    // 系统侧报告（假根，代替真实 /Library/Logs/DiagnosticReports）
+    _ = mk("sysroot/DiagnosticReports")
+    write("sysroot/DiagnosticReports/Finder-2026-10-25-010000.panic", 2048)
+
+    let crash = CrashpadMatcher()
+    if case .matched(let host) = crash.match(foo) {
+        check(host == "Foo", "诊断：标准结构命中，目录归属 Foo")
+    } else { check(false, "诊断：标准结构命中，目录归属 Foo") }
+    if case .matched(let host) = crash.match(chrome) {
+        check(host == "Chrome", "诊断：无 settings.dat 但有标准子目录也命中，归属 Chrome")
+    } else { check(false, "诊断：无 settings.dat 但有标准子目录也命中，归属 Chrome") }
+    check(crash.match(root.appendingPathComponent("Library/Application Support/Bad/Crashpad")) == .no,
+          "诊断：同名空目录不判定（用户自建目录）")
+    check(crash.match(bare) == .no,
+          "诊断：同名但无结构特征的目录不判定")
+    check(CrashpadMatcher.host(of: root.appendingPathComponent("Library/Application Support/Crashpad")) == nil,
+          "诊断：直接顶在 Application Support 底下的没有宿主，不冒名")
+
+    let reports = DiagnosticReportsMatcher()
+    let userFiles = reports.reportFiles(under: root.appendingPathComponent("Library/Logs/DiagnosticReports"))
+    check(userFiles.count == 2, "诊断：报告目录只认 .ips/.hang/.panic，.txt 不算")
+    check(userFiles.first { $0.url.lastPathComponent.hasPrefix("Chrome") }?.process == "Chrome"
+          && userFiles.first { $0.url.lastPathComponent.hasPrefix("Xcode") }?.process == "Xcode",
+          "诊断：文件名解出进程名")
+    check(reports.reportFiles(under: root.appendingPathComponent("不存在的目录")).isEmpty,
+          "诊断：读不动的报告目录给空数组，不抛错")
+
+    // 可清理面：只列存在的子目录，settings.dat 永不在清理名单里
+    let spec = CategoryRule.crashDumps.safeDeleteSpec!
+    let cleanTargets = spec.cleanTargets(under: chrome)
+    check(cleanTargets.map(\.lastPathComponent).sorted() == ["completed", "pending"],
+          "诊断：可清理面只列存在的子目录")
+
+    // 发现遍历：假家目录 + 假系统报告根 + 假黑名单，全程不碰真实系统位置
+    let report = await discoverDiagnosticCategories(
+        home: root,
+        systemReportsRoot: root.appendingPathComponent("sysroot/DiagnosticReports"),
+        blacklistRoots: ["/SysFake"])
+    check(report.hits.count == 2, "诊断：发现遍历认出两个宿主的 Crashpad")
+    check(report.hits.allSatisfy(\.deletable) && report.hits.allSatisfy { $0.bytes > 0 },
+          "诊断：假家目录落在共享临时区里，命中都可清且量到真占盘")
+    check(report.hits.contains { $0.host == "Chrome" },
+          "诊断：嵌套两层厂商目录（Google/Chrome）也能发现")
+    check(report.observation.contains {
+        $0.reason == .unknownClass && $0.path.hasSuffix("Bad/Crashpad")
+    }, "诊断：结构不完整的同名目录降级为观察项 unknown_class")
+    check(report.observation.contains {
+        $0.reason == .outsideAllowed && $0.files == 1 && ($0.bytes ?? 0) > 0
+    }, "诊断：系统侧报告整目录落观察区 outside_allowed")
+    check(report.observation.contains { $0.reason == .blacklistedSystemDir && $0.path == "/SysFake" },
+          "诊断：黑名单根进观察区 blacklisted_system_dir")
+
+    try? fm.removeItem(at: root)
+}
+sem7.wait()
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

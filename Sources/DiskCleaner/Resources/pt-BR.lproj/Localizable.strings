@@ -1176,3 +1176,37 @@
 
 /* 2.1 卸载 App · 自己那一行 */
 "就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "É o próprio DiskWise · para removê-lo, arraste-o para o Lixo no Finder";
+
+/* 诊断与转储（崩溃转储 · 系统诊断报告 · 观察） */
+"为什么不能删" = "Por que não dá para excluir?";
+"删了不影响使用；再崩溃还会再生成" = "Excluir não afeta o uso; novas falhas geram novos";
+"删了不影响系统；排查问题时就没有依据了" = "O sistema não é afetado; você só perde a pista para diagnosticar";
+"只看 .ips、.hang、.panic 三种后缀" = "Só arquivos .ips, .hang e .panic são lidos";
+"只翻应用数据那几层，量到多大会顺手数清" = "Percorre só os primeiros níveis de dados de apps; tamanho e contagem vêm junto";
+"只能看、不能删的位置都在这里" = "Aqui fica tudo o que dá para ver, mas não para excluir";
+"名字像崩溃转储，但结构不完整；认不准就不动它。" = "Tem nome de despejo de falha, mas a estrutura está incompleta; sem certeza, não se mexe.";
+"在允许清理的范围之外" = "Fora do escopo permitido";
+"家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。" = "Fora da pasta pessoal e do Aplicativos, esta ferramenta não move nada; se precisar, faça você mesmo no Finder.";
+"崩溃时留下的现场记录" = "Registros deixados por falhas";
+"崩溃时留下的现场记录，攒多了就是事故" = "Registros deixados por falhas — acumulados, viram um incidente";
+"崩溃转储" = "Despejos de falha";
+"最近没有攒下报告" = "Nada se acumulou recentemente";
+"正在系统目录里找崩溃转储" = "Procurando despejos de falha nos dados de apps";
+"正在系统目录里找崩溃转储…" = "Procurando despejos de falha nos dados de apps…";
+"正在读诊断报告目录" = "Lendo a pasta de relatórios de diagnóstico";
+"正在读诊断报告目录…" = "Lendo a pasta de relatórios de diagnóstico…";
+"没有发现崩溃转储" = "Nenhum despejo de falha encontrado";
+"没有诊断报告" = "Sem relatórios de diagnóstico";
+"没能归属到应用的数据" = "Dados sem app atribuído";
+"现场记录删了就没了，也不需要恢复" = "Excluídos, somem — e nunca é preciso restaurar";
+"知道了" = "Entendi";
+"系统排查故障用的日志文件" = "Arquivos de registro que o sistema escreve para diagnosticar";
+"系统排查故障用的日志，攒着是为了定位问题" = "Registros que o sistema escreve para diagnosticar, guardados para localizar problemas";
+"系统目录在保护名单里，只有系统自己能动。" = "As pastas do sistema estão na lista protegida; só o próprio sistema pode tocá-las.";
+"系统诊断报告" = "Relatórios de diagnóstico do sistema";
+"系统黑名单目录" = "Pasta do sistema na lista bloqueada";
+"结构不完整，认不准" = "Estrutura incompleta, sem certeza";
+"观察" = "Observação";
+"诊断与转储" = "Diagnóstico e despejos";
+"还没认出这份数据属于哪个应用，先只看着。" = "Ainda não se identificou a qual app pertencem estes dados; por ora, apenas observando.";
+"这台机器上没有 Crashpad 结构" = "Não há estrutura de Crashpad nesta máquina";

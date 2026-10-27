@@ -1168,3 +1168,37 @@
 
 /* 2.1 卸载 App · 自己那一行 */
 "就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "Es el propio DiskWise · para eliminarlo, arrástralo a la Papelera desde el Finder";
+
+/* 诊断与转储（崩溃转储 · 系统诊断报告 · 观察） */
+"为什么不能删" = "¿Por qué no se puede eliminar?";
+"删了不影响使用；再崩溃还会再生成" = "Eliminarlos no afecta al uso; los nuevos fallos vuelven a generarlos";
+"删了不影响系统；排查问题时就没有依据了" = "El sistema no se ve afectado; solo se pierde la pista para diagnosticar";
+"只看 .ips、.hang、.panic 三种后缀" = "Solo se leen archivos .ips, .hang y .panic";
+"只翻应用数据那几层，量到多大会顺手数清" = "Solo se recorren los primeros niveles de datos de apps; tamaño y cantidad se cuentan de paso";
+"只能看、不能删的位置都在这里" = "Aquí está todo lo que se puede ver pero no eliminar";
+"名字像崩溃转储，但结构不完整；认不准就不动它。" = "Se llama como un volcado de fallos, pero la estructura está incompleta; sin certeza, no se toca.";
+"在允许清理的范围之外" = "Fuera del ámbito permitido";
+"家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。" = "Fuera de tu carpeta personal y de Aplicaciones, esta herramienta no mueve nada; si hace falta, hazlo tú en el Finder.";
+"崩溃时留下的现场记录" = "Registros que dejan los fallos";
+"崩溃时留下的现场记录，攒多了就是事故" = "Registros que dejan los fallos; acumulados, se convierten en incidente";
+"崩溃转储" = "Volcados de fallos";
+"最近没有攒下报告" = "Últimamente no se ha acumulado nada";
+"正在系统目录里找崩溃转储" = "Buscando volcados de fallos en los datos de apps";
+"正在系统目录里找崩溃转储…" = "Buscando volcados de fallos en los datos de apps…";
+"正在读诊断报告目录" = "Leyendo la carpeta de informes de diagnóstico";
+"正在读诊断报告目录…" = "Leyendo la carpeta de informes de diagnóstico…";
+"没有发现崩溃转储" = "No se han encontrado volcados de fallos";
+"没有诊断报告" = "Sin informes de diagnóstico";
+"没能归属到应用的数据" = "Datos sin aplicación asignada";
+"现场记录删了就没了，也不需要恢复" = "Una vez eliminados, desaparecen; nunca hace falta restaurarlos";
+"知道了" = "Entendido";
+"系统排查故障用的日志文件" = "Archivos de registro que el sistema escribe para diagnosticar";
+"系统排查故障用的日志，攒着是为了定位问题" = "Registros del sistema para diagnosticar fallos, guardados para localizar problemas";
+"系统目录在保护名单里，只有系统自己能动。" = "Las carpetas del sistema están en la lista protegida; solo el propio sistema puede tocarlas.";
+"系统诊断报告" = "Informes de diagnóstico del sistema";
+"系统黑名单目录" = "Carpeta del sistema en la lista bloqueada";
+"结构不完整，认不准" = "Estructura incompleta, sin certeza";
+"观察" = "Observación";
+"诊断与转储" = "Diagnóstico y volcados";
+"还没认出这份数据属于哪个应用，先只看着。" = "Todavía no se ha identificado a qué app pertenecen estos datos; por ahora solo se mira.";
+"这台机器上没有 Crashpad 结构" = "No hay estructura de Crashpad en esta máquina";

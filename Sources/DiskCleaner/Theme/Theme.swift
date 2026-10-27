@@ -226,7 +226,8 @@ extension Theme {
     ///
     /// 竞品实测（2026-10-19，14 个侧栏面）：多色的两家用 7、8 个色相铺 11 行，
     /// 且同一类工具共用色；没有一家给每行各配一个新色。14 色铺下来读成启动器，
-    /// 而且把视线从环形那块招牌上拽走。5 组 5 色落在观测到的上限以内。
+    /// 而且把视线从环形那块招牌上拽走。7 组 7 色（诊断与转储 + 观察加入后）仍在
+    /// 观测到的上限以内。
     func groupTileColor(group: Int, dark: Bool) -> Color {
         let ramp = dark ? Theme.groupHuesDark : Theme.groupHuesLight
         return ramp[group % ramp.count]
@@ -250,18 +251,22 @@ extension Theme {
         Color(hex: 0x3FC9AC), Color(hex: 0xB0BE63)
     ]
 
-    /// 侧栏五个分组的色相。顺序：看清空间 / 开发机专项 / 清理 / AI / 设置。
+    /// 侧栏七个分组的色相。顺序：看清空间 / 开发机专项 / 清理 / AI / 设置 / 诊断与转储 / 观察。
     ///
     /// 都压低了饱和度：侧栏是导航，不是数据图。深色那版把亮度提上去，浅底 wash
     /// （0.22 / 0.14）上同色 glyph 才立得住；浅色那版反过来压深，白底上才有对比。
+    /// 第六组起是诊断与转储（砖红：那一组说的是「哪里在出事」）与观察
+    /// （灰：只看不动的位置不该有温度）。
     static let groupHuesLight: [Color] = [
         Color(hex: 0x35507E), Color(hex: 0x2F5E63), Color(hex: 0x2F584A),
-        Color(hex: 0x574A7E), Color(hex: 0x4C535E)
+        Color(hex: 0x574A7E), Color(hex: 0x4C535E),
+        Color(hex: 0x74483E), Color(hex: 0x565B62)
     ]
 
     static let groupHuesDark: [Color] = [
         Color(hex: 0x6B8FC9), Color(hex: 0x58A6A6), Color(hex: 0x5C9A7E),
-        Color(hex: 0x9A86C9), Color(hex: 0x8A94A6)
+        Color(hex: 0x9A86C9), Color(hex: 0x8A94A6),
+        Color(hex: 0xC98B7D), Color(hex: 0x9AA1AB)
     ]
 }
 

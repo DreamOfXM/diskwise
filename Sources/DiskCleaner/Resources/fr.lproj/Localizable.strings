@@ -1176,3 +1176,37 @@
 
 /* 2.1 卸载 App · 自己那一行 */
 "就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "C’est DiskWise lui-même · pour le supprimer, glissez-le dans la Corbeille depuis le Finder";
+
+/* 诊断与转储（崩溃转储 · 系统诊断报告 · 观察） */
+"为什么不能删" = "Pourquoi ne peut-on pas supprimer ?";
+"删了不影响使用；再崩溃还会再生成" = "Supprimer ne change rien ; de nouveaux plantages en écriront de nouveaux";
+"删了不影响系统；排查问题时就没有依据了" = "Le système n'est pas affecté ; vous perdez seulement la piste pour dépanner";
+"只看 .ips、.hang、.panic 三种后缀" = "Seuls les fichiers .ips, .hang et .panic sont lus";
+"只翻应用数据那几层，量到多大会顺手数清" = "Seuls les premiers niveaux de données d'app sont parcourus ; taille et nombre comptés au passage";
+"只能看、不能删的位置都在这里" = "Tout ce qu'on peut voir mais pas supprimer se trouve ici";
+"名字像崩溃转储，但结构不完整；认不准就不动它。" = "Nommé comme un vidage de plantage, mais la structure est incomplète ; pas de certitude, on ne touche pas.";
+"在允许清理的范围之外" = "Hors du périmètre autorisé";
+"家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。" = "En dehors de votre dossier personnel et d'Applications, cet outil ne déplace rien ; si nécessaire, faites-le vous-même dans le Finder.";
+"崩溃时留下的现场记录" = "Traces laissées par les plantages";
+"崩溃时留下的现场记录，攒多了就是事故" = "Traces laissées par les plantages — accumulées, elles deviennent un incident";
+"崩溃转储" = "Vidages de plantage";
+"最近没有攒下报告" = "Rien ne s'est accumulé récemment";
+"正在系统目录里找崩溃转储" = "Recherche de vidages de plantage dans les données d'app";
+"正在系统目录里找崩溃转储…" = "Recherche de vidages de plantage dans les données d'app…";
+"正在读诊断报告目录" = "Lecture du dossier de rapports de diagnostic";
+"正在读诊断报告目录…" = "Lecture du dossier de rapports de diagnostic…";
+"没有发现崩溃转储" = "Aucun vidage de plantage trouvé";
+"没有诊断报告" = "Aucun rapport de diagnostic";
+"没能归属到应用的数据" = "Données sans application attribuée";
+"现场记录删了就没了，也不需要恢复" = "Supprimées, ces traces disparaissent — et il n'y a jamais à restaurer";
+"知道了" = "Compris";
+"系统排查故障用的日志文件" = "Fichiers journaux écrits par le système pour dépanner";
+"系统排查故障用的日志，攒着是为了定位问题" = "Journaux écrits par le système pour dépanner, gardés pour localiser les problèmes";
+"系统目录在保护名单里，只有系统自己能动。" = "Les dossiers système sont sur la liste protégée ; seul le système peut les toucher.";
+"系统诊断报告" = "Rapports de diagnostic système";
+"系统黑名单目录" = "Dossier système sur liste noire";
+"结构不完整，认不准" = "Structure incomplète, pas assez sûr";
+"观察" = "Observation";
+"诊断与转储" = "Diagnostic et vidages";
+"还没认出这份数据属于哪个应用，先只看着。" = "Aucune application n'a encore été identifiée pour ces données ; on se contente de regarder.";
+"这台机器上没有 Crashpad 结构" = "Aucune structure Crashpad sur cette machine";

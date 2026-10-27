@@ -1167,3 +1167,37 @@
 
 /* 2.1 卸载 App · 自己那一行 */
 "就是本工具自己 · 要卸载请在访达里拖进废纸篓" = "This is DiskWise itself · to remove it, drag it to the Trash in the Finder";
+
+/* 诊断与转储（崩溃转储 · 系统诊断报告 · 观察） */
+"为什么不能删" = "Why can't this be deleted?";
+"删了不影响使用；再崩溃还会再生成" = "Deleting changes nothing; new crashes write new ones";
+"删了不影响系统；排查问题时就没有依据了" = "The system is unaffected; you just lose the evidence for troubleshooting";
+"只看 .ips、.hang、.panic 三种后缀" = "Only .ips, .hang and .panic files are read";
+"只翻应用数据那几层，量到多大会顺手数清" = "Just a few levels of app data get walked; sizes and counts come back together";
+"只能看、不能删的位置都在这里" = "Everything you can see but not delete lives here";
+"名字像崩溃转储，但结构不完整；认不准就不动它。" = "Named like a crash dump, but the structure is incomplete; unsure means untouched.";
+"在允许清理的范围之外" = "Outside the allowed cleaning scope";
+"家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。" = "Outside your home folder and Applications this tool moves nothing; if you must, do it yourself in the Finder.";
+"崩溃时留下的现场记录" = "Records left behind by crashes";
+"崩溃时留下的现场记录，攒多了就是事故" = "Records left behind by crashes — pile up long enough and they become an incident";
+"崩溃转储" = "Crash dumps";
+"最近没有攒下报告" = "Nothing has piled up recently";
+"正在系统目录里找崩溃转储" = "Looking for crash dumps in application data";
+"正在系统目录里找崩溃转储…" = "Looking for crash dumps in application data…";
+"正在读诊断报告目录" = "Reading the diagnostics reports folder";
+"正在读诊断报告目录…" = "Reading the diagnostics reports folder…";
+"没有发现崩溃转储" = "No crash dumps found";
+"没有诊断报告" = "No diagnostics reports";
+"没能归属到应用的数据" = "Data not attributed to any app";
+"现场记录删了就没了，也不需要恢复" = "Gone once deleted — and never worth restoring";
+"知道了" = "Got it";
+"系统排查故障用的日志文件" = "Log files the system writes to troubleshoot";
+"系统排查故障用的日志，攒着是为了定位问题" = "Logs the system writes to troubleshoot, kept to locate problems";
+"系统目录在保护名单里，只有系统自己能动。" = "System folders are on the protected list; only the system itself may touch them.";
+"系统诊断报告" = "System diagnostics reports";
+"系统黑名单目录" = "Blacklisted system folder";
+"结构不完整，认不准" = "Incomplete structure, not sure enough";
+"观察" = "Observation";
+"诊断与转储" = "Diagnostics and dumps";
+"还没认出这份数据属于哪个应用，先只看着。" = "No app has been identified for this data yet; watching only for now.";
+"这台机器上没有 Crashpad 结构" = "No Crashpad structure on this machine";

@@ -95,6 +95,9 @@ final class ScanStore: ObservableObject {
     /// 文件夹下钻。由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁——
     /// 从某个文件夹跳去总览看一眼再回来，不该把刚量好的那一层白扔。
     let folderDrill = FolderDrillModel()
+    /// 诊断与转储三页共用一个数据源：一次定向遍历喂崩溃转储、诊断报告与观察区，
+    /// 分三页各取各的。挂在 ScanStore 而不是各页自己的 @StateObject，理由同上。
+    let diagnostics = DiagnosticsHub()
 
     init() {
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
@@ -107,6 +110,7 @@ final class ScanStore: ObservableObject {
         forward(devcache)
         forward(folderDrill)
         forward(uninstall)
+        forward(diagnostics)
     }
 
     private var bag = Set<AnyCancellable>()
@@ -338,7 +342,7 @@ enum AppPanel: Hashable, CaseIterable {
     // 顺序不再决定图标颜色：2026-10-19 起侧栏按分组取色（见 `sidebarGroup`），
     // 加页或挪页不会再让别的行换色。`folderDrill` 不进侧栏——下钻页是「从某一行进去」的，
     // 不是一栏常驻的目的地；`menuLaunch` 与 `agent` 是后来追加的两页。
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, appearance, feedback, folderDrill, menuLaunch, agent
+    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, crashDumps, diagReports, observation, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
         switch self {
@@ -353,6 +357,9 @@ enum AppPanel: Hashable, CaseIterable {
         case .orphans: return "app.badge"
         case .uninstall: return "trash.slash"
         case .trash: return "trash"
+        case .crashDumps: return "ladybug"
+        case .diagReports: return "stethoscope"
+        case .observation: return "eye"
         case .appearance: return "paintpalette"
         case .feedback: return "text.bubble"
         case .folderDrill: return "folder"
@@ -375,6 +382,9 @@ enum AppPanel: Hashable, CaseIterable {
         case .orphans: return "卸载残留"
         case .uninstall: return "卸载 App"
         case .trash: return "废纸篓"
+        case .crashDumps: return "崩溃转储"
+        case .diagReports: return "系统诊断报告"
+        case .observation: return "观察"
         case .appearance: return "外观皮肤"
         case .feedback: return "问题反馈"
         case .folderDrill: return "文件夹详情"
@@ -394,6 +404,8 @@ enum AppPanel: Hashable, CaseIterable {
         case .caches, .orphans, .uninstall, .trash: return 2
         case .agent: return 3
         case .appearance, .feedback, .menuLaunch: return 4
+        case .crashDumps, .diagReports: return 5
+        case .observation: return 6
         }
     }
 }
@@ -553,6 +565,12 @@ struct ContentView: View {
             // 声音：合成在后台算，算完之前谁也不等它。截图那一趟整套静音
             // （`Sound.prepare` 自己看 `SnapshotMode.active`）。
             Sound.shared.prepare(enabled: prefs.soundEnabled)
+            // 诊断与转储的定向遍历挂在启动节奏上：授权一到位就跑，侧栏计数、
+            // 三页的数据都从这一趟来。沙盒首启此刻可能还没授权，交给下面的 onChange 接力。
+            if !grant.needsGrant { scans.diagnostics.discover() }
+        }
+        .onChange(of: grant.needsGrant) { needed in
+            if !needed { scans.diagnostics.discover() }
         }
         .background(WindowContentUnderTitleBar())
         // Esc 撤下膛——总览那两下确认对外承诺的三条退路之一（见 `EscapeTap`）。
@@ -570,6 +588,14 @@ struct ContentView: View {
                 sideSection(L("看清空间"), [.overview, .big, .old, .dup])
                 sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
                 sideSection(L("清理"), [.caches, .orphans, .uninstall, .trash])
+                // 诊断与转储：无命中整组不出现（设计稿屏①）。分组出现与否听 DiagnosticsHub 的
+                // 首轮定向遍历——那条遍历挂在启动节奏上，不靠用户先点进哪一页才发现自己有
+                // （评审 §2.2：侧栏计数不能鸡生蛋）。
+                if scans.diagnostics.hasFindings {
+                    sideSection(L("诊断与转储"), [.crashDumps, .diagReports])
+                }
+                // 观察区常驻：黑名单底账默认非空，透明度是 #7 要的效果，不是噪声。
+                sideSection(L("观察"), [.observation])
                 // 「AI」这一组只有直装渠道才有：这一页讲的是把随包附带的 `diskwise`
                 // 命令行挂进 AI 工具，而商店版压根不带那个文件（见 AgentCLILocation），
                 // 挂上去只会画出一屏「本包不含 CLI」的死路。
@@ -721,6 +747,9 @@ struct ContentView: View {
         case .orphans: OrphansView(model: scans.orphans)
         case .uninstall: UninstallView(model: scans.uninstall)
         case .trash: TrashView()
+        case .crashDumps: CrashDumpsView(hub: scans.diagnostics)
+        case .diagReports: DiagReportsView(hub: scans.diagnostics)
+        case .observation: ObservationView(hub: scans.diagnostics)
         case .appearance: AppearanceView()
         case .feedback: FeedbackView()
         case .folderDrill: FolderDrillView(model: scans.folderDrill)
