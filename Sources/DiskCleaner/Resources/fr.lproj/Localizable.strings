@@ -1216,3 +1216,13 @@
 "显著增长" = "Croissance notable";
 "较上次 %1$@ · %2$@" = "%1$@ depuis le dernier · %2$@";
 "基线已建立，下次扫描起可对比" = "Référence enregistrée ; la comparaison commence au prochain scan";
+
+/* 内容归属（PR-3） */
+"跨归属" = "Attribution divisée";
+"混合来源" = "Sources mixtes";
+"内容未探测" = "Contenu non sondé";
+"目录归属" = "Propriétaire du dossier";
+"内容归属" = "Propriétaire du contenu";
+"发起源" = "Origine";
+"目录归属与内容归属不同" = " · le propriétaire du dossier et celui du contenu diffèrent";
+"混合来源（抽查 %@ 样本）" = "Sources mixtes (%@ échantillons sondés)";

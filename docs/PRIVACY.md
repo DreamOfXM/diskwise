@@ -15,11 +15,14 @@ Everything happens on your own Mac, at the moment you run the app:
   direct-download build walks the whole volume from a whitelist of roots, which includes system
   areas and other users' home folders; the Mac App Store build is confined by the sandbox to the
   folder you grant once (your home) plus `/Applications`. It does not read the *contents* of your
-  documents.
-- **What the app writes.** Only its own preferences on your Mac: which appearance skin you picked,
-  which language the interface uses, and — in the Mac App Store version — a security-scoped
-  bookmark recording which folder you granted access to. These live in the app's own preference
-  storage on your machine and never leave it.
+  documents. One opt-in exception: the content probe (off by default). When you turn it on, the app
+  reads the first 64 KB of crash-dump files it has identified, solely to tell which process wrote
+  them; those file headers never leave your machine.
+- **What the app writes.** Only its own data on your Mac: which appearance skin you picked, which
+  language the interface uses, — in the Mac App Store version — a security-scoped bookmark
+  recording which folder you granted access to, and a small local SQLite database of scan
+  snapshots (sizes and file counts of recognized items, kept to the last 30 scans) so growth can
+  be compared across scans. All of it lives on your machine and never leaves it.
 - **Deletions.** DiskWise never deletes outright. Items you choose are moved to the macOS Trash
   through the system's own Trash mechanism, and emptying the Trash is a separate action you take.
   In the direct-download build the app asks Finder to empty it and Finder confirms with you first;
@@ -46,9 +49,12 @@ DiskWise 是一款本地磁盘清理工具。**我们不收集、不存储、不
 - **读什么。** 扫描走到的位置里的目录结构和文件元信息（大小、修改时间、符号链接指向），用来告诉你
   空间被什么占着。直链下载版会走整块盘能读的根（`/Library`、`/opt`、`/private`、`/usr/local`
   以及别人的家目录，都只算账不伸手）；Mac App Store 版被沙盒限在你点过一次授权的家目录和
-  `/Applications`。它不读取文档的**内容**。
-- **写什么。** 只写它自己在本机的偏好：你选了哪套皮肤、界面用哪种语言，以及（Mac App Store 版）
-  一条记录着你授权了哪个文件夹的安全书签。这些都存在你机器上这个 App 自己的偏好存储里，不会离开本机。
+  `/Applications`。它不读取文档的**内容**。唯一的例外是内容探针（默认关闭）：你打开它之后，
+  App 只会读取已识别出的崩溃转储文件的头部 64 KB，用来判断是哪个进程写下的；
+  这些文件头只留在本机，不会离开。
+- **写什么。** 只写它自己在本机的数据：你选了哪套皮肤、界面用哪种语言，（Mac App Store 版）
+  一条记录着你授权了哪个文件夹的安全书签，以及一个很小的本地 SQLite 快照库——记录已识别条目
+  的体积与文件数、滚动保留最近 30 次扫描，用来对比增长。这些都在你的机器上，不会离开本机。
 - **删除怎么做。** DiskWise 从不直接删除。你选中的项目通过系统自带的机制移入废纸篓；清空废纸篓
   是你另外发起的动作。直链下载版请访达执行，访达会让你确认后才动手；Mac App Store 版在沙盒里
   发不出这条指令（实测系统直接拒绝，连授权框都不弹），那一版只把废纸篓窗口打开，由你在访达里自己清空。

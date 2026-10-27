@@ -1207,3 +1207,13 @@
 "显著增长" = "Notable growth";
 "较上次 %1$@ · %2$@" = "%1$@ since last · %2$@";
 "基线已建立，下次扫描起可对比" = "Baseline saved; comparisons start on the next scan";
+
+/* 内容归属（PR-3） */
+"跨归属" = "Split attribution";
+"混合来源" = "Mixed sources";
+"内容未探测" = "Content not probed";
+"目录归属" = "Directory owner";
+"内容归属" = "Content owner";
+"发起源" = "Origin";
+"目录归属与内容归属不同" = " · directory and content owners differ";
+"混合来源（抽查 %@ 样本）" = "Mixed sources (%@ samples probed)";

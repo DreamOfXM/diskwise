@@ -19,6 +19,8 @@ final class DiagnosticsHub: ObservableObject {
     @Published private(set) var started = false
     /// 流速徽标按 entryKey 挂在行上；异常粘滞到增长回落（评审 §2.1c）。
     @Published private(set) var velocity: [String: VelocityReport] = [:]
+    /// 内容归属按 entryKey 挂在行上；探针关闭时恒为空（不装结论）。
+    @Published private(set) var attribution: [String: AttributionOutcome] = [:]
     /// 本轮没有任何可比的基线：首扫或历史全在 10 分钟内，页头提一句「下次起可对比」。
     @Published private(set) var baselinePending = false
     @Published var hitSelection = Set<String>()
@@ -71,6 +73,7 @@ final class DiagnosticsHub: ObservableObject {
             hitSelection.formIntersection(Set(hits.map(\.id)))
             reportSelection.formIntersection(Set(reports.map(\.id)))
             self.applyVelocity(for: report.hits)
+            self.applyAttribution(for: report.hits)
             scanning = false
         }
     }
@@ -107,6 +110,24 @@ final class DiagnosticsHub: ObservableObject {
         snapshots.record(scanID: scanID, wallTime: now, snapshots: snaps)
         velocity = next
         baselinePending = !snaps.isEmpty && !usedBaseline
+    }
+
+    /// 内容归属：探针开着才做（默认关，评审 §2.3 的隐私边界）。
+    /// 每条目抽 5 个样本，样本全一致才出「内容归属」，不一致标混合。
+    private func applyAttribution(for hits: [CategoryHit]) {
+        guard diagnosticProbeEnabled() else {
+            attribution = [:]
+            return
+        }
+        let probe = CrashpadProbe()
+        var next: [String: AttributionOutcome] = [:]
+        for hit in hits {
+            let dirs = CategoryRule.crashDumps.safeDeleteSpec?.cleanTargets(under: URL(fileURLWithPath: hit.path)) ?? []
+            let samples = probeSampleFiles(under: dirs)
+            let results = samples.map { probe.probe($0) }
+            next[hit.id] = resolveAttribution(directoryOwner: hit.host, results: results)
+        }
+        attribution = next
     }
 
     /// 清理后收行。行是先转淡再收的账本语义：搬走的立刻从这页消失。
@@ -172,10 +193,12 @@ struct CrashDumpsView: View {
                             sub: hitSub(hit),
                             sizeText: shown[hit.id] ?? human(hit.bytes),
                             fraction: Double(hit.bytes) / Double(maxBytes),
-                            badge: velocityBadge(hit)) {
+                            badge: velocityBadge(hit),
+                            badge2: attributionBadge(hit)) {
                         ExplainLine(key: L("这是什么"), value: L("崩溃时留下的现场记录"))
                         ExplainLine(key: L("删了会怎样"), value: L("删了不影响使用；再崩溃还会再生成"))
                         ExplainLine(key: L("怎么恢复"), value: L("现场记录删了就没了，也不需要恢复"))
+                        attributionLines(hit)
                         PathLine(path: hit.path)
                     }
                 }
@@ -233,6 +256,35 @@ struct CrashDumpsView: View {
         switch tier {
         case .red: return ItemBadge(text: L("流速异常"), tone: .danger)
         case .yellow: return ItemBadge(text: L("显著增长"), tone: .warn)
+        }
+    }
+
+    /// 归属徽标与流速徽标是两条轴：那枚说「长得快不快」，这枚说「是谁的」。
+    /// 混合灰、跨归属黄；探针没开或没探上就不给——不撒谎。
+    private func attributionBadge(_ hit: CategoryHit) -> ItemBadge? {
+        guard let a = hub.attribution[hit.id], a.probed else { return nil }
+        if a.mixed { return ItemBadge(text: L("混合来源"), tone: .neutral) }
+        if a.crossAttribution { return ItemBadge(text: L("跨归属"), tone: .warn) }
+        return nil
+    }
+
+    /// 归属明细三行：目录 × 内容 × 发起源。探针关或没探上时只有「内容未探测」一句。
+    @ViewBuilder private func attributionLines(_ hit: CategoryHit) -> some View {
+        if let a = hub.attribution[hit.id], a.probed {
+            ExplainLine(key: L("目录归属"), value: a.directoryOwner ?? "—")
+            if a.mixed {
+                ExplainLine(key: L("内容归属"), value: LF("混合来源（抽查 %@ 样本）", String(a.samples)))
+            } else if let owner = a.contentOwner {
+                let line = owner + (a.crossAttribution ? " · " + L("目录归属与内容归属不同") : "")
+                ExplainLine(key: L("内容归属"), value: line)
+            } else {
+                ExplainLine(key: L("内容归属"), value: L("内容未探测"))
+            }
+            if !a.redactedHints.isEmpty {
+                ExplainLine(key: L("发起源"), value: a.redactedHints.joined(separator: " · "))
+            }
+        } else {
+            ExplainLine(key: L("内容归属"), value: L("内容未探测"))
         }
     }
 

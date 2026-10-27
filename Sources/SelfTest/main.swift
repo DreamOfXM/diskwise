@@ -2103,5 +2103,78 @@ do {
     try? FileManager.default.removeItem(at: dbPath)
 }
 
+// MARK: - 20. 内容探针：MDMP 校验 / executable_path / 指纹脱敏 / 混合来源（PR-3）
+//
+// 探针是对「不读文档内容」承诺的显式放宽（PRIVACY.md 已同步）：只读 64KB、
+// 非 minidump 一律「未探测」。事故复算的核心一行也在这节钉住：
+// 目录挂在 Chrome 名下、内容归属是 WorkBuddy Helper。
+do {
+    let fm = FileManager.default
+    let dir = URL(fileURLWithPath: "/tmp/dwtest-probe-\(UUID().uuidString)", isDirectory: true)
+    try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+    func makeDump(_ name: String, exe: String?, hint: (String, String)? = nil, magic: Bool = true) -> URL {
+        var b = Data()
+        if magic { b.append(Data("MDMP".utf8)) }
+        b.append(Data(repeating: 0x41, count: 64))
+        if let exe { b.append(Data("executable_path=\(exe)\0".utf8)) }
+        if let hint { b.append(Data("\(hint.0)=\(hint.1)\0".utf8)) }
+        let u = dir.appendingPathComponent(name)
+        fm.createFile(atPath: u.path, contents: b)
+        return u
+    }
+    let probe = CrashpadProbe()
+
+    let wb = makeDump("a.dmp",
+                      exe: "/Applications/WorkBuddy.app/Contents/MacOS/WorkBuddy Helper",
+                      hint: ("CODEBUDDY_SESSION_ID", "d5650085abcdef33"))
+    let r1 = probe.probe(wb)
+    check(r1.probed && r1.executablePath?.hasSuffix("WorkBuddy Helper") == true,
+          "探针：MDMP 头里解出 executable_path")
+    check(r1.originHints.contains("CODEBUDDY_SESSION_ID=d5650085abcdef33"),
+          "探针：发起源指纹按键值收下")
+    check(redactHint("CODEBUDDY_SESSION_ID=d5650085abcdef33") == "CODEBUDDY_SESSION_ID=d5••••33",
+          "探针：指纹值只留头尾，中间打码")
+    check(redactHint("K=abc") == "K=••••", "探针：过短的值整个打码，不留半个可猜的")
+
+    check(!probe.probe(makeDump("fake.dmp", exe: nil, magic: false)).probed,
+          "探针：非 minidump（无魔数）一律未探测，不冒充")
+
+    check(ownerName(of: "/Applications/WorkBuddy.app/Contents/MacOS/WorkBuddy Helper") == "WorkBuddy",
+          "探针：路径里带 .app 的取包名当归属")
+    check(ownerName(of: "/usr/local/bin/node") == "node",
+          "探针：裸可执行路径取最后一段")
+
+    let same = resolveAttribution(directoryOwner: "Chrome", results: [
+        r1,
+        probe.probe(makeDump("b.dmp", exe: "/Applications/WorkBuddy.app/Contents/MacOS/WorkBuddy Helper"))
+    ])
+    check(same.probed && !same.mixed && same.contentOwner == "WorkBuddy"
+          && same.directoryOwner == "Chrome" && same.crossAttribution,
+          "探针：样本全一致出内容归属；目录 Chrome × 内容 WorkBuddy 即跨归属（事故形态）")
+    let mixed = resolveAttribution(directoryOwner: "Chrome", results: [
+        r1,
+        probe.probe(makeDump("c.dmp", exe: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"))
+    ])
+    check(mixed.mixed, "探针：两个宿主的样本标混合来源，不出单一结论")
+    check(!resolveAttribution(directoryOwner: "Chrome", results: []).probed,
+          "探针：一个都没探上就是未探测")
+
+    // 抽样：8 个文件抽 5，必含最新与最旧
+    let sampleDir = dir.appendingPathComponent("completed", isDirectory: true)
+    try? fm.createDirectory(at: sampleDir, withIntermediateDirectories: true)
+    for i in 0..<8 {
+        let u = sampleDir.appendingPathComponent("d\(i).dmp")
+        fm.createFile(atPath: u.path, contents: Data("MDMP".utf8))
+        try? fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: Double(i - 8) * 3600)],
+                              ofItemAtPath: u.path)
+    }
+    let picked = probeSampleFiles(under: [sampleDir])
+    let names = Set(picked.map(\.lastPathComponent))
+    check(picked.count == 5 && names.contains { $0.hasPrefix("d7.") } && names.contains { $0.hasPrefix("d0.") },
+          "探针：抽样最新 3 + 最旧 1 + 随机 1，两端必中")
+
+    try? fm.removeItem(at: dir)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

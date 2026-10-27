@@ -1208,3 +1208,13 @@
 "显著增长" = "Crecimiento notable";
 "较上次 %1$@ · %2$@" = "%1$@ desde la última vez · %2$@";
 "基线已建立，下次扫描起可对比" = "Línea base guardada; se compara a partir del próximo escaneo";
+
+/* 内容归属（PR-3） */
+"跨归属" = "Atribución dividida";
+"混合来源" = "Fuentes mixtas";
+"内容未探测" = "Contenido no examinado";
+"目录归属" = "Dueño de la carpeta";
+"内容归属" = "Dueño del contenido";
+"发起源" = "Origen";
+"目录归属与内容归属不同" = " · el dueño de la carpeta y el del contenido difieren";
+"混合来源（抽查 %@ 样本）" = "Fuentes mixtas (%@ muestras examinadas)";

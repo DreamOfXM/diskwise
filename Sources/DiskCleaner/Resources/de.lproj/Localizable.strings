@@ -1211,3 +1211,13 @@
 "显著增长" = "Deutliches Wachstum";
 "较上次 %1$@ · %2$@" = "%1$@ seit dem letzten Mal · %2$@";
 "基线已建立，下次扫描起可对比" = "Basiswert gespeichert; verglichen wird ab dem nächsten Scan";
+
+/* 内容归属（PR-3） */
+"跨归属" = "Geteilte Zuordnung";
+"混合来源" = "Gemischte Quellen";
+"内容未探测" = "Inhalt nicht geprüft";
+"目录归属" = "Ordner-Zugehörigkeit";
+"内容归属" = "Inhaltliche Zugehörigkeit";
+"发起源" = "Ursprung";
+"目录归属与内容归属不同" = " · Ordner- und Inhaltszugehörigkeit weichen ab";
+"混合来源（抽查 %@ 样本）" = "Gemischte Quellen (%@ Stichproben)";
