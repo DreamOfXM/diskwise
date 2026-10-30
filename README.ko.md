@@ -303,7 +303,9 @@ brew install --cask dreamofxm/diskwise/diskwise
 cask는 이 저장소의 `Casks/diskwise.rb`에 있습니다. 그래서 tap은 URL로 지정해야 하며,
 `dreamofxm/diskwise`만 쓰면 존재하지 않는 `homebrew-*` 저장소를 찾으러 갑니다. tap한 뒤에는
 완전 수식 이름으로 설치하세요. Homebrew 6부터 비공식 tap은 기본적으로 신뢰되지 않고, 완전 수식
-이름으로 설치하면 이 cask 하나만 신뢰됩니다. 더 요구한다면:
+이름으로 설치하면 이 cask 하나만 신뢰됩니다. 첫 `brew tap`은 이 저장소의 전체 기록(약 300 MB)을 복제하므로
+회선이 느리면 한동안 아무 반응이 없습니다. 그다음 설치되는 DMG는 약 10 MB입니다.
+더 요구한다면:
 
 ```sh
 brew trust --cask dreamofxm/diskwise/diskwise

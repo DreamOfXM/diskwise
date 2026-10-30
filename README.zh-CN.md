@@ -272,7 +272,9 @@ brew install --cask dreamofxm/diskwise/diskwise
 
 cask 就放在本仓库里（`Casks/diskwise.rb`），所以 tap 必须按 URL 指过来：只写
 `dreamofxm/diskwise` 会让 Homebrew 去找一个并不存在的 `homebrew-*` 仓库。tap 好之后用全限定名
-安装——Homebrew 6 起第三方 tap 默认不被信任，按全限定名安装只信任这一个 cask。若它还要求更多：
+安装——Homebrew 6 起第三方 tap 默认不被信任，按全限定名安装只信任这一个 cask。第一条 `brew tap`
+会把本仓库的完整历史克隆下来，约 300 MB，网慢的时候会安静等上一阵；它随后装的 DMG 才约 10 MB。
+若它还要求更多：
 
 ```bash
 brew trust --cask dreamofxm/diskwise/diskwise

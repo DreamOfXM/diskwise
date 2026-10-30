@@ -312,6 +312,8 @@ The cask is `Casks/diskwise.rb` in this same repository, so the tap has to be po
 URL: `dreamofxm/diskwise` on its own would send Homebrew looking for a `homebrew-*` repository
 that does not exist. After the tap, install by the fully-qualified name — since Homebrew 6
 non-official taps are untrusted by default, and installing by full name trusts just this cask.
+That first tap clones this repository's whole history, roughly 300 MB, so on a slow link it sits
+in silence for a while; the DMG it then installs is about 10 MB.
 If Homebrew asks for more than that:
 
 ```sh

@@ -304,7 +304,9 @@ brew install --cask dreamofxm/diskwise/diskwise
 cask はこのリポジトリの `Casks/diskwise.rb` にあります。そのため tap は URL で指定する必要があり、
 `dreamofxm/diskwise` だけでは存在しない `homebrew-*` リポジトリを探しに行きます。tap したあとは
 完全修飾名で入れてください。Homebrew 6 以降、非公式 tap は既定で信頼されず、完全修飾名で入れると
-この cask だけが信頼されます。さらに求められた場合：
+この cask だけが信頼されます。最初の `brew tap` はこのリポジトリの全履歴（約 300 MB）を
+クローンするので、回線が遅いとしばらく何も起きません。そのあと入る DMG は約 10 MB です。
+さらに求められた場合：
 
 ```sh
 brew trust --cask dreamofxm/diskwise/diskwise

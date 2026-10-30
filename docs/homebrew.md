@@ -9,6 +9,10 @@ brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
+The tap is this repository itself, so that one `brew tap` clones the whole history — a few
+hundred megabytes, which on a slow link is minutes of silence before anything happens. It is a
+one-time cost: the DMG the cask installs is about 10 MB, and `brew upgrade` only fetches it.
+
 Since Homebrew 6, non-official taps are untrusted by default. Installing by the fully
 qualified name trusts just this cask; if Homebrew asks for more, `brew trust --cask
 dreamofxm/diskwise/diskwise` covers it and nothing else.

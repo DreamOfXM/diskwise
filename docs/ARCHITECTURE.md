@@ -47,10 +47,13 @@ diskwise/
 │   ├── l10n_tool.swift            # 双语覆盖率对账：缺译文 / 占位符不匹配 / Int 喂给 %@ 都拦下
 │   ├── make_icon.swift            # App 图标参数化生成（CoreGraphics 画一把扫帚）
 │   └── make_demo_home.sh          # 造一棵演示用假家目录，给截图和界面自查用
+├── Casks/
+│   └── diskwise.rb                # Homebrew cask：pin 当前 release 的 dmg 与 sha256，bump 见 docs/homebrew.md
 ├── docs/
 │   ├── ARCHITECTURE.md            # 本文件
 │   ├── DESIGN.md                  # 两条跨皮肤铁律 + 皮肤阵容与配色语义 + 文案语气
 │   ├── PRIVACY.md                 # 零收集声明（中英双语），对外文本以它为唯一口径；商店隐私链接指向此路径，勿改名勿挪走
+│   ├── homebrew.md                # cask 怎么装、怎么 bump、装完怎么自检
 │   └── screenshots/               # README 用图（双语 × 多皮肤，由 SnapshotMode 拍出）
 ├── README.md                      # 双语首页
 ├── CONTRIBUTING.md                # 安全铁律 + 知识库怎么加条目 + 翻译规矩
