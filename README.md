@@ -2,9 +2,12 @@
 
 # DiskWise
 
-**See where your Mac's disk actually went — then clear a slice with two taps. It lands in the Trash, and one tap puts it back.**
+**See where your Mac's disk actually went — and undo every cleanup with one tap.**
 
-A free, open-source CleanMyMac alternative for macOS. No subscription, no telemetry, ~8 MB.
+Xcode `DerivedData` · `node_modules` · Docker.raw · Homebrew cache · crash dumps
+
+**Nothing is ever deleted for real.** Every removal goes to the Trash and stays undoable
+until you empty it. 8 MB · native SwiftUI · 10 UI languages · no telemetry · Apache-2.0
 
 ![stars](https://img.shields.io/github/stars/DreamOfXM/diskwise?style=social)
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
@@ -16,33 +19,37 @@ A free, open-source CleanMyMac alternative for macOS. No subscription, no teleme
 
 *Scan → open a row → two taps → undo. Shot against a synthetic home folder, so the numbers on screen are invented — the orange strip says so.*
 
-English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
-
-</div>
-
 ```sh
 brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-Or the **Mac App Store** (free, auto-updated by the store): [DiskWise: Storage Cleaner](https://apps.apple.com/app/id6813265402)
-· [DMG from Releases](https://github.com/DreamOfXM/diskwise/releases/latest), every release with its SHA-256
-· ▶ [22-second demo film](https://www.youtube.com/watch?v=0RfXNwNdzFg)
+**[Mac App Store](https://apps.apple.com/app/id6813265402)** · [DMG + SHA-256](https://github.com/DreamOfXM/diskwise/releases/latest) · [22-second demo](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-A native SwiftUI disk cleaner for `node_modules`, Xcode `DerivedData`, Docker volumes, app
-caches and uninstall leftovers — and it never truly deletes anything: every removal goes to
-the Trash and stays undoable until *you* empty it. No Electron, no Python sidecar, no local
-server, no telemetry, no subscription, and the whole UI in ten languages. A ~8 MB DMG, one
-file for Apple Silicon and Intel.
+English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
-Want to know what's actually safe to delete first? [docs/safe-to-delete.md](./docs/safe-to-delete.md) —
-80 of the usual space hogs on macOS, each with what it is, what deleting it does and what it costs
-if you were wrong. Generated from the same data the app reads at scan time (the tables are in
-Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable original).
+</div>
 
 ---
 
-## What's new in v2.3
+| | |
+|---|---|
+| **Reads what actually grows** | `DerivedData`, `node_modules`, Docker.raw, Homebrew cache, Crashpad dumps — measured, grouped, and attributed to what wrote them. |
+| **Growth, not just size** | Every scan is diffed against the previous one. A burst gets a red badge (**+2,674 files in under a minute**), slow creep gets amber, a folder you cleared reads as a decrease. |
+| **Undo instead of a warning dialog** | Removals land in the Trash. Batch undo works until you empty it. There is no "smart clean" button that runs on its own. |
+| **It declines** | A folder that looks like a cache but isn't structured like one is never flagged — it goes to a read-only list with the reason it isn't offered. |
+
+*A free, open-source CleanMyMac alternative for the folders a developer actually fills up.*
+
+<details>
+<summary><b>What is actually safe to delete?</b> — 80 entries, each with what it costs you if you were wrong</summary>
+
+[docs/safe-to-delete.md](./docs/safe-to-delete.md) covers 80 of the usual space hogs on macOS: what each one is, what deleting it does, and what it costs if you were wrong. It is generated from the same data the app reads at scan time (the tables are in Chinese; `Sources/DiskCleaner/Resources/safety_db.json` is the machine-readable original).
+
+</details>
+
+<details>
+<summary><b>What's new in v2.3</b> — one incident: 2,674 crash dumps in 57 seconds</summary>
 
 v2.3 came out of one incident: 2,674 crash dumps landed in Chrome's Crashpad folder in 57 seconds.
 Every tool on that machine said "Chrome", and none of them were lying — the folder was Chrome's and
@@ -72,9 +79,10 @@ guess.
 v2.2 taught the scan to recognize the model caches that live inside your own projects, and to identify
 an engine's self-managed cache by its layout on disk rather than by name.
 
+</details>
+
 ## Contents
 
-- [What's new in v2.3](#whats-new-in-v23)
 - [Quick start](#quick-start)
 - [For AI agents](#for-ai-agents)
 - [Why this exists](#why-this-exists)

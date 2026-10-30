@@ -2,7 +2,12 @@
 
 # DiskWise
 
-**一款免费、开源的 macOS CleanMyMac 替代。**
+**看清你的 Mac 到底把空间花在哪了——每一次清理都能一键撤回。**
+
+Xcode `DerivedData` · `node_modules` · Docker.raw · Homebrew 缓存 · 崩溃转储
+
+**从不真正删除任何东西。** 所有清理只进废纸篓，清空废纸篓之前随时可以撤销。
+8 MB · SwiftUI 原生 · 10 种界面语言 · 无遥测 · Apache-2.0
 
 ![stars](https://img.shields.io/github/stars/DreamOfXM/diskwise?style=social)
 ![platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
@@ -12,42 +17,41 @@
 ![size](https://img.shields.io/badge/DMG-~8%20MB-blue)
 ![brew](https://img.shields.io/badge/Homebrew-dreamofxm%2Fdiskwise%2Fdiskwise-f9d986?logo=homebrew&logoColor=000)
 
-一个**不会真正删除任何东西**的 macOS 磁盘清理工具：SwiftUI 原生实现，专治开发者机器上的
-`node_modules`、Xcode `DerivedData`、Docker 虚拟盘、微信 / 钉钉 / 企业微信缓存和卸载残留。
-所有删除只进废纸篓，本次会话内随时可撤销。没有 Electron、不依赖 Python、不起本地服务、
-没有端口、不联网、无遥测、无订阅，界面共十种语言。安装包约 8 MB，一个文件同时带
-Apple Silicon 和 Intel 两个切片。
-
-[English](./README.md) | 简体中文 | [日本語](./README.ja.md) | [한국어](./README.ko.md)
-
 ![空间总览的一轮循环：重新扫描让环一段段长回来、量满之后静下来，那道反光绕着环带走，点账目那一行就地摊开它名下的目录、环同时收成一枚小参照盘，点第一段弧上膛、再点第二段才进废纸篓，最后撤销原样放回](docs/demo/overview-zh.gif)
 
 *扫描 → 点开一行 → 两下 → 撤销。这屏跑的是造出来的演示目录，屏幕上的数都是编的——顶上那条橙色横幅写的就是这件事。*
-
-[![屏幕上的是「空间总览」：一圈把 96 GB 的盘摊开，这一趟刚收回 10.8 GB](docs/demo/watch-cover.jpg)](https://www.youtube.com/watch?v=0RfXNwNdzFg)
-
-*▶ 22 秒演示片（YouTube）。*
-
-</div>
 
 ```bash
 brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-或从 **Mac App Store** 获取（macOS 13+，免费，之后由商店自动推送更新）：
-[DiskWise: 空间清理](https://apps.apple.com/app/id6813265402)
+**[Mac App Store](https://apps.apple.com/app/id6813265402)** · [DMG + SHA-256](https://github.com/DreamOfXM/diskwise/releases/latest) · [22 秒演示片](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
-想直接下载文件？[最新的 GitHub Release](https://github.com/DreamOfXM/diskwise/releases/latest)——
-每条 Release 都附 DMG 的 SHA-256。
+[English](./README.md) | 简体中文 | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
-想先知道哪些能删、删了会怎样？[docs/safe-to-delete.md](./docs/safe-to-delete.md)——macOS 上 80 个常见
-的占空间位置，每条写清它是什么、删掉会怎样、删错的代价分三级。这份文档由 App 扫描时实际读取的那份
-数据生成，不是宣传文案。
+</div>
 
 ---
 
-## 2.3 更新
+| | |
+|---|---|
+| **只看真正会长大的东西** | `DerivedData`、`node_modules`、Docker.raw、Homebrew 缓存、崩溃转储——逐个量、按"谁写的"归类。 |
+| **看增长，不只看体积** | 每次扫描都和上一次快照对比。暴增标红（**1 分钟内 +2674 个文件**），缓慢膨胀标黄，清理过的目录显示为下降。 |
+| **撤销代替警告框** | 所有删除进废纸篓，清空之前整批可撤销。没有会自己跑起来的"一键智能清理"。 |
+| **它会拒绝** | 长得像缓存但结构不对的目录一律不碰，放进只读列表并写明为什么不动它。 |
+
+*免费开源的 CleanMyMac 替代——专治开发者机器上那些真正吃空间的目录。*
+
+<details>
+<summary><b>哪些能删？</b>——80 条，每条写清删错的代价</summary>
+
+[docs/safe-to-delete.md](./docs/safe-to-delete.md) 覆盖 macOS 上 80 个常见的占空间位置，每条写清它是什么、删掉会怎样、删错的代价分三级。这份文档由 App 扫描时实际读取的那份数据生成（机器可读原件在 `Sources/DiskCleaner/Resources/safety_db.json`），不是宣传文案。
+
+</details>
+
+<details>
+<summary><b>2.3 更新</b>——一次事故：57 秒里涌进 2674 个崩溃转储</summary>
 
 2.3 是被一次事故逼出来的：Chrome 的 Crashpad 目录里，57 秒落进 2,674 个崩溃转储。那台机器上每个
 工具都说是 Chrome，而且都没说错——文件夹是它的，每个转储里的可执行路径也是它的。可把 Chrome 拖进
@@ -69,9 +73,10 @@ brew install --cask dreamofxm/diskwise/diskwise
 
 2.2 让扫描认得长在你自己项目里的那些模型缓存，并开始按磁盘布局认引擎自管的缓存，不再靠名字追。
 
+</details>
+
 ## 目录
 
-- [2.3 更新](#23-更新)
 - [上手三步](#上手三步)
 - [给 AI agent 用](#给-ai-agent-用)
 - [为什么选择 DiskWise](#为什么选择-diskwise)
