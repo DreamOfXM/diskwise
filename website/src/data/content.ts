@@ -3,6 +3,7 @@
 // 新增语言：复制一份 zh 对象翻译，再在 LOCALES / routes / HTML 入口三处注册。
 import demoGifEn from "@/assets/demo-overview-en.gif";
 import demoGifZh from "@/assets/demo-overview-zh.gif";
+import { BREW_CMD } from "./site";
 
 export type Locale = "zh" | "en" | "ja" | "ko";
 
@@ -189,7 +190,7 @@ const zh: SiteContent = {
     title: "三种装法，全都不花钱",
     sub: "macOS 13+ · Apple Silicon 与 Intel 共用一个 ~8MB 的通用 DMG",
     channels: [
-      { name: "Homebrew", desc: "一行命令装好，后续 brew upgrade --cask 更新。", action: "brew install --cask dreamofxm/diskwise/diskwise" },
+      { name: "Homebrew", desc: "tap 一次装好，之后 brew upgrade --cask 更新。", action: BREW_CMD },
       { name: "GitHub Release", desc: "Developer ID 签名 + Apple 公证，下载后双击即开；每个 release 附 SHA-256 校验值。", action: "下载最新 DMG" },
       { name: "Mac App Store", desc: "经 App Store 审核上架，更新由商店自动推送，完全免费。", action: "在 App Store 获取" },
     ],
@@ -354,7 +355,7 @@ const en: SiteContent = {
     title: "Three ways to install, all free",
     sub: "macOS 13+ · one ~8MB universal DMG for Apple Silicon and Intel",
     channels: [
-      { name: "Homebrew", desc: "One command, then brew upgrade --cask keeps it fresh.", action: "brew install --cask dreamofxm/diskwise/diskwise" },
+      { name: "Homebrew", desc: "Tap once, then brew upgrade --cask keeps it fresh.", action: BREW_CMD },
       { name: "GitHub Release", desc: "Developer ID signed and Apple-notarized — it opens on a double-click. Every release ships its SHA-256.", action: "Download the latest DMG" },
       { name: "Mac App Store", desc: "Apple-reviewed, auto-updating from the store, completely free.", action: "Get it on the Mac App Store" },
     ],
@@ -519,7 +520,7 @@ const ja: SiteContent = {
     title: "インストール方法は 3 つ、すべて無料",
     sub: "macOS 13+ · Apple Silicon と Intel が共通の ~8MB ユニバーサル DMG",
     channels: [
-      { name: "Homebrew", desc: "コマンド 1 本で導入、以降は brew upgrade --cask で更新。", action: "brew install --cask dreamofxm/diskwise/diskwise" },
+      { name: "Homebrew", desc: "一度 tap すれば導入完了、以降は brew upgrade --cask で更新。", action: BREW_CMD },
       { name: "GitHub Release", desc: "Developer ID 署名 + Apple 公証済み、ダブルクリックで起動。各リリースに SHA-256 を同梱。", action: "最新 DMG をダウンロード" },
       { name: "Mac App Store", desc: "Apple 審査を経て配信、自動更新、ストア内は完全無料。", action: "App Store で入手" },
     ],
@@ -684,7 +685,7 @@ const ko: SiteContent = {
     title: "세 가지 설치 방법, 모두 무료",
     sub: "macOS 13+ · Apple Silicon과 Intel이 공유하는 ~8MB 범용 DMG",
     channels: [
-      { name: "Homebrew", desc: "명령 한 줄로 설치, 이후 brew upgrade --cask로 업데이트.", action: "brew install --cask dreamofxm/diskwise/diskwise" },
+      { name: "Homebrew", desc: "tap 한 번이면 설치 끝, 이후 brew upgrade --cask로 업데이트.", action: BREW_CMD },
       { name: "GitHub Release", desc: "Developer ID 서명 + Apple 공증 완료, 더블클릭으로 바로 실행됩니다. 모든 릴리스에 SHA-256이 함께 제공됩니다.", action: "최신 DMG 다운로드" },
       { name: "Mac App Store", desc: "Apple 심사를 통과해 출시, 자동 업데이트, 스토어에서 완전 무료.", action: "App Store에서 받기" },
     ],

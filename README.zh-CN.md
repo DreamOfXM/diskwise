@@ -31,6 +31,7 @@ Apple Silicon 和 Intel 两个切片。
 </div>
 
 ```bash
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
@@ -262,22 +263,23 @@ DiskWise 走相反的路子：
 商店接手的每一版都要先过苹果审核，所以商店里能拿到的版本会比 GitHub Release 慢一些。想要刚发出来的
 那一版，用下面的 Homebrew 或直接下载 DMG。
 
-### Homebrew（一条命令）
+### Homebrew
 
 ```bash
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-必须用 `dreamofxm/diskwise/diskwise` 这个全限定名：Homebrew 6 起第三方 tap 默认不被信任，
-按全限定名安装只信任这一个 cask。想用短名就先补一步信任：
+cask 就放在本仓库里（`Casks/diskwise.rb`），所以 tap 必须按 URL 指过来：只写
+`dreamofxm/diskwise` 会让 Homebrew 去找一个并不存在的 `homebrew-*` 仓库。tap 好之后用全限定名
+安装——Homebrew 6 起第三方 tap 默认不被信任，按全限定名安装只信任这一个 cask。若它还要求更多：
 
 ```bash
-brew tap DreamOfXM/diskwise
 brew trust --cask dreamofxm/diskwise/diskwise
 brew install --cask diskwise
 ```
 
-tap 的细节与校验值怎么更新：[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise)。
+tap 的细节与校验值怎么更新：[docs/homebrew.md](./docs/homebrew.md)。
 
 用 Homebrew 装的也是 Releases 页那个文件。从 v1.7 起那份用 Developer ID 证书签名并经苹果公证，
 双击即可打开，不需要任何额外放行；v1.7 之前发的是 ad-hoc 签名的包，首次打开会被系统拦一次，要到

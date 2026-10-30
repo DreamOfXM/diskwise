@@ -2,6 +2,7 @@
 // 口径纪律：竞品那一栏只写它自己官网或指南里能点开的说法，并给出出处；
 // 我们这一栏写架构事实，不写形容词。对自己不利的行（空间何时释放、功能广度）照实标 edge:"theirs"。
 import type { Locale } from "@/data/content";
+import { BREW_INSTALL, BREW_TAP } from "@/data/site";
 
 export type CompareSlug = "cleanmymac" | "daisydisk" | "puremac" | "mole";
 
@@ -699,7 +700,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "从 PureMac 换到 DiskWise",
         note: "两个都免费，可以同时装着试，不需要先卸载。",
         steps: [
-          "brew install --cask dreamofxm/diskwise/diskwise，或从 App Store 装 DiskWise",
+          `先跑 ${BREW_TAP}，再 ${BREW_INSTALL}，或从 App Store 装 DiskWise`,
           "打开 Overview 看整盘环形图，点开任意一行看子目录明细",
           "试着删一个缓存：两下点击进废纸篓，⌘Z 撤销，清空废纸篓仍是 Finder 的事",
           "对比两边的清理结果口径，留下你更信的那个",
@@ -785,7 +786,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "Switching from PureMac",
         note: "Both are free — you can install DiskWise alongside and compare, no uninstall needed.",
         steps: [
-          "brew install --cask dreamofxm/diskwise/diskwise, or get DiskWise from the App Store",
+          `Run ${BREW_TAP}, then ${BREW_INSTALL} — or get DiskWise from the App Store`,
           "Open Overview to see the whole-volume ring; click any row for its subfolder ledger",
           "Delete one cache: two taps to the Trash, ⌘Z to undo; emptying stays Finder's job",
           "Compare what each reports, keep the one you trust",
@@ -857,7 +858,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "从 Mole CLI 到 DiskWise",
         note: "不是替代关系：终端党可以两个都留，DiskWise 补上「看得见」的那一半。",
         steps: [
-          "brew install --cask dreamofxm/diskwise/diskwise",
+          `先跑 ${BREW_TAP}，再 ${BREW_INSTALL}`,
           "打开 Overview，看整盘环形图和账本——这是 Mole 输出数字的图形对应物",
           "两下点击把一个缓存送进废纸篓，⌘Z 撤销试试",
           "需要脚本化时继续用 Mole，没问题",
@@ -927,7 +928,7 @@ export const COMPARE: Record<CompareSlug, Partial<Record<Locale, CompareContent>
         title: "From Mole CLI to DiskWise",
         note: "Not a replacement: terminal people can keep both — DiskWise adds the visible half.",
         steps: [
-          "brew install --cask dreamofxm/diskwise/diskwise",
+          `Run ${BREW_TAP}, then ${BREW_INSTALL}`,
           "Open Overview — the ring and ledger are the graphical counterpart of Mole's numbers",
           "Send one cache to the Trash with two clicks, then ⌘Z it back",
           "Keep using Mole when you need scripting — that's fine",

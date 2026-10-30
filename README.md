@@ -21,6 +21,7 @@ English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한
 </div>
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
@@ -300,23 +301,25 @@ start using it; the store takes care of every version after that.
 Each of those versions has to clear Apple's review first, so the store can trail a GitHub release. If
 you want the newest build the moment it ships, use Homebrew or the DMG below.
 
-### Homebrew (one command)
+### Homebrew
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-The fully-qualified name is what makes this work from a third-party tap: since Homebrew 6
-non-official taps are untrusted by default, and installing by full name trusts just this
-cask. If you would rather use the short name:
+The cask is `Casks/diskwise.rb` in this same repository, so the tap has to be pointed at it by
+URL: `dreamofxm/diskwise` on its own would send Homebrew looking for a `homebrew-*` repository
+that does not exist. After the tap, install by the fully-qualified name — since Homebrew 6
+non-official taps are untrusted by default, and installing by full name trusts just this cask.
+If Homebrew asks for more than that:
 
 ```sh
-brew tap DreamOfXM/diskwise
 brew trust --cask dreamofxm/diskwise/diskwise
 brew install --cask diskwise
 ```
 
-Tap details and how the pinned checksum gets bumped: [DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise).
+Tap details and how the pinned checksum gets bumped: [docs/homebrew.md](./docs/homebrew.md).
 
 Homebrew installs the same file the Releases page carries. From v1.7 it is signed with a Developer ID
 certificate and notarized by Apple, so it opens on a double-click and never reaches that step. Releases

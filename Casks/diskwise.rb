@@ -1,3 +1,4 @@
+# Documentation: https://github.com/DreamOfXM/diskwise/blob/main/docs/homebrew.md
 cask "diskwise" do
   version "2.3"
   sha256 "68cde6572ccfc6563fd68d0fccbdb469d05b0ae84ab85e84bcb977065c384961"

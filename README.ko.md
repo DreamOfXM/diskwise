@@ -34,6 +34,7 @@
 > 스크린샷과 데모는 영어 UI로 촬영했습니다.
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
@@ -292,23 +293,24 @@ Português(브라질) —— 이고 스킨 페이지의 언어 메뉴에서 바�
 스토어가 이어받는 각 버전은 먼저 Apple 심사를 통과해야 하므로 GitHub Release보다 조금 늦게
 찾아옵니다. 방금 나온 버전을 바로 쓰고 싶다면 아래 Homebrew나 DMG를 사용해 주세요.
 
-### Homebrew(명령 하나)
+### Homebrew
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-서드파티 tap에서 이게 통하는 건 완전 수식 이름 덕분입니다. Homebrew 6부터 비공식 tap은 기본적으로
-신뢰되지 않고, 완전 수식 이름으로 설치하면 이 cask 하나만 신뢰됩니다. 짧은 이름을 쓰고 싶다면:
+cask는 이 저장소의 `Casks/diskwise.rb`에 있습니다. 그래서 tap은 URL로 지정해야 하며,
+`dreamofxm/diskwise`만 쓰면 존재하지 않는 `homebrew-*` 저장소를 찾으러 갑니다. tap한 뒤에는
+완전 수식 이름으로 설치하세요. Homebrew 6부터 비공식 tap은 기본적으로 신뢰되지 않고, 완전 수식
+이름으로 설치하면 이 cask 하나만 신뢰됩니다. 더 요구한다면:
 
 ```sh
-brew tap DreamOfXM/diskwise
 brew trust --cask dreamofxm/diskwise/diskwise
 brew install --cask diskwise
 ```
 
-tap의 세부 사항과 고정된 체크섬을 올리는 방법은
-[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise) 에 있습니다.
+tap의 세부 사항과 고정된 체크섬을 올리는 방법은 [docs/homebrew.md](./docs/homebrew.md) 에 있습니다.
 
 Homebrew가 설치하는 것은 Releases 페이지에 있는 것과 같은 파일입니다. v1.7부터는 Developer ID 인증서로
 서명하고 Apple 공증을 받았으니 Gatekeeper에 막히지 않고 더블 클릭으로 열립니다. v1.7 이전 빌드는 ad-hoc

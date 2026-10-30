@@ -34,6 +34,7 @@ DMG は約 8 MB で、Apple Silicon と Intel の両方を 1 ファイルに収�
 > スクリーンショットとデモは英語 UI で撮影したものです。
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
@@ -293,23 +294,24 @@ Português（ブラジル）—— で、スキンのページにある言語メ
 ストアが引き継ぐ各バージョンは先に Apple の審査を通過する必要があるため、GitHub Release より少し
 遅れて届きます。出たてのバージョンをすぐ使いたい場合は、下の Homebrew か DMG を使ってください。
 
-### Homebrew（コマンド 1 つ）
+### Homebrew
 
 ```sh
+brew tap DreamOfXM/diskwise https://github.com/DreamOfXM/diskwise
 brew install --cask dreamofxm/diskwise/diskwise
 ```
 
-サードパーティの tap からこれが通るのは完全修飾名のおかげです。Homebrew 6 以降、非公式 tap は既定で
-信頼されず、完全修飾名で入れるとこの cask だけが信頼されます。短い名前を使いたい場合：
+cask はこのリポジトリの `Casks/diskwise.rb` にあります。そのため tap は URL で指定する必要があり、
+`dreamofxm/diskwise` だけでは存在しない `homebrew-*` リポジトリを探しに行きます。tap したあとは
+完全修飾名で入れてください。Homebrew 6 以降、非公式 tap は既定で信頼されず、完全修飾名で入れると
+この cask だけが信頼されます。さらに求められた場合：
 
 ```sh
-brew tap DreamOfXM/diskwise
 brew trust --cask dreamofxm/diskwise/diskwise
 brew install --cask diskwise
 ```
 
-tap の詳細と、固定しているチェックサムの更新方法は
-[DreamOfXM/homebrew-diskwise](https://github.com/DreamOfXM/homebrew-diskwise) にあります。
+tap の詳細と、固定しているチェックサムの更新方法は [docs/homebrew.md](./docs/homebrew.md) にあります。
 
 Homebrew が入れるのは Releases ページにあるのと同じファイルです。v1.7 以降は Developer ID 証明書で
 署名し Apple に公証されているので、Gatekeeper に止められずダブルクリックで開けます。v1.7 より前の
