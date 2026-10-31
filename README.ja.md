@@ -44,6 +44,8 @@ brew install --cask dreamofxm/diskwise/diskwise
 ファイルを直接ダウンロードしたい場合は [最新の GitHub リリース](https://github.com/DreamOfXM/diskwise/releases/latest)
 —— 各リリースには DMG の SHA-256 が添えられています。
 
+もう諦めていた容量が戻ってきたなら、⭐ をひとつ。次に探す人は、それを見てここへ来ます。
+
 何を消しても大丈夫かを先に知りたい場合は [docs/safe-to-delete.md](./docs/safe-to-delete.md) ——
 macOS で容量を食う 80 か所を「それが何か / 消すとどうなるか / 間違えたときのコスト」付きで一覧にして
 います。アプリがスキャン時に実際に読むデータから生成したもので、表は中国語です（機械可読な原本は

@@ -26,6 +26,8 @@ brew install --cask dreamofxm/diskwise/diskwise
 
 **[Mac App Store](https://apps.apple.com/app/id6813265402)** · [DMG + SHA-256](https://github.com/DreamOfXM/diskwise/releases/latest) · [22-second demo](https://www.youtube.com/watch?v=0RfXNwNdzFg)
 
+If it won back space you'd written off, a ⭐ is how the next person finds it.
+
 English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 </div>
