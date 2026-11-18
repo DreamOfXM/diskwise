@@ -580,47 +580,59 @@ struct ContentView: View {
         .background(EscapeTap { scans.overview.disarm() })
     }
 
+    @State private var sidebarBand: CGFloat = 38
+
     // MARK: 侧边栏
 
     private var sidebar: some View {
+        // macOS 27 的 ScrollView 把标题栏让位（contentInsets）在渲染里再加一遍，布局/命中
+        // 只加一遍 → 画出来的行比能按的行低一条标题栏；26 只加一遍，没这问题。
+        // 所以让位不走 safe-area：内容自己垫标题栏高、浮条自己贴顶，高度跟窗口实时取。
         ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                sideSection(L("看清空间"), [.overview, .big, .old, .dup])
-                sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
-                sideSection(L("清理"), [.caches, .orphans, .uninstall, .trash])
-                // 诊断与转储：无命中整组不出现（设计稿屏①）。分组出现与否听 DiagnosticsHub 的
-                // 首轮定向遍历——那条遍历挂在启动节奏上，不靠用户先点进哪一页才发现自己有
-                // （评审 §2.2：侧栏计数不能鸡生蛋）。
-                if scans.diagnostics.hasFindings {
-                    sideSection(L("诊断与转储"), [.crashDumps, .diagReports])
-                }
-                // 观察区常驻：黑名单底账默认非空，透明度是 #7 要的效果，不是噪声。
-                sideSection(L("观察"), [.observation])
-                // 「AI」这一组只有直装渠道才有：这一页讲的是把随包附带的 `diskwise`
-                // 命令行挂进 AI 工具，而商店版压根不带那个文件（见 AgentCLILocation），
-                // 挂上去只会画出一屏「本包不含 CLI」的死路。
-                // 这是「渠道差异」的正当例外：不是功能开关，是沙盒物理做不到。
-                if !Channel.isAppStore {
-                    sideSection(L("AI"), [.agent])
-                }
-                // 第四组从「关于」改叫「设置」：皮肤和反馈挂在「关于」下是同一处错位——
-                // macOS 用户按 ⌘, 找的就是这一组（稿子①，2026-09-30 拍板）。
-                sideSection(L("设置"), [.appearance, .feedback, .menuLaunch])
-            }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) { sidebarSections }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, sidebarBand)
         }
+        .ignoresSafeArea(.container, edges: .top)
         .background(SidebarMaterial().ignoresSafeArea())
+        .overlay(alignment: .top) {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: sidebarBand)
+                ChromeStrip(leading: Chrome.trafficLightInset)
+            }
+            .background(SidebarMaterial())
+            .ignoresSafeArea(.container, edges: .top)
+            .background(TitlebandHeight(height: $sidebarBand))
+        }
+        .overlay(alignment: .bottom) { sidebarFooter }
         .disabled(grant.needsGrant)
         .opacity(grant.needsGrant ? 0.4 : 1)
-        // 红绿灯那一条用 safeAreaInset 而不是 VStack 兄弟节点：后者在 macOS 13 会把
-        // 整列撑到内容的理想高度，窗口不够高时上下各切一截（页头直接消失）。
-        // 让出来的这条铺上侧边栏材质，滚过头的内容从它底下穿过去，就是系统的滚动边缘效果。
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ChromeStrip(leading: Chrome.trafficLightInset).background(SidebarMaterial())
+    }
+
+    @ViewBuilder private var sidebarSections: some View {
+        sideSection(L("看清空间"), [.overview, .big, .old, .dup])
+        sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
+        sideSection(L("清理"), [.caches, .orphans, .uninstall, .trash])
+        // 诊断与转储：无命中整组不出现（设计稿屏①）。分组出现与否听 DiagnosticsHub 的
+        // 首轮定向遍历——那条遍历挂在启动节奏上，不靠用户先点进哪一页才发现自己有
+        // （评审 §2.2：侧栏计数不能鸡生蛋）。
+        if scans.diagnostics.hasFindings {
+            sideSection(L("诊断与转储"), [.crashDumps, .diagReports])
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { sidebarFooter }
+        // 观察区常驻：黑名单底账默认非空，透明度是 #7 要的效果，不是噪声。
+        sideSection(L("观察"), [.observation])
+        // 「AI」这一组只有直装渠道才有：这一页讲的是把随包附带的 `diskwise`
+        // 命令行挂进 AI 工具，而商店版压根不带那个文件（见 AgentCLILocation），
+        // 挂上去只会画出一屏「本包不含 CLI」的死路。
+        // 这是「渠道差异」的正当例外：不是功能开关，是沙盒物理做不到。
+        if !Channel.isAppStore {
+            sideSection(L("AI"), [.agent])
+        }
+        // 第四组从「关于」改叫「设置」：皮肤和反馈挂在「关于」下是同一处错位——
+        // macOS 用户按 ⌘, 找的就是这一组（稿子①，2026-09-30 拍板）。
+        sideSection(L("设置"), [.appearance, .feedback, .menuLaunch])
     }
 
     private func sideSection(_ title: String, _ panels: [AppPanel]) -> some View {
@@ -875,6 +887,19 @@ private struct SidebarMaterial: View {
         ZStack {
             ThemedBackdrop()
             theme.palette.paper.opacity(theme.elevation == .glass ? 0.62 : 0.55)
+        }
+    }
+}
+
+/// 标题栏让位的实时高度：macOS 27 实测 38、26 实测 52，写死会在另一代系统上错缝。
+private struct TitlebandHeight: NSViewRepresentable {
+    @Binding var height: CGFloat
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let w = nsView.window else { return }
+            let b = w.frame.height - w.contentLayoutRect.height
+            if abs(b - height) > 0.5 { height = b }
         }
     }
 }

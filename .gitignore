@@ -45,3 +45,15 @@ build_app/derived/
 opencode.json
 opencode.json.backup.*
 AGENTS.md.backup.*
+
+# ── 开发专用旁路工具：不进发布包、不提交、不 push ──────────────────────
+# 下面这些是给「扫描测速」用的独立命令行工具，不是产品功能，build.sh 也不会
+# 把它们拷进任何 .app/.dmg/.pkg。留在这儿只为别误提交。
+Sources/ScanBench/
+
+# 反例，务必别跟着忽略/搬走：SnapshotMode.swift 看着像「拍宣传图的工具」，
+# 其实它是产品的承重结构——19 个界面文件读它的 SnapshotMode.* 静态量
+# （此刻是不是在拍图、用哪套皮肤/语言/窗口、冻不冻动画、假家目录）。
+# 它随产品编译、已提交，移走或忽略会直接编译失败。真要隔离宣传工具，
+# 该拆的是「拍图运行器」那部分（SCShareableContent 抓屏 + 逐页存 PNG），
+# 把它挪成独立 target，而 SnapshotMode 的静态开关必须留在 App 里。
