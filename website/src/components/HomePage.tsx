@@ -4,7 +4,7 @@ import { Faq } from "@/components/Faq";
 import { Features } from "@/components/Features";
 import { Hero } from "@/components/Hero";
 import { Install } from "@/components/Install";
-import { SiteFooter, SiteNav } from "@/components/SiteNav";
+import { NewsletterStrip, SiteFooter, SiteNav } from "@/components/SiteNav";
 import { StarCta } from "@/components/StarCta";
 import type { Locale } from "@/data/content";
 import { LocaleProvider } from "@/locale";
@@ -16,6 +16,7 @@ export function HomePage({ locale }: { locale: Locale }) {
         <SiteNav />
         <main>
           <Hero />
+          <NewsletterStrip />
           <Differentiators />
           <Competitors />
           <Features />

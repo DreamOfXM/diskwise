@@ -1,8 +1,6 @@
 // 多语言内容层：四个语言的全部文案集中在此维护。
 // zh 为源语言（对照 site.ts 中的链接常量）；en/ja/ko 与 README 的四语保持同源口径。
 // 新增语言：复制一份 zh 对象翻译，再在 LOCALES / routes / HTML 入口三处注册。
-import demoGifEn from "@/assets/demo-overview-en.gif";
-import demoGifZh from "@/assets/demo-overview-zh.gif";
 import { BREW_CMD } from "./site";
 
 export type Locale = "zh" | "en" | "ja" | "ko";
@@ -77,7 +75,7 @@ export interface SiteContent {
 
 const zh: SiteContent = {
   htmlLang: "zh-CN",
-  demoGif: demoGifZh,
+  demoGif: `${import.meta.env.BASE_URL}demo-overview-zh.gif`,
   nav: [
     { href: "#why", label: "为什么" },
     { href: "#market", label: "竞品" },
@@ -249,7 +247,7 @@ const zh: SiteContent = {
 
 const en: SiteContent = {
   htmlLang: "en",
-  demoGif: demoGifEn,
+  demoGif: `${import.meta.env.BASE_URL}demo-overview-en.gif`,
   nav: [
     { href: "#why", label: "Why" },
     { href: "#market", label: "Compare" },
@@ -421,7 +419,7 @@ const en: SiteContent = {
 
 const ja: SiteContent = {
   htmlLang: "ja",
-  demoGif: demoGifEn,
+  demoGif: `${import.meta.env.BASE_URL}demo-overview-en.gif`,
   nav: [
     { href: "#why", label: "選ばれる理由" },
     { href: "#market", label: "競合比較" },
@@ -593,7 +591,7 @@ const ja: SiteContent = {
 
 const ko: SiteContent = {
   htmlLang: "ko",
-  demoGif: demoGifEn,
+  demoGif: `${import.meta.env.BASE_URL}demo-overview-en.gif`,
   nav: [
     { href: "#why", label: "왜 DiskWise" },
     { href: "#market", label: "경쟁 비교" },

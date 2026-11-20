@@ -54,10 +54,10 @@ export function Hero() {
               type="button"
               title={t.hero.brewTitle}
               onClick={copyBrew}
-              className="group flex flex-1 items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-4 py-3 text-left font-mono text-[13px] text-foreground/90 transition hover:border-sky-400/50 hover:bg-card"
+              className="group flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-xl border border-border/70 bg-card/70 px-4 py-3 text-left font-mono text-[13px] text-foreground/90 transition hover:border-sky-400/50 hover:bg-card"
             >
               <Terminal className="h-4 w-4 shrink-0 text-sky-400" />
-              <span className="truncate">{BREW_CMD}</span>
+              <span className="w-0 flex-1 truncate">{BREW_CMD}</span>
               <span className="ml-auto shrink-0 text-muted-foreground transition group-hover:text-foreground">
                 {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
               </span>
@@ -100,7 +100,7 @@ export function Hero() {
         </div>
 
         {/* Demo 动图：随语言选择对应版本，失败时展示可点击的兜底入口 */}
-        <div className="relative">
+        <div className="relative w-full">
           <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-sky-400/15 via-violet-400/10 to-transparent blur-xl" />
           <figure className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl shadow-black/40">
             <img
@@ -119,7 +119,7 @@ export function Hero() {
               href={`${REPO}/blob/main/docs/demo/overview-en.gif`}
               target="_blank"
               rel="noreferrer"
-              className="demo-fallback hidden flex aspect-video w-full flex-col items-center justify-center gap-2 px-8 text-center transition hover:bg-card"
+              className="demo-fallback hidden flex aspect-video w-full min-h-72 flex-col items-center justify-center gap-2 px-8 text-center transition hover:bg-card"
             >
               <Play className="h-8 w-8 text-sky-400" />
               <span className="text-sm font-medium">{t.hero.fallbackTitle}</span>

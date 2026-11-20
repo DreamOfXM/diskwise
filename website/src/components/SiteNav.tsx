@@ -132,6 +132,45 @@ export function SiteNav({
   );
 }
 
+export function NewsletterStrip() {
+  const { t } = useContent();
+  if (!BUTTONDOWN_USER) return null;
+  return (
+    <section aria-label={t.newsletter.label} className="border-y border-border/60 bg-card/40">
+      <div className="mx-auto flex max-w-6xl flex-col items-start gap-4 px-6 py-6 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t.newsletter.label}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.newsletter.desc}</p>
+        </div>
+        <form
+          className="flex w-full max-w-md gap-2 sm:ml-auto"
+          action={`https://buttondown.email/api/emails/embed-subscribe/${BUTTONDOWN_USER}`}
+          method="post"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <input
+            className="h-10 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-sky-400"
+            type="email"
+            name="email"
+            required
+            placeholder={t.newsletter.placeholder}
+            aria-label={t.newsletter.label}
+          />
+          <button
+            className="h-10 shrink-0 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            type="submit"
+          >
+            {t.newsletter.action}
+          </button>
+        </form>
+      </div>
+      <p className="mx-auto max-w-6xl px-6 pb-5 text-xs text-muted-foreground/70 sm:-mt-3">{t.newsletter.note}</p>
+    </section>
+  );
+}
+
+
 export function SiteFooter() {
   const { locale, t } = useContent();
   const footerLinks = [RELEASES, APP_STORE, REPO, READMES[locale] ?? READMES.zh];
@@ -149,52 +188,19 @@ export function SiteFooter() {
           <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">{t.footer.desc}</p>
           <p className="mt-4 font-mono text-xs text-muted-foreground/70">{t.footer.meta}</p>
         </div>
-        <div className="grid gap-10 sm:col-span-2 sm:grid-cols-2 sm:justify-self-end">
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t.footer.getLabel}
-            </h4>
-            <ul className="mt-4 space-y-2.5 text-sm">
-              {t.footer.links.map((l, i) => (
-                <li key={l.label}>
-                  <a className="transition hover:text-sky-400" href={footerLinks[i]} target="_blank" rel="noreferrer">
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          {BUTTONDOWN_USER && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {t.newsletter.label}
-              </h4>
-              <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{t.newsletter.desc}</p>
-              <form
-                className="mt-4 flex max-w-xs gap-2"
-                action={`https://buttondown.email/api/emails/embed-subscribe/${BUTTONDOWN_USER}`}
-                method="post"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <input
-                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-sky-400"
-                  type="email"
-                  name="email"
-                  required
-                  placeholder={t.newsletter.placeholder}
-                  aria-label={t.newsletter.label}
-                />
-                <button
-                  className="h-9 shrink-0 rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-                  type="submit"
-                >
-                  {t.newsletter.action}
-                </button>
-              </form>
-              <p className="mt-2 text-xs text-muted-foreground/70">{t.newsletter.note}</p>
-            </div>
-          )}
+        <div className="sm:justify-self-end">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t.footer.getLabel}
+          </h4>
+          <ul className="mt-4 space-y-2.5 text-sm">
+            {t.footer.links.map((l, i) => (
+              <li key={l.label}>
+                <a className="transition hover:text-sky-400" href={footerLinks[i]} target="_blank" rel="noreferrer">
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
       <div className="border-t border-border/40 py-5 text-center text-xs text-muted-foreground/70">
