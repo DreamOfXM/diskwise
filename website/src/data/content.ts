@@ -66,6 +66,13 @@ export interface SiteContent {
     copyright: string;
     langLabel: string;
   };
+  newsletter: {
+    label: string;
+    desc: string;
+    placeholder: string;
+    action: string;
+    note: string;
+  };
 }
 
 const zh: SiteContent = {
@@ -230,6 +237,13 @@ const zh: SiteContent = {
     ],
     copyright: "© 2026 DreamOfXM · DiskWise 为独立开源项目，与 MacPaw CleanMyMac、tw93 Mole 无隶属关系",
     langLabel: "语言",
+  },
+  newsletter: {
+    label: "新版本提醒",
+    desc: "留下邮箱，新版本发布时第一时间告诉你。不发广告，随时可退。",
+    placeholder: "你的邮箱",
+    action: "订阅",
+    note: "仅发版通知 · 随时退订",
   },
 };
 
@@ -396,6 +410,13 @@ const en: SiteContent = {
     copyright: "© 2026 DreamOfXM · DiskWise is an independent open-source project, not affiliated with MacPaw CleanMyMac or tw93's Mole",
     langLabel: "Language",
   },
+  newsletter: {
+    label: "Release alerts",
+    desc: "Get an email when a new version ships. No marketing, unsubscribe anytime.",
+    placeholder: "you@example.com",
+    action: "Subscribe",
+    note: "Release notices only · unsubscribe anytime",
+  },
 };
 
 const ja: SiteContent = {
@@ -561,6 +582,13 @@ const ja: SiteContent = {
     copyright: "© 2026 DreamOfXM · DiskWise は独立したオープンソースプロジェクトで、MacPaw CleanMyMac および tw93 の Mole とは関係ありません",
     langLabel: "言語",
   },
+  newsletter: {
+    label: "新バージョンのお知らせ",
+    desc: "新版がリリースされたらすぐお知らせします。広告なし、いつでも解除できます。",
+    placeholder: "メールアドレス",
+    action: "登録する",
+    note: "リリース通知のみ · いつでも解除できます",
+  },
 };
 
 const ko: SiteContent = {
@@ -725,6 +753,13 @@ const ko: SiteContent = {
     ],
     copyright: "© 2026 DreamOfXM · DiskWise는 독립적인 오픈소스 프로젝트이며 MacPaw CleanMyMac 및 tw93의 Mole과 무관합니다",
     langLabel: "언어",
+  },
+  newsletter: {
+    label: "새 버전 알림",
+    desc: "새 버전이 나오면 바로 알려드립니다. 광고 없이, 언제든 구독 해지할 수 있습니다.",
+    placeholder: "이메일 주소",
+    action: "구독",
+    note: "릴리스 알림만 · 언제든 구독 해지 가능",
   },
 };
 

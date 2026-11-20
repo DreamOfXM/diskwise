@@ -16,6 +16,8 @@ export const VIDEO = "https://www.youtube.com/watch?v=0RfXNwNdzFg";
 // 反馈渠道与 README 保持同源：邮件 + GitHub Issue（中英文都行）
 export const ISSUES = "https://github.com/DreamOfXM/diskwise/issues";
 export const FEEDBACK_EMAIL = "hnyxgxm2009@163.com";
+// Buttondown 订阅账号(注册 https://buttondown.com 后填用户名; 留空 = 全站隐藏订阅块)
+export const BUTTONDOWN_USER = "";
 // 各语言 README（与仓库根目录文件一一对应）
 export const READMES: Record<string, string> = {
   zh: `${REPO}/blob/main/README.zh-CN.md`,
