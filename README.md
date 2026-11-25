@@ -51,35 +51,30 @@ English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한
 </details>
 
 <details>
-<summary><b>What's new in v2.3</b> — one incident: 2,674 crash dumps in 57 seconds</summary>
+<summary><b>What's new in v2.4</b> — one page now says what you can actually delete</summary>
 
-v2.3 came out of one incident: 2,674 crash dumps landed in Chrome's Crashpad folder in 57 seconds.
-Every tool on that machine said "Chrome", and none of them were lying — the folder was Chrome's and
-so was the executable path inside each dump. What put Chrome into a crash loop was something else
-entirely, and the only place that said so was the environment captured inside the dumps themselves.
-This release is built so that the same event reads itself off the screen instead of leaving you to
-guess.
+The scan has always told you what was big. v2.4 tells you what is big *and* no longer needed,
+and when something cannot be removed, what is standing in the way.
 
-- **Crash dumps get named, not just counted.** Crashpad folders are recognized by their structure
-  wherever an engine writes them, and attributed to the app that hosts the path. A look-alike folder
-  without that structure is never flagged; it goes to a read-only list instead.
-- **How fast something is growing, without a daemon.** Every scan leaves a snapshot, so each entry is
-  compared with the previous one. A burst gets a red badge — the incident above reads back as
-  +2,674 files in under a minute — slow accumulation gets amber, and a folder you cleared
-  shows up as a decrease rather than an alarm.
-- **What was actually driving it (off by default).** Turn on *Content probe* under *Diagnostics* in
-  Settings (⌘,) and DiskWise reads the headers of a few sample dumps: the executable path, the
-  bundle identifier, and any agent session fingerprints. In the incident above, that is the only place
-  the real name appears. Fingerprints always display redacted and nothing leaves the machine.
-- **Trim by retention.** The first time the category appears you're offered "keep the newest 2,000" —
-  adopt it or dismiss it, one click either way, and nothing ever runs by itself. The preview is the
-  result, whole batches undo, and the folder skeleton stays in place.
-- **A home for what we only observe.** Everything the scan can see but this tool will never delete —
-  system areas, admin-only report folders, look-alikes — now has a read-only page, each row carrying
-  the reason it isn't offered.
+- **A page for what you no longer need.** Apps you have not opened in months, old backups and
+  snapshots, stale session logs, superseded copies of a tool, installers you kept after installing,
+  data an uninstalled app left behind, projects nothing has touched. Every row lands in one of four
+  bands — safe to delete, look first, cannot be moved, leave alone — with the reason spelled out
+  under the row.
+- **Every verdict shows its evidence.** How long the thing has been idle, and where that number came
+  from: the newest file inside it, the container's own date, or the system's last-used record. One
+  file's modification time is never treated as the whole story.
+- **Physical size, not apparent size.** Allocation is measured in disk blocks. A 460 GB disk image
+  that really occupies 18 GB reports 18 GB everywhere, totals and percentages included.
+- **The caches sitting at the root of the data volume.** The Spotlight index, the document version
+  store and the fsevents log are scanned now, and each one carries the exact command that removes it.
+- **"Needs admin" is not "cannot be deleted".** A folder that only asks for a password used to be
+  scored as blocked, which made your own applications look permanently stuck.
+- **The same answers over the CLI and MCP.** `diskwise unused`, `diskwise report`, `diskwise
+  overview`, and a `scan_unused` tool for agents — the verdict and its reason travel together.
 
-v2.2 taught the scan to recognize the model caches that live inside your own projects, and to identify
-an engine's self-managed cache by its layout on disk rather than by name.
+v2.3 came out of one incident: 2,674 crash dumps landed in Chrome's Crashpad folder in 57 seconds,
+and every tool on that machine said "Chrome" while the dumps themselves said otherwise.
 
 </details>
 
