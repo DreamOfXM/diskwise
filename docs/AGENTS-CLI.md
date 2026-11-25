@@ -270,6 +270,18 @@ Homebrew 用户：cask 提供 `diskwise` 命令（发新版起加入 `binary` �
 - `blocked_reason` 是枚举：`needs_fda` / `needs_admin` / `sip` / `readonly_volume` / `in_use` /
   `functional_dependency`。`user_action` 写明人该怎么处理；「需要管理员密码」不算删不掉——那只是
   要人自己输一次密码。
+- **系统缓存（`kind` 为 `system_index` / `version_history`）的量出 0 字节不等于空的。**
+  `/System/Volumes/Data/.Spotlight-V100`、`.DocumentRevisions-V100`、`.fseventsd` 的所有者是
+  root 或 `_mds_stores`，普通权限读不到体积，返回 `blocked_reason: needs_admin` 并在 `user_action`
+  里给出 `sudo` 测量命令。**不要因为 0 字节就跳过这一条**——实测一台机器上 Spotlight 索引涨到
+  47 GB（三百万文件正常 2~5 GB），是整机最大的单块可清项，而它既不在家目录、也不在任何应用的
+  缓存路径，只有这类专门的探测能看到。
+- 判断索引该不该清，看的是**比它该有的大多少**，不是「多久没动」：索引天天在写，按时间判会判成
+  「刚用过」。超过 8 GB（索引）/ 2 GB（版本历史）才提示。
+- 清 Spotlight 索引必须用完整序列：`sudo mdutil -i off / && sudo killall mds mds_stores;
+  sudo rm -rf <path>; sudo mdutil -i on /`。**`sudo mdutil -E /` 单独用不够**——它只标记重建，
+  旧索引原地不动，空间一个字节都不回来（实测还新写了 6 GB）。`user_action` 里已经写死这一点，
+  照抄即可。
 
 `scan_project_assets` 的关键口径：
 - 硬链接按 APFS 文件 ID 去重——HuggingFace 的 `snapshots/` 和 `blobs/` 共享块，只算一次；

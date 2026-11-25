@@ -2318,5 +2318,17 @@ check(AdviceScanner.quickView(name: "~/openclaw-private-backup",
 check(AdviceScanner.quickView(name: "~/.zcode", path: home + "/.zcode").kind == "hidden_tool_data",
       "分类：隐藏的工具数据目录单独一档")
 
+// 系统缓存的判定：路径长得像 /System 不等于被 SIP 护着。
+// `/System/Volumes/Data` 是可写的数据卷，Spotlight 索引就在它根下。
+// 判错方向很要命：判成 SIP 就等于告诉用户「这块动不了」，而它恰好是最大的一块可清空间。
+check(!AdviceScanner.isSIPProtected("/System/Volumes/Data/.Spotlight-V100"),
+      "系统缓存：Data 卷下的 Spotlight 索引不算 SIP 保护")
+check(!AdviceScanner.isSIPProtected("/System/Volumes/Data/.DocumentRevisions-V100"),
+      "系统缓存：Data 卷下的版本历史不算 SIP 保护")
+check(AdviceScanner.isSIPProtected("/System/Library/CoreServices"),
+      "系统缓存：密封系统卷里的东西仍然算 SIP 保护")
+check(AdviceScanner.isSIPProtected("/usr/bin/swift"),
+      "系统缓存：/usr 仍然算 SIP 保护")
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

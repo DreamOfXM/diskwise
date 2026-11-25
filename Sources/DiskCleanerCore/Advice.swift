@@ -137,6 +137,9 @@ public enum AdviceScanner {
         /// 版本号比较用：同一工具里排序取最新
         var version: String?
         var groupKey: String?
+        /// 以普通用户身份连读都读不了（root 或系统服务独占）。
+        /// 这类项即使量出 0 字节也不能当「空的」丢掉——真实体积要靠 sudo 才看得见。
+        var needsRoot: Bool = false
     }
 
     /// 目录名里带这些词的，按「备份/快照」处理：时间基准切到容器。
@@ -157,6 +160,19 @@ public enum AdviceScanner {
     /// SIP 保护区：给出正确原因，别让人白输密码。
     private static let sipPrefixes = ["/System/", "/usr/", "/bin/", "/sbin/",
                                       "/Library/Apple/", "/private/var/db/"]
+
+    /// 路径是不是真的被 SIP 护着。
+    ///
+    /// `/System/Volumes/Data` 是数据卷上的一层，只是路径长得像系统卷——它可写、
+    /// 里面的东西能删。不排掉它，Data 卷根下所有东西（包括那个涨到 47 GB 的
+    /// Spotlight 索引）都会被说成「SIP 保护，动不了」，而它们其实是整台机器上
+    /// 最容易腾的一批。误判方向刚好相反：把能删的说成不能删，比漏报更误导。
+    public static func isSIPProtected(_ path: String) -> Bool {
+        if path == "/System/Volumes/Data" || path.hasPrefix("/System/Volumes/Data/") {
+            return false
+        }
+        return sipPrefixes.contains { path.hasPrefix($0) }
+    }
 
     // MARK: - 入口
 
@@ -232,6 +248,8 @@ public enum AdviceScanner {
             cands.append(contentsOf: orphanAppData(home: home))
             cands.append(contentsOf: bigFiles(home: home))
             cands.append(contentsOf: installerImages(home: home))
+            // Data 卷根目录的系统缓存：不在家目录、不在应用缓存路径，前四类都碰不到。
+            cands.append(contentsOf: systemCacheCandidates())
         }
 
         let filtered = cands.filter { c in
@@ -242,7 +260,9 @@ public enum AdviceScanner {
         var seenPaths = Set<String>()
         let unique = filtered.filter { seenPaths.insert($0.path).inserted }
         let items = await measure(unique, now: now, staleDays: staleDays)
-            .filter { $0.physicalBytes >= minBytes }
+            // 系统缓存即使量出 0 字节也保留：0 的含义常常是「没权限量」，
+            // 不是「空的」。把这条藏起来，用户就永远不知道那里可能有几十 G。
+            .filter { $0.physicalBytes >= minBytes || $0.kind == "system_index" || $0.kind == "version_history" }
             .sorted { $0.physicalBytes > $1.physicalBytes }
 
         let totals = totalsOf(items)
@@ -329,6 +349,47 @@ public enum AdviceScanner {
             } else if backupWords.contains(where: { lower.contains($0) }) {
                 add(p, k, backup: true)
             }
+        }
+        return out
+    }
+
+    /// Data 卷根目录下的系统缓存。
+    ///
+    /// 这些东西既不在家目录、也不在任何应用的缓存路径里，所以「按用户目录找」和
+    /// 「按应用找」两种扫法都看不见它们——这正是它们能长到几十 GB 却不被发现的原因。
+    ///
+    /// 实测这台机器：`.Spotlight-V100` 涨到 **47 GB**（三百万文件正常只要 2~5 GB），
+    /// 是整机最大的单块可清项；而它的目录时间天天在变，按「多久没动」判会判成「刚刚用过」。
+    /// 索引跟「新不新」无关，只跟「比它该有的大多少」有关。
+    ///
+    /// 所有权是 root 或 `_mds_stores`，普通权限连读都读不了。所以量不到 0 字节时
+    /// 不能当空的丢掉——照实说「要 root 才能量」，并给出能直接复制的命令。
+    private static func systemCacheCandidates() -> [Candidate] {
+        let dataRoot = "/System/Volumes/Data"
+        // (目录名, 显示名, 类别, 正常上限字节)
+        let known: [(String, String, String, Int64)] = [
+            (".Spotlight-V100", "Spotlight index", "system_index", 8_000_000_000),
+            (".DocumentRevisions-V100", "Document version history", "version_history", 2_000_000_000),
+            (".fseventsd", "Filesystem event log", "system_index", 2_000_000_000),
+        ]
+        var out: [Candidate] = []
+        for (dir, label, kind, normalMax) in known {
+            let p = (dataRoot as NSString).appendingPathComponent(dir)
+            guard isDirectory(p) else { continue }
+            out.append(Candidate(
+                path: p, name: label, kind: kind,
+                regenerable: true,
+                restore: kind == "system_index"
+                    ? "macOS rebuilds this automatically after it is removed; search is unavailable "
+                        + "until the rebuild finishes (from minutes to a few hours on a large disk)."
+                    : "This is a record of past edits. Removing it frees space but the old versions "
+                        + "of documents are gone for good.",
+                whyHint: "Lives at the root of the Data volume, outside every home folder and app "
+                    + "cache path, so scans that walk ~ and /Applications never see it. "
+                    + "Normal size is up to \(human(normalMax)); anything far above that is bloat, "
+                    + "not data. Its own timestamp changes daily, so age says nothing here.",
+                useContainerDate: false, lastUsed: nil, version: nil, groupKey: nil,
+                needsRoot: true))
         }
         return out
     }
@@ -626,7 +687,7 @@ public enum AdviceScanner {
         var blocked: AdviceBlock = .none
         if isReadOnlyVolume(path) {
             blocked = .readonlyVolume
-        } else if sipPrefixes.contains(where: { path.hasPrefix($0) }) {
+        } else if isSIPProtected(path) {
             blocked = .sip
         } else if c.kind == "unused_app", protectedAppPrefixes.contains(where: { path.hasPrefix($0) }) {
             blocked = .functionalDependency
@@ -634,6 +695,13 @@ public enum AdviceScanner {
 
         let needsAdmin = blocked == .none && !isWritable(path)
         let running = c.kind == "unused_app" && isRunning(path)
+
+        // 系统缓存（Spotlight 索引、版本历史）的所有者是 root 或系统服务：
+        // 量出 0 字节几乎总是「没权限读」，不是「里面空的」。这两种情况必须分开，
+        // 否则最大的那一块会被当成 0 悄悄丢掉——这台机器上它值 47 GB。
+        let couldNotRead = c.needsRoot && scan.bytes == 0
+            && !(scan.needAdmin.isEmpty && scan.needFullDiskAccess.isEmpty)
+        if couldNotRead && blocked == .none { blocked = .needsAdmin }
 
         // 该不该动：分档
         var verdict: AdviceVerdict
@@ -666,6 +734,12 @@ public enum AdviceScanner {
                 verdict = days >= max(90, staleDays) ? .review : .keep
             case "large_file":
                 verdict = days >= staleDays ? .review : .keep
+            case "system_index":
+                // 索引的价值跟「多久没动」无关——它天天在写。只看「比该有的大多少」：
+                // 三百万文件正常 2~5 GB，超过 8 GB 就是膨胀，重建能直接拿回几十 G。
+                verdict = scan.bytes > 8_000_000_000 ? .review : .keep
+            case "version_history":
+                verdict = scan.bytes > 2_000_000_000 ? .review : .keep
             default:
                 verdict = .keep
             }
@@ -684,6 +758,10 @@ public enum AdviceScanner {
         }
         if days < 0 {
             why += " No reliable timestamp could be read, so nothing is claimed about age."
+        }
+        if couldNotRead {
+            why += " Its size could not be read without root, so 0 bytes here means "
+                + "'not measured' — not 'empty'."
         }
         if sparse {
             why += " Sparse: reports \(human(scan.logicalBytes)) of file sizes but occupies only "
@@ -712,6 +790,21 @@ public enum AdviceScanner {
             } else if needsAdmin {
                 action = "Needs admin: drag it to the Trash in Finder and authenticate, or `sudo rm -rf \"\(path)\"`."
             }
+        }
+
+        // 系统缓存必须给出可以直接粘贴的命令，而且要把「mdutil -E 不够」写进去：
+        // 它就是不够——实测跑完只标记重建，47 GB 一个字节都没回来，还新写了 6 GB。
+        // 只给「重建索引」四个字，用户照做会发现空间没变，然后不再信任任何建议。
+        if c.kind == "system_index" {
+            let measured = scan.bytes > 0 ? human(scan.bytes) : "unmeasured (needs root)"
+            action = "Size now: \(measured). Measure: `sudo du -shx \"\(path)\"`. "
+                + "To actually get the space back, use the full sequence — `sudo mdutil -E /` alone "
+                + "only marks a rebuild and LEAVES the old index in place, so nothing is freed: "
+                + "`sudo mdutil -i off / && sudo killall mds mds_stores; sudo rm -rf \"\(path)\"; "
+                + "sudo mdutil -i on /`. Verify afterwards with `df -h /System/Volumes/Data`."
+        } else if c.kind == "version_history" {
+            action = "Measure: `sudo du -shx \"\(path)\"`. These are earlier versions of documents; "
+                + "removing them frees space, but those versions are gone for good."
         }
 
         return UnusedItem(

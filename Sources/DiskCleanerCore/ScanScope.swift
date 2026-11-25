@@ -42,7 +42,17 @@ public func systemScanRoots() -> [URL] {
     let base = homeIsDemo ? homePath() : ""
     let names = ["Applications", "Library", "opt", "private", "usr/local",
                  "System/Volumes/Data/System"]
-    let roots = names
+    // 数据卷根下的系统缓存。它们不在家目录、不在任何应用的缓存路径，上面那六个根
+    // 一个都盖不到；漏掉的代价不是「少报一点」——实测一台机器上 Spotlight 索引涨到
+    // 47 GB，因为扫不到，整盘账只能把它归进「数据卷内部块」，然后标成「不可删」。
+    // 那等于把最大的一块可清空间说成系统地基。
+    //
+    // 所有者是 root 或 _mds_stores，普通权限读不到体积：这里的 0 字节含义是
+    // 「没量到」，调用方必须看 unreadable 才能下结论，不能当空目录吞掉。
+    let systemCaches = ["System/Volumes/Data/.Spotlight-V100",
+                        "System/Volumes/Data/.DocumentRevisions-V100",
+                        "System/Volumes/Data/.fseventsd"]
+    let roots = (names + systemCaches)
         .map { URL(fileURLWithPath: base.isEmpty ? "/\($0)" : "\(base)/\($0)", isDirectory: true) }
         .filter(isDirectory)
     return roots + otherHomeRoots(base: base)
