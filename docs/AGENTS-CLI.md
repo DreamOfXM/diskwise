@@ -36,7 +36,11 @@
 ## 命令
 
 ```
+diskwise overview [--json]                    # 整盘账：空间到底去哪了
 diskwise scan [--category all|dev|ai_models|apps] [--min 100MB] [--json]
+diskwise project-assets [--roots DIR...] [--min 100MB] [--stale-days 90] [--json]
+diskwise unused [--min 200MB] [--stale-days 90] [--roots DIR...] [--json]
+diskwise grant-access                        # 打开完全磁盘访问授权页
 diskwise explain <path> [--json]
 diskwise plan <path>... [--i-am-human] [--json]
 diskwise trash --plan <plan_id> [--json]     # 只认 plan_id
@@ -229,7 +233,11 @@ Homebrew 用户：cask 提供 `diskwise` 命令（发新版起加入 `binary` �
 
 | 工具 | 说明 |
 |---|---|
-| `scan_disk(category?, min_bytes?)` | 只读：扫知识库认识的位置并量体积 |
+| `disk_overview()` | 只读：整盘账——每块空间都有归属（闭合账，没有「没量到」的黑洞）、按体积排序的位置清单、以及一个 `access` 字段：哪些目录因权限读不到、当前有没有完全磁盘访问、下一步怎么授权。回答「磁盘空间都去哪了」用它 |
+| `open_access_settings()` | 打开系统设置「隐私与安全性 → 完全磁盘访问权限」。当 `disk_overview` 报读不到的目录时调它——macOS 不允许程序自己授权，必须由人勾；勾完要**重启 MCP server** 新权限才生效，然后重扫 |
+| `scan_disk(category?, min_bytes?)` | 只读：**只能删的清单**——知识库认识的位置，不是整盘用量。它的合计远小于盘的已用空间，这是设计如此；要查空间去向用 `disk_overview` |
+| `scan_project_assets(roots?, min_bytes?, stale_days?)` | 只读：**白名单看不到的那部分**——项目内部的可再生资产（模型权重、node_modules、.venv、构建产物、历史跑分）。按 inode 去重硬链接（HuggingFace 的 snapshots/blobs 只算一次），每个资产带大小、多久没动（stale_days）、类型和恢复方式。回答「过期的、不是缓存的垃圾在哪」用它，通常比 `scan_disk` 挖出的多。把报出的路径交给 `plan_cleanup` 才真正腾空间 |
+| `scan_unused(roots?, min_bytes?, stale_days?)` | 只读：**建议层**——很久没打开的应用、旧会话历史、备份/快照、同一工具的多个版本、装完没删的安装包、没人管的旧项目、应用卸载后留下的数据、废纸篓。每条带 `recommend`：`safe`（删了不丢东西）/ `review`（大概率没用但存着数据）/ `keep`（在用或太新）/ `blocked`（真的动不了，附 `blocked_reason` 与 `user_action`）。体积是物理占盘，稀疏项另有标注。**只给建议，不删任何东西** |
 | `explain_path(path)` | 只读：一个路径的完整画像与拒绝原因 |
 | `plan_cleanup(paths[])` | 只读：生成计划。**description 要求模型把摘要给用户看、取得同意后再执行** |
 | `execute_cleanup(plan_id)` | 按计划移入废纸篓（可撤销，`destructiveHint: false`） |
@@ -239,8 +247,46 @@ Homebrew 用户：cask 提供 `diskwise` 命令（发新版起加入 `binary` �
 | `diag_velocity()` | 只读：每个崩溃转储条目「本次 vs 上一轮」的增长差；`tier: fast`（突发）/ `growth`（长间隔累积） |
 | `diag_probe(path)` | 只读：一个崩溃转储目录的内容归属（读样本文件头 64 KB，指纹永远脱敏输出）。本地「内容探针」开关关闭时拒绝 |
 
+**四个工具各管一段，别拿错**：
+- `disk_overview` 回答「盘满是因为什么」（整盘量体积，每块有归属）。
+- `scan_disk` 回答「哪些缓存能安全删」（知识库白名单固定路径）。
+- `scan_project_assets` 回答「项目里那些过期的、非缓存的东西能不能删」（模型权重、依赖、构建产物、旧跑分）——这部分白名单永远扫不到，在一台开发机上常常是最大的可腾空间。
+- `scan_unused` 回答「还有什么是我不要了的」（应用、会话、备份、旧版本、安装包、旧项目）——它给结论，不动手。
+
+`scan_disk` 在 500 GB 的盘上常常只报几十 GB，那不是漏扫——它本来就只管白名单里那部分。
+把它的合计当成盘的已用空间，或当成全部可删空间，都会得出错误结论。
+**要列全「能删什么」，三个都要调**：`scan_disk` + `scan_project_assets` + `scan_unused`；
+`disk_overview` 只是空间去向账。四个工具的 description 和返回文本里都写明了边界。
+
+`scan_unused` 的关键口径：
+- 体积是物理占盘（`physical_bytes`，st_blocks×512），另给 `logical_bytes`。两者差一个量级就是稀疏
+  文件（虚拟机磁盘、预留日志）——删它腾不出它号称的那么多，返回里会直接写明。
+- `stale_days` 一定配 `stale_basis`：`file_mtime`（按内部最新文件）/ `container_date`（按备份/快照
+  容器自身的日期）/ `last_used_date`（按系统记的上次打开）。**备份目录必须看 container_date**——
+  快照里的文件保留着原始旧时间，按文件时间判会把昨天刚备份的记忆说成两年前的老东西。
+- 应用的上次打开时间在 macOS 上经常是 `(null)`，而且偶尔是假的（索引活动会刷新它）。拿不到就退回
+  文件时间并在 `why` 里说明，不编一个日期。
+- `blocked_reason` 是枚举：`needs_fda` / `needs_admin` / `sip` / `readonly_volume` / `in_use` /
+  `functional_dependency`。`user_action` 写明人该怎么处理；「需要管理员密码」不算删不掉——那只是
+  要人自己输一次密码。
+
+`scan_project_assets` 的关键口径：
+- 硬链接按 APFS 文件 ID 去重——HuggingFace 的 `snapshots/` 和 `blobs/` 共享块，只算一次；
+  删除时必须删整个 `hf/hub`，只删 snapshots 不会真正释放空间（返回里写明了）。
+- `stale_days` 过滤「至少 N 天没动过」的资产（按目录内最新文件算）。传 90 只看真正陈旧的。
+- `roots` 默认扫家目录顶层（不含 Library，那是 `scan_disk` 的地盘）；可传绝对目录数组缩小范围、提速。
+- `state/`、`runtime/` 这类运行数据不归为资产，不会出现在这个工具里——它们不是可再生的。
+
 业务错误（被拒、过期、超限）以 `isError: true` 的结果返回并附下一步指引
 （例如 `plan_expired` → 重新 `plan_cleanup`）。
+
+**读不全时怎么办**：`disk_overview` 的每个位置带 `need_full_disk_access` / `need_admin`
+（读不到的目录**个数**，不是字节——读不到就没法编一个体积）。整体状态在 `access`：
+`has_full_disk_access`、`need_full_disk_access_dirs`、`need_admin_dirs`、`next_step`、`settings_url`。
+看到非 0 就告诉用户「这些目录读不到，所以报的体积是下限」，然后调 `open_access_settings`
+打开授权页。关键顺序：**用户勾完 → 重启 MCP server → 重扫**，macOS 只把授权给到新进程。
+`need_admin_dirs` 是 root 或其他用户才能读的（系统数据、别人的家目录），不归这个授权管，
+也不该删——如实报，别承诺能修。CLI 里同样的动作是 `diskwise grant-access`。
 
 诊断三工具的边界：**只读，不提供删除或修剪**。一次性清理仍走 `plan_cleanup` / `execute_cleanup`
 那条两步确认的链路；「按保留策略修剪」是 App 内的人工动作，不进 agent 通道——

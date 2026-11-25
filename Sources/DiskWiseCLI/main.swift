@@ -34,11 +34,29 @@ func printHelp() {
     knowledge base knows and rates safe/redo; risky ones are never touchable.
 
     Usage:
+      diskwise overview [--json]
+          Measure where space goes across the whole volume: top-level folders, how much
+          was measured vs not, and the APFS volume split. Read-only. Use this to answer
+          "why is my disk full"; 'scan' is only the removable-cache list.
       diskwise scan [--category all|dev|ai_models|apps] [--min 100MB] [--json]
           Lists knowledge-base locations plus signature-discovered engine caches
           (hub-layout model repositories, loose model weights, updater download
           caches) — each item carries a "source" field. Signature items are
           redo-tier and agent-untouchable; --i-am-human may take them.
+      diskwise project-assets [--roots DIR...] [--min 100MB] [--stale-days 90] [--json]
+          Find regenerable assets hidden inside projects (model weights, node_modules,
+          .venv, build outputs, old benchmarks) that 'scan' cannot see. Deduplicates
+          hard-linked model blocks and reports how long each asset sat untouched.
+          Default scans home project dirs + Desktop subdirs; --roots narrows it (faster).
+          Read-only; feed the reported paths to 'plan' to actually free the space.
+      diskwise unused [--min 200MB] [--stale-days 90] [--roots DIR...] [--json]
+          Find what you probably no longer need — apps nobody opened for months, old
+          session history, backups, duplicate versions of the same tool, installers,
+          stale projects — and rate each one: safe (delete, lose nothing), review
+          (probably unused but holds data), keep, or blocked (with the reason and
+          what a person can do instead). Sizes are physical bytes; sparse items are
+          flagged so you never promise space that will not be freed. Recommendations
+          only: nothing is deleted.
       diskwise explain <path> [--json]
       diskwise plan <path>... [--i-am-human] [--json]
           Draw up a cleanup plan. Touches nothing. --i-am-human also admits
@@ -50,6 +68,10 @@ func printHelp() {
           Re-validates every item at execution time.
       diskwise undo [<operation_id>] [--json]
       diskwise history [--limit 20] [--json]
+      diskwise grant-access
+          Open System Settings › Privacy & Security › Full Disk Access. Turn on
+          DiskWise so protected folders can be measured; restart this tool/MCP
+          server after granting, then re-run overview. macOS cannot self-authorize.
       diskwise mcp
           Run as a Model Context Protocol server over stdio (for Claude Code,
           Cursor, Codex and friends).
@@ -89,6 +111,188 @@ case nil, "--help", "-h", "help":
 
 case "--version", "version":
     print("diskwise \(versionString())")
+
+case "grant-access":
+    let opened = MCPServer.openFullDiskAccessSettings()
+    if opened {
+        print("Opened System Settings › Privacy & Security › Full Disk Access.")
+    } else {
+        print("Could not open System Settings automatically. Open it manually:")
+        print("  \(MCPServer.fullDiskAccessSettingsURL)")
+    }
+    print("Turn on DiskWise, quit and reopen this tool/MCP server, then re-run 'diskwise overview'.")
+
+case "project-assets":
+    var json = false
+    var minBytes: Int64 = 100_000_000
+    var staleDays = 0
+    var roots: [String]? = nil
+    var i = 1
+    while i < args.count {
+        switch args[i] {
+        case "--json": json = true; i += 1
+        case "--min":
+            guard i + 1 < args.count, let b = try? parseSize(args[i + 1]) else {
+                failUsage("--min needs a size like 100MB, 2GB or plain bytes")
+            }
+            minBytes = b; i += 2
+        case "--stale-days":
+            guard i + 1 < args.count, let d = Int(args[i + 1]) else {
+                failUsage("--stale-days needs an integer number of days")
+            }
+            staleDays = d; i += 2
+        case "--roots":
+            guard i + 1 < args.count else { failUsage("--roots needs directories") }
+            roots = Array(args[(i + 1)...].prefix { !$0.hasPrefix("--") })
+            i += 1 + (roots?.count ?? 0)
+        default:
+            failUsage("project-assets: unknown argument \(args[i])")
+        }
+    }
+    let report = RegenAssetScanner.scan(roots: roots, minBytes: minBytes, staleDays: staleDays)
+    if json {
+        print(encodeJSON(report))
+    } else {
+        print("Regenerable project assets hidden from 'scan': \(report.assetCount) roots, "
+              + "\(human(report.totalBytes)) deduplicated.\n")
+        print("SIZE        AGE    KIND           PATH")
+        for a in report.assets {
+            let s = a.bytes >= 0 ? human(a.bytes) : "?"
+            let size = s + String(repeating: " ", count: max(1, 10 - s.count))
+            let age = "\(a.staleDays)d"
+            let agePad = age + String(repeating: " ", count: max(1, 6 - age.count))
+            let kind = a.kind + String(repeating: " ", count: max(1, 14 - a.kind.count))
+            print("\(size) \(agePad) \(kind) \(a.path)")
+        }
+        print("\nDeleting these does not touch source code — they regenerate. "
+              + "Feed the paths to 'diskwise plan' to free the space.")
+    }
+    exit(Exit.ok.rawValue)
+
+case "unused":
+    var json = false
+    var minBytes: Int64 = 200_000_000
+    var staleDays = 90
+    var roots: [String]? = nil
+    var i = 1
+    while i < args.count {
+        switch args[i] {
+        case "--json": json = true; i += 1
+        case "--min":
+            guard i + 1 < args.count, let b = try? parseSize(args[i + 1]) else {
+                failUsage("--min needs a size like 200MB, 2GB or plain bytes")
+            }
+            minBytes = b; i += 2
+        case "--stale-days":
+            guard i + 1 < args.count, let d = Int(args[i + 1]) else {
+                failUsage("--stale-days needs an integer number of days")
+            }
+            staleDays = d; i += 2
+        case "--roots":
+            guard i + 1 < args.count else { failUsage("--roots needs directories") }
+            roots = Array(args[(i + 1)...].prefix { !$0.hasPrefix("--") })
+            i += 1 + (roots?.count ?? 0)
+        default:
+            failUsage("unused: unknown argument \(args[i])")
+        }
+    }
+    errLog("Looking for things you probably no longer need (read-only)…")
+    let report = await AdviceScanner.scan(roots: roots, minBytes: minBytes, staleDays: staleDays)
+    if json {
+        print(encodeJSON(report))
+    } else {
+        let t = report.totals
+        print("UNUSED CANDIDATES — recommendations only, nothing was deleted.")
+        print("  delete now (lose nothing)   \(human(t["safe_now_bytes"] ?? 0))")
+        print("  look first (holds data)     \(human(t["review_bytes"] ?? 0))")
+        print("  blocked (needs a person)    \(human(t["blocked_bytes"] ?? 0))")
+        print("  still in use / too new      \(human(t["keep_bytes"] ?? 0))")
+        let groups: [(String, String)] = [
+            ("safe", "DELETE NOW — nothing is lost"),
+            ("review", "LOOK BEFORE DELETING — these hold data, not just cache"),
+            ("blocked", "BLOCKED — cannot be removed; each line says what a person can do"),
+            ("keep", "KEEP — still in use or too new"),
+        ]
+        for (verdict, title) in groups {
+            let rows = report.items.filter { $0.recommend == verdict }
+            guard !rows.isEmpty else { continue }
+            print("")
+            print(title + ":")
+            for it in rows {
+                let size = human(it.physicalBytes)
+                let pad = String(repeating: " ", count: max(1, 10 - size.count))
+                let age = it.staleDays >= 0 ? "\(it.staleDays)d" : "?"
+                let agePad = String(repeating: " ", count: max(1, 5 - age.count))
+                print("  \(size)\(pad)\(age)\(agePad)\(it.kind)  \(it.path)")
+                if verdict == "blocked" {
+                    print("      → \(it.blockedReason): \(it.userAction ?? "")")
+                }
+                if it.logicalBytes > 0 && it.physicalBytes * 2 < it.logicalBytes {
+                    print("      → sparse: claims \(human(it.logicalBytes)), occupies \(human(it.physicalBytes))")
+                }
+            }
+        }
+        print("")
+        print("WHAT TO DO:")
+        for a in report.topActions { print("  · \(a)") }
+        print("")
+        print("Ages come from the basis on each item (file_mtime / container_date / last_used_date). "
+              + "Nothing here was deleted — feed chosen paths to 'diskwise plan'.")
+    }
+    exit(Exit.ok.rawValue)
+
+case "overview":
+    var json = false
+    for a in args.dropFirst() {
+        switch a {
+        case "--json": json = true
+        default: failUsage("overview: unknown argument \(a)")
+        }
+    }
+    errLog("Measuring top-level locations across the whole volume…")
+    let o = await MCPServer.wholeDiskOverview()
+    if json {
+        print(encodeJSON(o))
+    } else {
+        let c = o.coverage
+        let used = c["used_physical"] ?? 0, accounted = c["accounted"] ?? 0
+        print("Whole-disk accounting (scope \(o.scope)): \(human(used)) physically used, "
+              + "all accounted for in \(o.buckets.count) buckets (sum = \(human(accounted))).")
+        print("")
+        print("WHERE THE SPACE GOES (ALL of it, with delete permission):")
+        for b in o.buckets {
+            let pct = used > 0 ? Int(Double(b.bytes) / Double(used) * 100) : 0
+            let yesNo = b.removable ? "HAS REMOVABLE PARTS — see scan" : "SYSTEM — never delete"
+            print("  \(human(b.bytes))  \(pct)%  [\(yesNo)]  \(b.name)")
+        }
+        print("")
+        print("BIGGEST USER-DATA FOLDERS (SIZE / LOCATION / WHAT IT IS):")
+        for l in o.locations {
+            let s = human(l.bytes)
+            var tail: [String] = []
+            if l.unreadable { tail.append("partially unreadable") }
+            if l.sparseRatio < 0.5 {
+                tail.append("sparse: claims \(human(l.logicalBytes)), occupies \(human(l.bytes))")
+            }
+            if l.skippedVolumes > 0 { tail.append("\(l.skippedVolumes) other volume(s) excluded") }
+            let note = tail.isEmpty ? "" : "\n" + String(repeating: " ", count: 11)
+                + "↳ " + tail.joined(separator: "; ")
+            print("\(s + String(repeating: " ", count: max(1, 10 - s.count)))"
+                  + "\(l.name)  [\(l.kind)/\(l.recommend)]\(note)")
+        }
+        print("")
+        print("System buckets are accounting only — never deleted. 'diskwise scan' lists removable caches.")
+        print("'diskwise unused' rates everything else (apps, sessions, backups, installers) as "
+              + "safe / review / keep / blocked.")
+        if o.access.needFullDiskAccessDirs > 0 || o.access.needAdminDirs > 0 {
+            print("")
+            print("⚠ UNREADABLE: \(o.access.needFullDiskAccessDirs) dir(s) need Full Disk Access, "
+                  + "\(o.access.needAdminDirs) need admin/root — sizes above are LOWER BOUNDS.")
+            print("FIX: \(o.access.nextStep)")
+            print("Run 'diskwise grant-access' to open the settings page.")
+        }
+    }
+    exit(Exit.ok.rawValue)
 
 case "scan":
     var category = AgentCategory.all
