@@ -2221,5 +2221,102 @@ do {
     try? fm.removeItem(at: dbPath)
 }
 
+
+// ── 建议层：不改任何东西，只把「哪些东西没用了」判对 ──
+//
+// 这一层最容易错的地方全在时间上：目录 mtime 会因为被访问而刷新、快照里的文件
+// 保留原始旧时间。夹具专门把「容器是新的、里面文件很旧」和「容器是旧的、里面文件很新」
+// 都造出来——按错依据判，这两个会同时判反，断言就能钉住。
+do {
+    let fm = FileManager.default
+    let root = URL(fileURLWithPath: "/tmp/dwtest-advice-\(UUID().uuidString)")
+    try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+    let stale = Date(timeIntervalSinceNow: -200 * 86400)
+    func touch(_ p: String, _ size: Int, _ when: Date?) {
+        fm.createFile(atPath: p, contents: Data(repeating: 7, count: size))
+        if let d = when { try? fm.setAttributes([.modificationDate: d], ofItemAtPath: p) }
+    }
+    // 1) 旧备份：目录名写着 2020，里面的文件却是「今天」
+    let backup = root.appendingPathComponent("nightly-backup-20200101")
+    try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
+    touch(backup.appendingPathComponent("big.bin").path, 2_000_000, nil)
+    // 2) 旧会话：名字就是 sessions，里面最后写入在两年前
+    let sessions = root.appendingPathComponent("sessions")
+    try? fm.createDirectory(at: sessions, withIntermediateDirectories: true)
+    touch(sessions.appendingPathComponent("chat.jsonl").path, 1_000_000, stale)
+    // 3) 旧项目：有 .git，两年没动
+    let proj = root.appendingPathComponent("old-proj")
+    try? fm.createDirectory(at: proj.appendingPathComponent(".git"), withIntermediateDirectories: true)
+    touch(proj.appendingPathComponent("main.swift").path, 500_000, stale)
+    try? fm.setAttributes([.modificationDate: stale], ofItemAtPath: proj.path)
+
+    let report = await AdviceScanner.scan(roots: [backup.path, sessions.path, proj.path],
+                                          minBytes: 100_000, staleDays: 90)
+    func verdict(_ name: String) -> String? {
+        report.items.first { $0.path.hasSuffix(name) }?.recommend
+    }
+    func basis(_ name: String) -> String? {
+        report.items.first { $0.path.hasSuffix(name) }?.staleBasis
+    }
+    check(verdict("nightly-backup-20200101") == "review",
+          "建议：旧备份按容器日期判成 review（不按内部文件的今天）")
+    check(basis("nightly-backup-20200101") == "container_date",
+          "建议：备份的时间依据写的是 container_date，不是 file_mtime")
+    check(verdict("sessions") == "review", "建议：两年没写的会话历史判成 review")
+    check(verdict("old-proj") == "review", "建议：两年没动的项目判成 review")
+    check(report.items.allSatisfy { $0.blockedReason == "none" },
+          "建议：/tmp 里可写的夹具不该被判 blocked")
+    let sums = report.totals
+    check((sums["safe_now_bytes"] ?? 0) + (sums["review_bytes"] ?? 0)
+          + (sums["keep_bytes"] ?? 0) + (sums["blocked_bytes"] ?? 0)
+          == (sums["total_bytes"] ?? -1),
+          "建议：四个分档加起来正好等于总量，没有漏账")
+    try? fm.removeItem(at: root)
+}
+
+// 占盘统计的两条口径：物理块 vs 文件大小，以及软链不能跟
+do {
+    let fm = FileManager.default
+    let root = URL(fileURLWithPath: "/tmp/dwtest-sparse-\(UUID().uuidString)")
+    try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+    // 稀疏文件：16 MB 逻辑，实际只写 4 KB
+    let sparse = root.appendingPathComponent("sparse.img").path
+    fm.createFile(atPath: sparse, contents: nil)
+    let fh = FileHandle(forWritingAtPath: sparse)
+    fh?.truncateFile(atOffset: 16 * 1024 * 1024)
+    fh?.closeFile()
+    // 软链指向别处的一大棵树：跟进去就会把别人的字节算进这里
+    let elsewhere = URL(fileURLWithPath: "/tmp/dwtest-elsewhere-\(UUID().uuidString)")
+    try? fm.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+    _ = fm.createFile(atPath: elsewhere.appendingPathComponent("x.bin").path,
+                      contents: Data(repeating: 1, count: 300_000))
+    try? fm.createSymbolicLink(atPath: root.appendingPathComponent("link").path,
+                               withDestinationPath: elsewhere.path)
+
+    let scan = await dirSizeReport(root)
+    check(scan.logicalBytes >= 16 * 1024 * 1024,
+          "统计：稀疏文件的逻辑大小 \(human(scan.logicalBytes)) 如实记下")
+    check(scan.bytes < scan.logicalBytes / 2,
+          "统计：物理占盘 \(human(scan.bytes)) 远小于逻辑大小——假账在这里就被拆穿")
+    check(scan.symlinksSkipped == 1, "统计：软链被跳过并计数，没有跟进别人的树")
+    try? fm.removeItem(at: root)
+    try? fm.removeItem(at: elsewhere)
+}
+
+// 整盘账的粗分类：只按名字和位置判，给的是「值不值得进去看」
+check(AdviceScanner.quickView(name: "~/Library", path: home + "/Library").recommend == "review",
+      "分类：~/Library 归 review（里面有可清的，但整块不能删）")
+check(AdviceScanner.quickView(name: "~/Library", path: home + "/Library").kind == "app_support",
+      "分类：~/Library 标成 app_support")
+check(AdviceScanner.quickView(name: "/System", path: "/System").recommend == "keep",
+      "分类：/System 归 keep")
+check(AdviceScanner.quickView(name: "/System", path: "/System").kind == "system",
+      "分类：/System 标成 system")
+check(AdviceScanner.quickView(name: "~/openclaw-private-backup",
+                              path: home + "/openclaw-private-backup").kind == "backup",
+      "分类：名字里有 backup 的归 backup")
+check(AdviceScanner.quickView(name: "~/.zcode", path: home + "/.zcode").kind == "hidden_tool_data",
+      "分类：隐藏的工具数据目录单独一档")
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

@@ -11,6 +11,13 @@ import Darwin
 
 public struct DirScan {
     public var bytes: Int64
+    /// 文件大小相加（st_size）——只用来跟 `bytes` 对照，**不是**能腾出的空间。
+    ///
+    /// 为什么两个数都要：稀疏文件（虚拟机磁盘、数据库、日志预留）号称很大、实际
+    /// 只占一点；APFS 克隆和硬链接则相反，几个路径指向同一批块。只报一个数时，
+    /// 用户看到的和删完腾出来的对不上，第一反应是「这工具在编数」。两个数一起给，
+    /// 差额本身就是结论：`bytes` 远小于 `logical` 就是稀疏，别拿逻辑大小去算能清多少。
+    public var logicalBytes: Int64
     /// 这一棵子里数到的文件个数（不含目录本身、不含符号链接和跨卷）。
     /// 展开行里那句「4 812 个文件」用它：只有字节数的话，13 GB 的缓存和 13 GB 的
     /// 一个镜像文件在界面上长得一样，而前者能一条条清、后者不能。
@@ -22,22 +29,35 @@ public struct DirScan {
     public var needFullDiskAccess: [String]
     /// 只有管理员能读的目录（errno=EACCES）
     public var needAdmin: [String]
+    /// 因是符号链接而没跟进去的条目数。不跟是对的（跟了会把别处的字节算两遍），
+    /// 但要能解释「为什么这个目录比 Finder 看到的少」。
+    public var symlinksSkipped: Int
+    /// 因在别的设备上（挂载点）而停下的目录数。iOS 模拟器运行时就挂在这里，
+    /// 整棵算进来会让同一个 19 GB 出现在两个地方。
+    public var crossVolumeSkipped: Int
 
-    public init(bytes: Int64 = 0, files: Int = 0, newest: Date? = nil,
-                needFullDiskAccess: [String] = [], needAdmin: [String] = []) {
+    public init(bytes: Int64 = 0, logicalBytes: Int64 = 0, files: Int = 0, newest: Date? = nil,
+                needFullDiskAccess: [String] = [], needAdmin: [String] = [],
+                symlinksSkipped: Int = 0, crossVolumeSkipped: Int = 0) {
         self.bytes = bytes
+        self.logicalBytes = logicalBytes
         self.files = files
         self.newest = newest
         self.needFullDiskAccess = needFullDiskAccess
         self.needAdmin = needAdmin
+        self.symlinksSkipped = symlinksSkipped
+        self.crossVolumeSkipped = crossVolumeSkipped
     }
 
     public mutating func merge(_ other: DirScan) {
         bytes += other.bytes
+        logicalBytes += other.logicalBytes
         files += other.files
         if let n = other.newest { newest = max(newest ?? n, n) }
         needFullDiskAccess.append(contentsOf: other.needFullDiskAccess)
         needAdmin.append(contentsOf: other.needAdmin)
+        symlinksSkipped += other.symlinksSkipped
+        crossVolumeSkipped += other.crossVolumeSkipped
     }
 }
 
@@ -96,10 +116,10 @@ public func dirSizeReport(_ url: URL, progress: ScanProgress? = nil) async -> Di
             var st = stat()
             if lstat(p, &st) != 0 { continue }
             let mode = st.st_mode & S_IFMT
-            if mode == S_IFLNK { continue }
+            if mode == S_IFLNK { out.symlinksSkipped += 1; continue }
             if mode == S_IFDIR {
                 // 跨卷就停：挂载点后面可能是外置盘或备份盘，不是这块盘的账
-                if let d = rootDev, st.st_dev != d { continue }
+                if let d = rootDev, st.st_dev != d { out.crossVolumeSkipped += 1; continue }
                 stack.append(p)
                 continue
             }
@@ -108,10 +128,12 @@ public func dirSizeReport(_ url: URL, progress: ScanProgress? = nil) async -> Di
                 if seen.contains(key) { continue }
                 seen.insert(key)
             }
-            out.bytes += Int64(st.st_blocks) * 512
+            let physical = Int64(st.st_blocks) * 512
+            out.bytes += physical
+            out.logicalBytes += Int64(st.st_size)
             out.files += 1
             dFiles += 1
-            dBytes += Int64(st.st_blocks) * 512
+            dBytes += physical
             let mt = Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec))
             if out.newest == nil || mt > out.newest! { out.newest = mt }
             ticks += 1
@@ -136,7 +158,9 @@ public func pathStat(_ url: URL, progress: ScanProgress? = nil) async -> DirScan
     if isDir.boolValue { return await dirSizeReport(url, progress: progress) }
     let mt: Date? = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
         .contentModificationDate
-    return DirScan(bytes: fileSize(url), files: 1, newest: mt)
+    var st = stat()
+    let logical = lstat(url.path, &st) == 0 ? Int64(st.st_size) : 0
+    return DirScan(bytes: fileSize(url), logicalBytes: logical, files: 1, newest: mt)
 }
 
 /// 某一层的**完整拆分**：子目录 + 文件混排，按占盘降序。
