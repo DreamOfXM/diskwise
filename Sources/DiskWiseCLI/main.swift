@@ -49,6 +49,9 @@ func printHelp() {
           hard-linked model blocks and reports how long each asset sat untouched.
           Default scans home project dirs + Desktop subdirs; --roots narrows it (faster).
           Read-only; feed the reported paths to 'plan' to actually free the space.
+      diskwise report [--min 200MB] [--stale-days 90] [--json]
+          One run, both answers: the whole-disk account AND what is probably unused,
+          with a verdict on every item. Start here.
       diskwise unused [--min 200MB] [--stale-days 90] [--roots DIR...] [--json]
           Find what you probably no longer need — apps nobody opened for months, old
           session history, backups, duplicate versions of the same tool, installers,
@@ -103,6 +106,130 @@ func failAgentError(_ e: AgentAPIError) -> Never {
     let (msg, code) = mapAgentError(e)
     errLog("diskwise: \(msg)")
     exit(code.rawValue)
+}
+
+
+// ── 人读输出：overview / unused / report 三个命令共用 ──
+// 共用不只是省代码：同一种账在两处按不同话术讲，用户就得自己猜哪个对。
+
+struct FullReport: Encodable {
+    let overview: WholeDiskOverview
+    let unused: UnusedReport
+    enum CodingKeys: String, CodingKey { case overview, unused }
+}
+
+struct AdviceArgs {
+    var json = false
+    var minBytes: Int64 = 200_000_000
+    var staleDays = 90
+    var roots: [String]? = nil
+}
+
+func parseAdviceArgs(_ argv: [String], command: String) -> AdviceArgs {
+    var out = AdviceArgs()
+    var i = 0
+    while i < argv.count {
+        switch argv[i] {
+        case "--json": out.json = true; i += 1
+        case "--min":
+            guard i + 1 < argv.count, let b = try? parseSize(argv[i + 1]) else {
+                failUsage("--min needs a size like 200MB, 2GB or plain bytes")
+            }
+            out.minBytes = b; i += 2
+        case "--stale-days":
+            guard i + 1 < argv.count, let d = Int(argv[i + 1]) else {
+                failUsage("--stale-days needs an integer number of days")
+            }
+            out.staleDays = d; i += 2
+        case "--roots":
+            guard i + 1 < argv.count else { failUsage("--roots needs directories") }
+            let r = Array(argv[(i + 1)...].prefix { !$0.hasPrefix("--") })
+            out.roots = r; i += 1 + r.count
+        default:
+            failUsage("\(command): unknown argument \(argv[i])")
+        }
+    }
+    return out
+}
+
+func printOverview(_ o: WholeDiskOverview) {
+    let c = o.coverage
+    let used = c["used_physical"] ?? 0, accounted = c["accounted"] ?? 0
+    print("Whole-disk accounting (scope \(o.scope)): \(human(used)) physically used, "
+          + "all accounted for in \(o.buckets.count) buckets (sum = \(human(accounted))).")
+    print("")
+    print("WHERE THE SPACE GOES (ALL of it, with delete permission):")
+    for b in o.buckets {
+        let pct = used > 0 ? Int(Double(b.bytes) / Double(used) * 100) : 0
+        let yesNo = b.removable ? "HAS REMOVABLE PARTS — see scan" : "SYSTEM — never delete"
+        print("  \(human(b.bytes))  \(pct)%  [\(yesNo)]  \(b.name)")
+    }
+    print("")
+    print("BIGGEST USER-DATA FOLDERS (SIZE / LOCATION / WHAT IT IS):")
+    for l in o.locations {
+        let s = human(l.bytes)
+        var tail: [String] = []
+        if l.unreadable { tail.append("partially unreadable") }
+        if l.sparseRatio < 0.5 {
+            tail.append("sparse: claims \(human(l.logicalBytes)), occupies \(human(l.bytes))")
+        }
+        if l.skippedVolumes > 0 { tail.append("\(l.skippedVolumes) other volume(s) excluded") }
+        let note = tail.isEmpty ? "" : "\n" + String(repeating: " ", count: 11)
+            + "↳ " + tail.joined(separator: "; ")
+        print("\(s + String(repeating: " ", count: max(1, 10 - s.count)))"
+              + "\(l.name)  [\(l.kind)/\(l.recommend)]\(note)")
+    }
+    print("")
+    print("System buckets are accounting only — never deleted. 'diskwise scan' lists removable caches.")
+    print("'diskwise unused' rates everything else (apps, sessions, backups, installers) as "
+          + "safe / review / keep / blocked.")
+    if o.access.needFullDiskAccessDirs > 0 || o.access.needAdminDirs > 0 {
+        print("")
+        print("⚠ UNREADABLE: \(o.access.needFullDiskAccessDirs) dir(s) need Full Disk Access, "
+              + "\(o.access.needAdminDirs) need admin/root — sizes above are LOWER BOUNDS.")
+        print("FIX: \(o.access.nextStep)")
+        print("Run 'diskwise grant-access' to open the settings page.")
+    }
+}
+
+func printUnused(_ report: UnusedReport) {
+    let t = report.totals
+    print("UNUSED CANDIDATES — recommendations only, nothing was deleted.")
+    print("  delete now (lose nothing)   \(human(t["safe_now_bytes"] ?? 0))")
+    print("  look first (holds data)     \(human(t["review_bytes"] ?? 0))")
+    print("  blocked (needs a person)    \(human(t["blocked_bytes"] ?? 0))")
+    print("  still in use / too new      \(human(t["keep_bytes"] ?? 0))")
+    let groups: [(String, String)] = [
+        ("safe", "DELETE NOW — nothing is lost"),
+        ("review", "LOOK BEFORE DELETING — these hold data, not just cache"),
+        ("blocked", "BLOCKED — cannot be removed; each line says what a person can do"),
+        ("keep", "KEEP — still in use or too new"),
+    ]
+    for (verdict, title) in groups {
+        let rows = report.items.filter { $0.recommend == verdict }
+        guard !rows.isEmpty else { continue }
+        print("")
+        print(title + ":")
+        for it in rows {
+            let size = human(it.physicalBytes)
+            let pad = String(repeating: " ", count: max(1, 10 - size.count))
+            let age = it.staleDays >= 0 ? "\(it.staleDays)d" : "?"
+            let agePad = String(repeating: " ", count: max(1, 5 - age.count))
+            print("  \(size)\(pad)\(age)\(agePad)\(it.kind)  \(it.path)")
+            if verdict == "blocked" {
+                print("      → \(it.blockedReason): \(it.userAction ?? "")")
+            }
+            if it.logicalBytes > 0 && it.physicalBytes * 2 < it.logicalBytes {
+                print("      → sparse: claims \(human(it.logicalBytes)), occupies \(human(it.physicalBytes))")
+            }
+        }
+    }
+    print("")
+    print("WHAT TO DO:")
+    for a in report.topActions { print("  · \(a)") }
+    print("")
+    print("Ages come from the basis on each item (file_mtime / container_date / last_used_date). "
+          + "Nothing here was deleted — feed chosen paths to 'diskwise plan'.")
 }
 
 switch args.first {
@@ -170,75 +297,11 @@ case "project-assets":
     exit(Exit.ok.rawValue)
 
 case "unused":
-    var json = false
-    var minBytes: Int64 = 200_000_000
-    var staleDays = 90
-    var roots: [String]? = nil
-    var i = 1
-    while i < args.count {
-        switch args[i] {
-        case "--json": json = true; i += 1
-        case "--min":
-            guard i + 1 < args.count, let b = try? parseSize(args[i + 1]) else {
-                failUsage("--min needs a size like 200MB, 2GB or plain bytes")
-            }
-            minBytes = b; i += 2
-        case "--stale-days":
-            guard i + 1 < args.count, let d = Int(args[i + 1]) else {
-                failUsage("--stale-days needs an integer number of days")
-            }
-            staleDays = d; i += 2
-        case "--roots":
-            guard i + 1 < args.count else { failUsage("--roots needs directories") }
-            roots = Array(args[(i + 1)...].prefix { !$0.hasPrefix("--") })
-            i += 1 + (roots?.count ?? 0)
-        default:
-            failUsage("unused: unknown argument \(args[i])")
-        }
-    }
+    let a = parseAdviceArgs(Array(args.dropFirst()), command: "unused")
     errLog("Looking for things you probably no longer need (read-only)…")
-    let report = await AdviceScanner.scan(roots: roots, minBytes: minBytes, staleDays: staleDays)
-    if json {
-        print(encodeJSON(report))
-    } else {
-        let t = report.totals
-        print("UNUSED CANDIDATES — recommendations only, nothing was deleted.")
-        print("  delete now (lose nothing)   \(human(t["safe_now_bytes"] ?? 0))")
-        print("  look first (holds data)     \(human(t["review_bytes"] ?? 0))")
-        print("  blocked (needs a person)    \(human(t["blocked_bytes"] ?? 0))")
-        print("  still in use / too new      \(human(t["keep_bytes"] ?? 0))")
-        let groups: [(String, String)] = [
-            ("safe", "DELETE NOW — nothing is lost"),
-            ("review", "LOOK BEFORE DELETING — these hold data, not just cache"),
-            ("blocked", "BLOCKED — cannot be removed; each line says what a person can do"),
-            ("keep", "KEEP — still in use or too new"),
-        ]
-        for (verdict, title) in groups {
-            let rows = report.items.filter { $0.recommend == verdict }
-            guard !rows.isEmpty else { continue }
-            print("")
-            print(title + ":")
-            for it in rows {
-                let size = human(it.physicalBytes)
-                let pad = String(repeating: " ", count: max(1, 10 - size.count))
-                let age = it.staleDays >= 0 ? "\(it.staleDays)d" : "?"
-                let agePad = String(repeating: " ", count: max(1, 5 - age.count))
-                print("  \(size)\(pad)\(age)\(agePad)\(it.kind)  \(it.path)")
-                if verdict == "blocked" {
-                    print("      → \(it.blockedReason): \(it.userAction ?? "")")
-                }
-                if it.logicalBytes > 0 && it.physicalBytes * 2 < it.logicalBytes {
-                    print("      → sparse: claims \(human(it.logicalBytes)), occupies \(human(it.physicalBytes))")
-                }
-            }
-        }
-        print("")
-        print("WHAT TO DO:")
-        for a in report.topActions { print("  · \(a)") }
-        print("")
-        print("Ages come from the basis on each item (file_mtime / container_date / last_used_date). "
-              + "Nothing here was deleted — feed chosen paths to 'diskwise plan'.")
-    }
+    let report = await AdviceScanner.scan(roots: a.roots, minBytes: a.minBytes,
+                                          staleDays: a.staleDays)
+    if a.json { print(encodeJSON(report)) } else { printUnused(report) }
     exit(Exit.ok.rawValue)
 
 case "overview":
@@ -251,46 +314,25 @@ case "overview":
     }
     errLog("Measuring top-level locations across the whole volume…")
     let o = await MCPServer.wholeDiskOverview()
-    if json {
-        print(encodeJSON(o))
+    if json { print(encodeJSON(o)) } else { printOverview(o) }
+    exit(Exit.ok.rawValue)
+
+case "report":
+    // 一条命令给完：空间去哪了 + 哪些东西没用了。分开跑要多等一遍磁盘，
+    // 而这两件事本来就是同一个问题——「我的盘为什么满、我能做什么」。
+    let a = parseAdviceArgs(Array(args.dropFirst()), command: "report")
+    errLog("Measuring the whole volume, then looking for what is no longer needed…")
+    let o = await MCPServer.wholeDiskOverview()
+    let report = await AdviceScanner.scan(roots: a.roots, minBytes: a.minBytes,
+                                          staleDays: a.staleDays)
+    if a.json {
+        print(encodeJSON(FullReport(overview: o, unused: report)))
     } else {
-        let c = o.coverage
-        let used = c["used_physical"] ?? 0, accounted = c["accounted"] ?? 0
-        print("Whole-disk accounting (scope \(o.scope)): \(human(used)) physically used, "
-              + "all accounted for in \(o.buckets.count) buckets (sum = \(human(accounted))).")
+        printOverview(o)
         print("")
-        print("WHERE THE SPACE GOES (ALL of it, with delete permission):")
-        for b in o.buckets {
-            let pct = used > 0 ? Int(Double(b.bytes) / Double(used) * 100) : 0
-            let yesNo = b.removable ? "HAS REMOVABLE PARTS — see scan" : "SYSTEM — never delete"
-            print("  \(human(b.bytes))  \(pct)%  [\(yesNo)]  \(b.name)")
-        }
+        print(String(repeating: "─", count: 64))
         print("")
-        print("BIGGEST USER-DATA FOLDERS (SIZE / LOCATION / WHAT IT IS):")
-        for l in o.locations {
-            let s = human(l.bytes)
-            var tail: [String] = []
-            if l.unreadable { tail.append("partially unreadable") }
-            if l.sparseRatio < 0.5 {
-                tail.append("sparse: claims \(human(l.logicalBytes)), occupies \(human(l.bytes))")
-            }
-            if l.skippedVolumes > 0 { tail.append("\(l.skippedVolumes) other volume(s) excluded") }
-            let note = tail.isEmpty ? "" : "\n" + String(repeating: " ", count: 11)
-                + "↳ " + tail.joined(separator: "; ")
-            print("\(s + String(repeating: " ", count: max(1, 10 - s.count)))"
-                  + "\(l.name)  [\(l.kind)/\(l.recommend)]\(note)")
-        }
-        print("")
-        print("System buckets are accounting only — never deleted. 'diskwise scan' lists removable caches.")
-        print("'diskwise unused' rates everything else (apps, sessions, backups, installers) as "
-              + "safe / review / keep / blocked.")
-        if o.access.needFullDiskAccessDirs > 0 || o.access.needAdminDirs > 0 {
-            print("")
-            print("⚠ UNREADABLE: \(o.access.needFullDiskAccessDirs) dir(s) need Full Disk Access, "
-                  + "\(o.access.needAdminDirs) need admin/root — sizes above are LOWER BOUNDS.")
-            print("FIX: \(o.access.nextStep)")
-            print("Run 'diskwise grant-access' to open the settings page.")
-        }
+        printUnused(report)
     }
     exit(Exit.ok.rawValue)
 

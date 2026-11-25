@@ -36,7 +36,8 @@
 ## 命令
 
 ```
-diskwise overview [--json]                    # 整盘账：空间到底去哪了
+diskwise report [--min 200MB] [--stale-days 90] [--json]   # 一次给完：账 + 建议
+diskwise overview [--json]                    # 只给整盘账：空间到底去哪了
 diskwise scan [--category all|dev|ai_models|apps] [--min 100MB] [--json]
 diskwise project-assets [--roots DIR...] [--min 100MB] [--stale-days 90] [--json]
 diskwise unused [--min 200MB] [--stale-days 90] [--roots DIR...] [--json]
