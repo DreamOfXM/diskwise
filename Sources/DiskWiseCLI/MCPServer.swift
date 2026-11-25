@@ -473,7 +473,7 @@ enum MCPServer {
                 explanation: "Files under home folders and shared roots, including some system-owned folders such as /Applications and /private. Only the removable subset listed by scan_disk may be deleted; do NOT delete this whole bucket — drill into scan_disk for the safe list. Top sizes are in locations[]."))
             buckets.append(WholeDiskBucket(
                 name: "Data volume internals", bytes: dataInternal, kind: "apfs_internal", removable: false,
-                explanation: "Physical blocks on the data volume that no directory scan can name: clones, sparse files, snapshot-held blocks and filesystem metadata. System-managed, cannot be deleted."))
+                explanation: "Physical blocks on the data volume that no directory scan could name. Two very different things land here: (a) clones, sparse files, snapshot-held blocks and filesystem metadata, which really are undeletable; and (b) any system cache the scan could not read without root — most often /System/Volumes/Data/.Spotlight-V100, seen at 47 GB on one machine where the normal size is 2-5 GB. If this bucket is unusually large, check the caches with `sudo du -shx /System/Volumes/Data/.Spotlight-V100` BEFORE concluding it is all system structure: that single index was the largest reclaimable item on the whole disk."))
             buckets.append(WholeDiskBucket(
                 name: "Sealed system volume", bytes: s.sealedSystem, kind: "system_volume", removable: false,
                 explanation: "Read-only macOS system, SIP protected. Cannot be deleted."))
@@ -502,7 +502,7 @@ enum MCPServer {
         }
 
         var notes: [String] = [
-            "CLOSED ACCOUNTING: buckets[] sum to used_physical — every byte of used space has a named bucket; nothing is left as 'unmeasured'.",
+            "CLOSED ACCOUNTING: buckets[] sum to used_physical — every byte of used space has a named bucket. coverage splits the total into measured_user_data (walked by the scanner) and system_side (volumes, VM and unnamed blocks); system_side is NOT a hole, it is the floor.",
             "Buckets with removable=false are system or filesystem structures: they are reported so you can see why the disk is full, but this tool will never delete them.",
             "To see WHAT CAN BE DELETED, call scan_disk — it lists only cleanup locations the knowledge base knows about.",
             "IMPORTANT: scan_disk misses regenerable assets INSIDE projects (model weights, node_modules, .venv, build outputs) — often the biggest removable space on a dev machine. ALWAYS also call scan_project_assets for a complete cleanup picture; it deduplicates hard-linked model blocks and reports staleness.",
@@ -517,10 +517,15 @@ enum MCPServer {
             notes.append("APFS per-volume split unavailable on this machine; system space is one combined bucket.")
         }
         let accounted = buckets.reduce(Int64(0)) { $0 + $1.bytes }
+        // 这里的键只描述「体积怎么分」。早先叫 unmeasured，读起来像「没量到」，
+        // 实际含义是「不在用户数据里的那部分」（系统卷 + VM + 无名块）——实测被
+        // 理解成「还有几十 G 是黑洞」，而那个数其实就是系统地基。计数也别塞进来：
+        // 顶层本来就有 locations[] 和 buckets[] 两个数组，长度自己数得出来。
         let coverage: [String: Int64] = [
-            "measured": covered, "unmeasured": max(0, usedPhysical - covered),
-            "used_physical": usedPhysical, "locations": Int64(locations.count),
-            "accounted": accounted, "bucket_count": Int64(buckets.count),
+            "measured_user_data": covered,
+            "system_side": max(0, usedPhysical - covered),
+            "used_physical": usedPhysical,
+            "accounted": accounted,
         ]
         return WholeDiskOverview(scope: scope.rawValue, volume: volume, apfsVolumes: apfs,
                                  coverage: coverage, locations: locations, buckets: buckets,
