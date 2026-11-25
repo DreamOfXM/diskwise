@@ -87,6 +87,9 @@ final class ScanStore: ObservableObject {
     let dup = DupModel()
     let nodemodules = NMModel()
     let docker = DockerModel()
+    /// 「该清了」那一页。由这里持有：一趟要翻应用、备份、会话，几十秒起步，
+    /// 切走再回来不该重扫一遍。
+    let advice = AdviceModel()
     let caches = CachesModel(groupKeys: ["general", "cn_app"])
     let devcache = CachesModel(groupKeys: ["dev"])
     let orphans = OrphansModel()
@@ -108,6 +111,7 @@ final class ScanStore: ObservableObject {
         forward(overview); forward(big); forward(old); forward(dup)
         forward(nodemodules); forward(docker); forward(caches); forward(orphans)
         forward(devcache)
+        forward(advice)
         forward(folderDrill)
         forward(uninstall)
         forward(diagnostics)
@@ -342,7 +346,7 @@ enum AppPanel: Hashable, CaseIterable {
     // 顺序不再决定图标颜色：2026-10-19 起侧栏按分组取色（见 `sidebarGroup`），
     // 加页或挪页不会再让别的行换色。`folderDrill` 不进侧栏——下钻页是「从某一行进去」的，
     // 不是一栏常驻的目的地；`menuLaunch` 与 `agent` 是后来追加的两页。
-    case overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, crashDumps, diagReports, observation, appearance, feedback, folderDrill, menuLaunch, agent
+    case overview, big, old, dup, nodemodules, docker, devcache, advice, caches, orphans, uninstall, trash, crashDumps, diagReports, observation, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
         switch self {
@@ -353,6 +357,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .nodemodules: return "shippingbox"
         case .docker: return "cube"
         case .devcache: return "hammer"
+        case .advice: return "checklist"
         case .caches: return "sparkles"
         case .orphans: return "app.badge"
         case .uninstall: return "trash.slash"
@@ -378,6 +383,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .nodemodules: return "node_modules"
         case .docker: return "Docker 占用"
         case .devcache: return "开发缓存"
+        case .advice: return "该清了"
         case .caches: return "应用缓存"
         case .orphans: return "卸载残留"
         case .uninstall: return "卸载 App"
@@ -401,7 +407,7 @@ enum AppPanel: Hashable, CaseIterable {
         switch self {
         case .overview, .big, .old, .dup, .folderDrill: return 0
         case .nodemodules, .docker, .devcache: return 1
-        case .caches, .orphans, .uninstall, .trash: return 2
+        case .advice, .caches, .orphans, .uninstall, .trash: return 2
         case .agent: return 3
         case .appearance, .feedback, .menuLaunch: return 4
         case .crashDumps, .diagReports: return 5
@@ -614,7 +620,7 @@ struct ContentView: View {
     @ViewBuilder private var sidebarSections: some View {
         sideSection(L("看清空间"), [.overview, .big, .old, .dup])
         sideSection(L("开发机专项"), [.nodemodules, .docker, .devcache])
-        sideSection(L("清理"), [.caches, .orphans, .uninstall, .trash])
+        sideSection(L("清理"), [.advice, .caches, .orphans, .uninstall, .trash])
         // 诊断与转储：无命中整组不出现（设计稿屏①）。分组出现与否听 DiagnosticsHub 的
         // 首轮定向遍历——那条遍历挂在启动节奏上，不靠用户先点进哪一页才发现自己有
         // （评审 §2.2：侧栏计数不能鸡生蛋）。
@@ -755,6 +761,7 @@ struct ContentView: View {
         case .nodemodules: NMView(model: scans.nodemodules)
         case .docker: DockerView(model: scans.docker)
         case .devcache: CachesView(model: scans.devcache, page: .dev)
+        case .advice: AdviceView(model: scans.advice)
         case .caches: CachesView(model: scans.caches)
         case .orphans: OrphansView(model: scans.orphans)
         case .uninstall: UninstallView(model: scans.uninstall)

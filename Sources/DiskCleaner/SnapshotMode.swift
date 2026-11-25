@@ -420,6 +420,9 @@ enum SnapshotMode {
         (.dup, "04-duplicates", 20, 120),
         (.nodemodules, "05-node-modules", 15, 90),
         (.docker, "06-docker", 8, 30),
+        // 「该清了」要翻应用、备份、会话三处，真机上比缓存页慢一截：上限给到 150 秒，
+        // 否则拍到的是一张还没量完的账（合计会偏小，而图是拿去对账用的）。
+        (.advice, "07a-advice", 20, 150),
         (.devcache, "07-dev-cache", 15, 90),
         (.caches, "07-caches", 15, 90),
         (.orphans, "08-leftovers", 15, 90),
