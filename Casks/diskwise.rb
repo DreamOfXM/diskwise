@@ -1,7 +1,7 @@
 # Documentation: https://github.com/DreamOfXM/diskwise/blob/main/docs/homebrew.md
 cask "diskwise" do
-  version "2.3"
-  sha256 "68cde6572ccfc6563fd68d0fccbdb469d05b0ae84ab85e84bcb977065c384961"
+  version "2.4"
+  sha256 "ca7ff95c8f10f4e363beda01f807482fae22f11f73b0658e0d9838663d5474ec"
 
   url "https://github.com/DreamOfXM/diskwise/releases/download/v#{version}/DiskWise-#{version}-universal.dmg"
   name "DiskWise"
