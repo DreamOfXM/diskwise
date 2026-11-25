@@ -33,6 +33,12 @@ let package = Package(
             name: "DiskWiseCLI",
             dependencies: ["DiskCleanerCore"],
             path: "Sources/DiskWiseCLI"
+        ),
+        // 扫描基准：只有开发者跑。build.sh 的拷贝清单里没有它，进不了任何发布产物。
+        .executableTarget(
+            name: "ScanBench",
+            dependencies: ["DiskCleanerCore"],
+            path: "Sources/ScanBench"
         )
     ]
 )

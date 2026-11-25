@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ScreenCaptureKit
 import SwiftUI
 
 // ── 截图模式：DISKWISE_SHOTS=<目录> 时启用，渲染完就退出 ─────────────────────
@@ -622,6 +623,10 @@ enum SnapshotMode {
         titleBarObserver = window.publisher(for: \.titleVisibility).sink { visible in
             if visible != .hidden { window.titleVisibility = .hidden }
         }
+        // 连拍一跑就是几分钟，期间真机前还有人正常用电脑：普通层的窗口会被
+        // 前台应用盖住，窗口服务器那份合成像素就成了整帧黑图（实测 145 帧之后
+        // 全黑）。钉在悬浮层，普通应用盖不住它。
+        window.level = .floating
 
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         store.bigScanDir = bigDrillDir
@@ -922,7 +927,9 @@ enum SnapshotMode {
         roll(1.6)      // ④ 收回去：环长回招牌尺寸
         store.overviewRing = "arm"
         let armedFrom = Date()
-        roll(0.5)      // ⑤ 第一下：那条弧上膛
+        // ⑤ 只拍 1 帧：落帧的 PNG 写盘吃的是墙钟，画幅越大写得越慢，
+        // 写超了膛（3.2s）就在两下之间自己掉，⑥⑦ 会拍成「上膛→自己解除」的假动作。
+        roll(0.4)      // ⑤ 第一下：那条弧上膛（0.4s，浅色主题落帧快也够膛）
         let armedGap = Date().timeIntervalSince(armedFrom)
         store.overviewRing = "arm"   // 同一条弧的第二下 —— 这才真搬
         roll(3.0)      // ⑥ 弧让位、账当场重算、顶上那句「已移入废纸篓」
@@ -943,6 +950,19 @@ enum SnapshotMode {
                  + "把 ⑤ 的帧数调小重拍，别把这一段剪进 GIF。\n").data(using: .utf8)!)
             // l10n-scan: on
         }
+        // ⑧ 功能巡览：总览的故事讲完了，把全家福亮出来。每页先 gap 让页面
+        // 把账算好（这段不落帧，正片里是一次硬切），再 roll 拍一段展示；
+        // 侧栏高亮随 jumpTo 真的会动，剪出来的「点侧栏→翻页」才对得上。
+        let tour: [(AppPanel, Double)] = [
+            (.big, 1.35), (.old, 1.35), (.dup, 1.35),
+            (.nodemodules, 1.35), (.orphans, 1.35), (.agent, 1.35),
+        ]
+        for (page, secs) in tour {
+            store.jumpTo = page
+            gap(0.35)
+            roll(secs)
+        }
+        store.jumpTo = .overview
         FileHandle.standardError.write("  film: \(frame) 帧 @ \(fps)fps，放回 \(restored) 处\n"
             .data(using: .utf8)!)
     }
@@ -1094,9 +1114,44 @@ enum SnapshotMode {
 
     /// 窗口服务器里这一扇窗的合成结果。`optionIncludingWindow` 只取自己这一张，
     /// 别的窗口压在上方也不会混进来。
+    /// 窗口合成像素。原来走 `CGWindowListCreateImage`，那 API 在新 SDK/macOS 26 上
+    /// 已是 unavailable 路径：旧二进制（老 SDK 编的）还能走遗留通道，新编的二进制
+    /// 一律拿回整帧黑图。换 ScreenCaptureKit 的单窗截图，语义相同
+    /// （只要这扇窗自己的缓冲区，前台谁盖着都不影响），信号量桥接成同步调用。
     private static func windowServerImage(_ window: NSWindow) -> CGImage? {
-        CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(window.windowNumber),
-                                [.boundsIgnoreFraming, .bestResolution])
+        var captured: CGImage?
+        let sem = DispatchSemaphore(value: 0)
+        let wantID = CGWindowID(window.windowNumber)
+        let scale = window.backingScaleFactor
+        let pxW = Int(window.frame.width * scale)
+        let pxH = Int(window.frame.height * scale)
+        Task.detached {
+            do {
+                guard #available(macOS 14.0, *) else {
+                    FileHandle.standardError.write("    · SC 需要 macOS 14+\n".data(using: .utf8)!) // l10n-scan: skip
+                    sem.signal()
+                    return
+                }
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                guard let scWindow = content.windows.first(where: { $0.windowID == wantID }) else {
+                    FileHandle.standardError.write("    · SC: 窗口 \(wantID) 不在可捕获清单\n".data(using: .utf8)!)
+                    sem.signal()
+                    return
+                }
+                let filter = SCContentFilter(desktopIndependentWindow: scWindow)
+                let config = SCStreamConfiguration()
+                config.width = pxW
+                config.height = pxH
+                config.captureResolution = .best
+                config.ignoreShadowsSingleWindow = true
+                captured = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+            } catch {
+                FileHandle.standardError.write("    · SC 捕获失败: \(error.localizedDescription)\n".data(using: .utf8)!)
+            }
+            sem.signal()
+        }
+        sem.wait()
+        return captured
     }
 
     /// 兜底：自己把 layer 树画进位图。SwiftUI 的内容层由 Core Animation 画，
