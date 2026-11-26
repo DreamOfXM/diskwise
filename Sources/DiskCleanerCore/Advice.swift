@@ -249,7 +249,12 @@ public enum AdviceScanner {
             cands.append(contentsOf: bigFiles(home: home))
             cands.append(contentsOf: installerImages(home: home))
             // Data 卷根目录的系统缓存：不在家目录、不在应用缓存路径，前四类都碰不到。
+            // 商店版在沙盒里，那条路走不通：数据卷根不在用户授权范围内，也没有 root 可用，
+            // 量到的永远是 0 字节。放出去就是三条「量不到 · 要管理员密码」的死路——
+            // 沙盒 App 既看不见也删不掉，还把用户指去终端。这个渠道干脆不产出。
+            #if !APPSTORE
             cands.append(contentsOf: systemCacheCandidates())
+            #endif
         }
 
         let filtered = cands.filter { c in
